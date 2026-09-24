@@ -1,0 +1,15 @@
+# Exclusiones del grafo de conocimiento (/graphify).
+# Esto NO saca los archivos de git: solo los deja afuera del grafo.
+# Se suma a .gitignore (que ya excluye resultados/, logs/ y __pycache__/).
+
+# --- Audio y video: graficarlos obliga a transcribirlos con Whisper, y eso
+#     le pelea la VRAM al asistente de voz que corre en esta misma maquina.
+#     (por ejemplo musica_espera.wav)
+*.wav
+*.mp4
+*.mp3
+
+# --- Frames extraidos de videos ---
+*.jpg
+*.jpeg
+*.png

@@ -1,0 +1,28 @@
+# Configuracion del tunel de Cloudflare (solo hace falta para WhatsApp y para hablarle a
+# Laura desde el celular). Copialo como wpp-config.yml y reemplaza lo que esta entre <>.
+#
+# Se crea una sola vez con:
+#   cloudflared tunnel login
+#   cloudflared tunnel create wpp-transcriptor      -> te da el id y el archivo de credenciales
+#   cloudflared tunnel route dns wpp-transcriptor <tu-subdominio.tu-dominio.com>
+tunnel: <id-del-tunel>
+credentials-file: C:\Users\<tu-usuario>\.cloudflared\<id-del-tunel>.json
+
+ingress:
+  # Path especifico ANTES del generico: cloudflared usa la primera regla que
+  # matchea, y sin este orden esta nunca se alcanzaria.
+  - hostname: <tu-subdominio.tu-dominio.com>
+    path: ^/laura-voz.*
+    service: http://localhost:8760
+  # La llamada telefonica (Twilio): el audio entra por un websocket, por eso
+  # ademas del path va originRequest sin timeout — si no, el tunel corta la
+  # conexion a los pocos segundos y la llamada se queda muda.
+  - hostname: <tu-subdominio.tu-dominio.com>
+    path: ^/telefono.*
+    service: http://localhost:8761
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
+  - hostname: <tu-subdominio.tu-dominio.com>
+    service: http://localhost:8080
+  - service: http_status:404

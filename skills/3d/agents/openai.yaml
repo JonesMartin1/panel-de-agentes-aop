@@ -1,0 +1,4 @@
+interface:
+  display_name: "3D"
+  short_description: "Transforma una imagen en un GLB con visor local"
+  default_prompt: "Usá $3d para convertir la imagen adjunta en un modelo 3D y abrirlo en un visor local."

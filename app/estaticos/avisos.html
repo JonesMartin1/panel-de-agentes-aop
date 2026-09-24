@@ -1,0 +1,335 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Avisos</title>
+<!--
+  Avisos: los Recordatorios del iPhone, en el panel.
+
+  Pedido de Martin (2026-08-17): "una pestaña que sea avisos y que este conectado con
+  mi recordatorio de iPhone".
+
+  ⚠ Lo importante para entender esta pantalla: **no hay conexion directa con Apple**.
+  Los tres caminos estan cerrados desde iOS 13 (CalDAV de iCloud ya no expone los
+  recordatorios, la app Recordatorios ya no acepta cuentas CalDAV de terceros, y los
+  puentes que existen son solo para Mac). El puente lo hace un **Atajo** del propio
+  telefono que corre cada tanto. Todo el detalle esta en `app/nucleo/avisos.py`.
+
+  Consecuencia de diseño, y por eso el chip de arriba: lo que ves aca es una FOTO de
+  hace un rato, no el estado de este segundo. La pantalla tiene que decir siempre
+  cuando fue la ultima vez que el telefono aparecio — si no, no se puede confiar en
+  nada de lo que muestra.
+
+  Vive como archivo aparte (no adentro de panel.py): se edita y se ve con un F5.
+-->
+<style>
+ *{box-sizing:border-box}
+ :root{color-scheme:dark}
+ html,body{height:100%;margin:0;background:#0b0d12;color:#e8ecf1;
+           font:14px/1.5 Segoe UI,system-ui,sans-serif}
+ body{display:flex;flex-direction:column}
+ #barra{display:flex;align-items:center;gap:12px;background:#0f1320;flex:none;
+        padding:11px 16px;border-bottom:1px solid #1b2130;flex-wrap:wrap}
+ #barra b{font-size:15px;font-weight:600;flex:none}
+ /* ⚠ En el telefono el menu son 6 pastillas y no entran en una linea: sin dejarlo
+    encoger, la BARRA se estira a 618 px y toda la pagina queda con scroll horizontal
+    aunque el contenido entre justo. Lo cazo la captura de `pruebas/ver_avisos.py`. */
+ #menuPantallas{flex:0 1 auto;min-width:0;margin-left:auto}
+ main{flex:1;min-height:0;overflow-y:auto;padding:16px 16px 34px}
+ .caja{max-width:760px;margin:0 auto}
+
+ /* --- El chip de estado del puente ---
+    ⭐ Nada de rojo para un estado normal: el rojo en estas pantallas significa
+    "algo esta mal" (regla del semaforo de sesiones). Que el telefono no aparezca
+    hace rato no es un error — puede que hayas estado sin señal. Va en ambar. */
+ #estado{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:8px 13px;
+         border-radius:10px;background:#101722;border:1px solid #1c2634;color:#8b93a1;
+         margin-bottom:14px}
+ #estado .punto{width:8px;height:8px;border-radius:50%;background:#4a5666;flex:none}
+ #estado.vivo{border-color:#1f3a2a;background:#0f1a14;color:#a9d8bb}
+ #estado.vivo .punto{background:#5fbf7f}
+ #estado.dormido{border-color:#3d3320;background:#1a1610;color:#e0c48a}
+ #estado.dormido .punto{background:#d3a13f}
+ #estado .der{margin-left:auto;color:#5c6675;font-size:11.5px}
+
+ /* --- Escribir uno nuevo --- */
+ #nuevo{display:flex;gap:8px;margin-bottom:20px}
+ #texto{flex:1;min-width:0;background:#12161f;border:1px solid #232c3b;border-radius:10px;
+        padding:10px 13px;color:#e8ecf1;font:14px/1.4 inherit;font-family:inherit}
+ #texto:focus{outline:0;border-color:#2f4d6e;background:#141a25}
+ #texto::placeholder{color:#4d5866}
+ .boton{background:#1a2536;color:#cfe6ff;border:1px solid #274058;border-radius:10px;
+        padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;flex:none}
+ .boton:hover{background:#213048}
+ .boton:disabled{opacity:.4;cursor:default}
+
+ h2{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:#5c6675;margin:22px 0 9px}
+ h2 .cuenta{color:#3f4857;font-weight:500;letter-spacing:0}
+
+ /* --- Una fila --- */
+ .fila{background:#12161f;border:1px solid #1e2634;border-radius:11px;padding:10px 13px;
+       display:flex;align-items:center;gap:11px;margin-bottom:7px}
+ .fila .nom{flex:1;min-width:0;overflow-wrap:anywhere}
+ .fila .eti{flex:none;font-size:11px;padding:2px 8px;border-radius:999px;
+            background:#161d29;border:1px solid #232c3b;color:#7c8798}
+ .fila .cuando{flex:none;font-size:12px;color:#7c8798}
+ .fila .cuando.pronto{color:#e0c48a}
+ .fila .x{flex:none;background:none;border:0;color:#46505f;cursor:pointer;font-size:15px;
+          line-height:1;padding:2px 4px;font-family:inherit}
+ .fila .x:hover{color:#e08a8a}
+ /* Los que salen del panel todavia no existen en el telefono: se marcan como en
+    transito para que no se confundan con los de verdad. */
+ .fila.saliente{border-style:dashed;border-color:#2a3547;background:#0f1420}
+ .fila.saliente .nom{color:#c3cbd6}
+ .vacio{color:#4d5866;font-size:13px;padding:4px 2px 10px}
+
+ /* --- El instructivo de como se arma el Atajo ---
+    Vive ACA y no en un documento aparte a proposito: es en esta pantalla donde te vas
+    a dar cuenta de que el puente no anda, y es la pantalla que podes abrir en el mismo
+    telefono donde tenes que tocar. Queda plegado y se abre solo si nunca sincronizo. */
+ #guia{background:#0f1420;border:1px solid #1e2634;border-radius:12px;
+       margin-top:26px;font-size:13px;color:#9aa4b2}
+ #guia summary{cursor:pointer;padding:12px 16px;color:#8b93a1;font-size:12.5px;
+               list-style:none;user-select:none}
+ #guia summary::-webkit-details-marker{display:none}
+ #guia summary:before{content:'▸ ';color:#46505f}
+ #guia[open] summary:before{content:'▾ '}
+ #guia[open] summary{color:#cfe6ff;border-bottom:1px solid #1a2230}
+ #guia .adentro{padding:14px 17px 17px}
+ #guia h3{margin:16px 0 7px;font-size:13px;color:#cfe6ff;font-weight:600}
+ #guia h3:first-child{margin-top:0}
+ #guia ol{margin:0;padding-left:19px}
+ #guia li{margin-bottom:7px}
+ #guia p{margin:8px 0}
+ #guia code{background:#161d29;border:1px solid #232c3b;border-radius:6px;
+            padding:1px 6px;font:12px ui-monospace,Consolas,monospace;color:#cfe6ff;
+            overflow-wrap:anywhere}
+ #guia b{color:#c3cbd6;font-weight:600}
+ #guia .nota{border-left:2px solid #2a3547;padding-left:11px;color:#7c8798;font-size:12.5px}
+ @media(max-width:600px){
+   main{padding:13px 11px 30px}
+   #barra b{font-size:14px}
+ }
+</style></head><body>
+
+<div id="barra"><b>🔔 Avisos</b><nav id="menuPantallas"></nav></div>
+
+<main><div class="caja">
+  <div id="estado"><span class="punto"></span><span id="estadoTxt">Cargando…</span>
+       <span class="der" id="estadoDer"></span></div>
+
+  <form id="nuevo" autocomplete="off">
+    <input id="texto" maxlength="200" placeholder="Anotá algo y va a tu iPhone…">
+    <button class="boton" type="submit">Anotar</button>
+  </form>
+
+  <div id="cuerpo"></div>
+
+  <details id="guia"><summary>Cómo se arma el Atajo del iPhone</summary>
+  <div class="adentro">
+    <p>Apple no deja entrar a los Recordatorios desde afuera: ni por iCloud, ni poniendo
+    un servidor propio, ni con los puentes que existen (esos son solo para Mac). Las tres
+    puertas se cerraron en iOS 13. Así que el que habla es <b>tu propio teléfono</b>,
+    con un Atajo que corre cada tanto y hace las dos mitades de una vez: sube lo que
+    tenés pendiente y se lleva lo que anotaste acá.</p>
+
+    <h3>La dirección que va adentro del Atajo</h3>
+    <p><code id="urlSync">…</code></p>
+    <p class="nota" id="urlNota">Tiene que ser la de Tailscale, no <code>localhost</code>:
+    el teléfono entra por la red privada, la misma con la que abrís la app.</p>
+
+    <h3>Las siete acciones</h3>
+    <p>En la app <b>Atajos</b>: tocá <b>+</b>, ponele de nombre <b>Sincronizar avisos</b>
+    y agregá estas siete, en este orden.</p>
+    <ol>
+      <li><b>Buscar recordatorios.</b> Tocá <i>Agregar filtro</i> y poné
+          <i>Completado</i> → <i>es</i> → <i>No</i>. Así sube solo lo pendiente.</li>
+      <li><b>Texto.</b> Adentro de la caja meté la variable <i>Recordatorios</i> (el
+          resultado del paso 1) y nada más. Eso arma una línea por recordatorio.</li>
+      <li><b>Obtener contenido de URL.</b> Pegá la dirección de arriba, abrí
+          <i>Mostrar más</i>, poné <i>Método</i> en <b>POST</b> y <i>Cuerpo de la
+          solicitud</i> en <b>Archivo</b>, eligiendo la variable <i>Texto</i>.</li>
+      <li><b>Dividir texto.</b> Sobre <i>Contenido de la URL</i>, separador
+          <i>Salto de línea</i>.</li>
+      <li><b>Repetir con cada</b> elemento del texto dividido.</li>
+      <li>Adentro del repetidor, <b>Si</b> → <i>Elemento del repetidor</i> →
+          <i>tiene algún valor</i>. ⚠ Este paso parece de más y no lo es: cuando no hay
+          nada para bajar, sin él te crea un recordatorio vacío cada vez que corre.</li>
+      <li>Adentro del <i>Si</i>, <b>Agregar recordatorio nuevo</b> (o <i>Añadir</i>,
+          según el idioma): título = <i>Elemento del repetidor</i>, y elegí en qué lista
+          querés que caigan.</li>
+    </ol>
+    <p>Corré el Atajo una vez a mano. Si esta pantalla se llena con tus recordatorios,
+    ya está andando.</p>
+
+    <h3>Que corra solo</h3>
+    <p>En <b>Automatización</b> → <b>+</b> → <i>Hora del día</i>. Las de hora fija
+    repiten una vez por día, así que conviene crear tres o cuatro (mañana, mediodía,
+    tarde, noche) y apagarle <i>Preguntar antes de ejecutar</i> a cada una. Podés sumar
+    disparadores que ya te pasan igual: al conectar el CarPlay, al llegar a casa, al
+    enchufar el teléfono.</p>
+    <p class="nota">Y siempre a mano: poné el Atajo en la pantalla de inicio o pedíselo
+    a Siri, para las veces que quieras que baje algo <b>ahora</b>.</p>
+
+    <h3>Después, si querés que viaje también la fecha</h3>
+    <p>Con las siete de arriba, lo que sube son los <b>nombres</b>. Para que la pantalla
+    muestre además cuándo vence y en qué lista está, el paso 2 cambia: en vez de un
+    <i>Texto</i> suelto va un <b>Repetir con cada</b> con un <i>Texto</i> adentro que
+    diga <code>Nombre|Fecha de vencimiento|Lista</code> (las tres, variables del
+    repetidor; a la fecha tocala y elegí formato <b>ISO 8601</b>), después
+    <i>Agregar a variable</i>, y al salir del repetidor <i>Combinar texto</i> con salto
+    de línea. Son cuatro acciones más. Conviene hacerlo una vez que lo básico ya ande.</p>
+  </div></details>
+</div></main>
+
+<script src="/estaticos/menu.js"></script>
+<script src="/estaticos/aspecto.js"></script>
+<script>
+/* Cada cuanto se vuelve a preguntar. No hace falta mas seguido: lo que se muestra
+   cambia cuando corre el Atajo del telefono, no cuando uno mira la pantalla. */
+const REFRESCO = 20000;
+let firma = '';                     // ⭐ para no repintar de gusto (te tira el scroll)
+
+const esc = s => (s || '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* "hace 5 minutos", "hace 3 horas", "hace 2 dias" — en criollo, no una fecha. */
+function hace(min) {
+  if (min === null || min === undefined) return '';
+  if (min < 1) return 'recién';
+  if (min < 60) return 'hace ' + min + ' min';
+  const h = Math.round(min / 60);
+  if (h < 24) return 'hace ' + h + (h === 1 ? ' hora' : ' horas');
+  const d = Math.round(h / 24);
+  return 'hace ' + d + (d === 1 ? ' día' : ' días');
+}
+
+/* La fecha de vencimiento, corta. Si el servidor no la entendio (vence_iso null)
+   se muestra IGUAL el texto crudo que mando el telefono: mejor algo raro que nada. */
+function cuando(r) {
+  if (!r.vence_iso) return { txt: r.vence || '', pronto: false };
+  const d = new Date(r.vence_iso), ahora = new Date();
+  const horas = (d - ahora) / 3600000;
+  const hora = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  const dia = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  const mismoDia = d.toDateString() === ahora.toDateString();
+  return {
+    txt: mismoDia ? hora : dia + ' ' + hora,
+    pronto: horas < 24                       // lo que vence dentro de un dia, en ambar
+  };
+}
+
+function pintar(d) {
+  /* --- el chip de arriba --- */
+  const caja = document.getElementById('estado');
+  const txt = document.getElementById('estadoTxt');
+  const der = document.getElementById('estadoDer');
+  caja.className = '';
+  if (d.nunca) {
+    txt.textContent = 'Todavía no se conectó ningún teléfono';
+    der.textContent = '';
+  } else if (d.dormido) {
+    caja.className = 'dormido';
+    txt.textContent = 'Tu iPhone no aparece ' + hace(d.hace_min);
+    der.textContent = 'lo que anotes acá lo va a levantar cuando corra el Atajo';
+  } else {
+    caja.className = 'vivo';
+    txt.textContent = 'Al día con tu iPhone — ' + hace(d.hace_min);
+    der.textContent = d.corridas + (d.corridas === 1 ? ' sincronización' : ' sincronizaciones');
+  }
+
+  /* --- las dos listas --- */
+  let h = '';
+  if (d.salientes.length) {
+    h += '<h2>Van a tu iPhone <span class="cuenta">· ' + d.salientes.length + '</span></h2>';
+    for (const s of d.salientes) {
+      h += '<div class="fila saliente"><span class="nom">' + esc(s.nombre) + '</span>' +
+           '<span class="eti">en camino</span>' +
+           '<button class="x" data-quitar="' + esc(s.id) + '" title="Sacarlo">✕</button></div>';
+    }
+  }
+
+  h += '<h2>En tu iPhone <span class="cuenta">· ' + d.espejo.length + '</span></h2>';
+  if (!d.espejo.length) {
+    h += '<div class="vacio">' + (d.nunca
+      ? 'Cuando corra el Atajo por primera vez, acá van a aparecer tus recordatorios.'
+      : 'No tenés nada pendiente. 👌') + '</div>';
+  }
+  for (const r of d.espejo) {
+    const c = cuando(r);
+    h += '<div class="fila"><span class="nom">' + esc(r.nombre) + '</span>' +
+         (r.lista ? '<span class="eti">' + esc(r.lista) + '</span>' : '') +
+         (c.txt ? '<span class="cuando' + (c.pronto ? ' pronto' : '') + '">' +
+                  esc(c.txt) + '</span>' : '') +
+         '</div>';
+  }
+
+  /* El instructivo se abre solo mientras no haya ningun telefono conectado; despues
+     queda plegado, a mano pero sin ocupar la pantalla todos los dias. */
+  const guia = document.getElementById('guia');
+  if (d.nunca && !guia.dataset.tocada) guia.open = true;
+
+  const nueva = JSON.stringify([d.hace_min, d.corridas, d.espejo, d.salientes]);
+  if (nueva !== firma) {                     // ⭐ solo se toca el DOM si cambio algo
+    firma = nueva;
+    document.getElementById('cuerpo').innerHTML = h;
+  }
+}
+
+async function cargar() {
+  try {
+    const r = await fetch('/avisos/lista');
+    const d = await r.json();
+    if (d.ok) { pintar(d); ponerUrl(d); }
+  } catch (e) { /* el panel puede estar reiniciandose: se reintenta sola */ }
+}
+
+document.getElementById('nuevo').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const caja = document.getElementById('texto');
+  const nombre = caja.value.trim();
+  if (!nombre) return;
+  caja.value = '';
+  await fetch('/avisos/nuevo', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre })
+  });
+  firma = '';                                 // forzar el repintado con el nuevo
+  cargar();
+});
+
+document.getElementById('cuerpo').addEventListener('click', async ev => {
+  const id = ev.target.dataset && ev.target.dataset.quitar;
+  if (!id) return;
+  await fetch('/avisos/quitar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  firma = '';
+  cargar();
+});
+
+/* La direccion que hay que pegar en el Atajo.
+   ⚠ NO se usa `location.origin` a secas: abierta desde la compu eso es 127.0.0.1, que
+   en el telefono no es este panel sino el telefono mismo. El Atajo quedaria armado y
+   no andaria nunca, sin ningun error a la vista. La verdadera la dice el servidor
+   (`url_tailscale`); lo del navegador queda solo como respaldo. */
+function ponerUrl(d) {
+  const buena = (d && d.url_tailscale) || location.origin;
+  document.getElementById('urlSync').textContent = buena + '/avisos/sync';
+  if (d && d.url_tailscale && d.url_tailscale !== location.origin)
+    document.getElementById('urlNota').innerHTML =
+      'Es la de Tailscale y no la de esta pantalla, a propósito: vos estás entrando ' +
+      'por <code>' + esc(location.host) + '</code>, pero el teléfono llega por la red ' +
+      'privada. Copiá la de arriba tal cual.';
+}
+/* Si la abriste o la cerraste vos, el repintado no te la vuelve a mover. */
+document.getElementById('guia').addEventListener('toggle', ev => {
+  ev.target.dataset.tocada = '1';
+});
+
+cargar();
+setInterval(cargar, REFRESCO);
+/* Al volver a la pestaña: es el momento exacto en que volvés del teléfono de correr
+   el Atajo, y esperar 20 s ahi se siente roto. */
+document.addEventListener('visibilitychange', () => { if (!document.hidden) cargar(); });
+</script>
+</body></html>

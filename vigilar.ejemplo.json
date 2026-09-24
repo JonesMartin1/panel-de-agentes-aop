@@ -1,0 +1,14 @@
+{
+  "_que_es": "El vigia: chequea que el WhatsApp siga conectado y avisa por Telegram si se cae. Copialo como vigilar.json y corré vigilar.py de la skill avisar (ver skills/README.md). Las rutas del comando son las de la instalacion del README: si pusiste el proyecto o Miniconda en otro lado, cambialas.",
+  "_ojo_canal": "TELEGRAM a proposito, NO whatsapp: si el aviso saliera por la misma instancia de WhatsApp que se esta vigilando, el aviso de que se cayo WhatsApp no llegaria nunca.",
+  "proyecto": "wpp-transcriptor",
+  "canal": "telegram",
+  "hablar": true,
+  "fallos_seguidos": 2,
+  "chequeos": [
+    {
+      "nombre": "WhatsApp del transcriptor",
+      "comando": "cd /d %USERPROFILE%\\wpp-transcriptor && \"%USERPROFILE%\\miniconda3\\envs\\wpp\\python.exe\" -m app.ingesta.chequeo_instancia"
+    }
+  ]
+}

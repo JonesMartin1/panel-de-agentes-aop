@@ -1,0 +1,2473 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Estudio</title>
+<!--
+  El Estudio: recortar y pegar audios o videos usando lo que se dijo y lo que se vio.
+  Pedido de Martin (2026-08-17): "un tipo estudio para poder unir audios".
+
+  Como funciona, en criollo: soltas los audios, quedan en una fila, los ordenas
+  arrastrando (o con las flechitas, que es lo que anda con el dedo), a cada uno le
+  recortas el principio y el final tirando de los bordes de su onda, y el boton de
+  abajo se los manda a ffmpeg, que devuelve un solo mp3.
+
+  ⭐ El recorte NO toca el archivo: son dos numeros (ini/fin) que viajan al servidor
+  al unir. Asi se puede volver a unir con otros cortes sin ir perdiendo calidad, y el
+  original sigue entero — misma decision que el recorte de imagenes de la pizarra.
+
+  Vive como archivo aparte (no adentro de panel.py) porque adentro del panel todo hay
+  que escaparlo dos veces; el panel solo lo sirve con FileResponse, asi que se edita y
+  se ve con un F5, sin reiniciar nada.
+-->
+<style>
+ *{box-sizing:border-box}
+ :root{color-scheme:dark}
+ html,body{height:100%;margin:0;background:#0b0d12;color:#e8ecf1;
+           font:14px/1.5 Segoe UI,system-ui,sans-serif}
+ body{display:flex;flex-direction:column}
+ /* La barra de arriba, igual que en la pantalla de sesiones: titulo a la izquierda y
+    el "volver" al ras de la derecha, en la MISMA linea. */
+ #barra{display:flex;align-items:center;gap:12px;background:#0f1320;flex:none;
+        padding:11px 16px;border-bottom:1px solid #1b2130}
+ #barra b{font-size:15px;font-weight:600}
+ #barra .sub{color:#5c6675;font-size:12px;flex:1;min-width:0;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ /* El menu de las cinco pantallas, al ras de la derecha. Lo dibuja /estaticos/menu.js. */
+ #menuPantallas{flex:none}
+ #volverMovil{display:none;color:#cfe6ff;text-decoration:none;background:#16263a;
+              border:1px solid #2c4a6b;border-radius:999px;padding:5px 10px;font-size:12px}
+ main{flex:1;min-height:0;overflow-y:auto;padding:18px 16px 28px}
+ /* La foto del aspecto es para el aire de la aplicación, no para leer encima. El
+    Estudio es una mesa de trabajo: su fondo propio sostiene textos, ondas y controles. */
+ .caja{max-width:1020px;margin:0 auto;padding:14px;border:1px solid #1b2635;border-radius:18px;
+       background:rgba(8,12,19,.94);box-shadow:0 20px 48px rgba(0,0,0,.34)}
+
+ /* --- Donde se sueltan los archivos --- */
+ #soltar{border:2px dashed #26303e;border-radius:14px;padding:26px 18px;text-align:center;
+         color:#7c8798;background:#0e121b;transition:border-color .15s,background .15s}
+ #soltar.encima{border-color:#8ecbff;background:#121a26;color:#cfe6ff}
+ #soltar .ico{font-size:30px;line-height:1}
+ #soltar .txt{margin:7px 0 12px;font-size:13.5px}
+ /* Con audios en la fila, la caja de soltar se hace una linea: el cartel grande sirve
+    la primera vez, despues es media pantalla ocupada por algo que ya entendiste. */
+ #soltar.chica{padding:9px 14px;display:flex;align-items:center;gap:12px;text-align:left}
+ #soltar.chica .ico{font-size:16px}
+ #soltar.chica .txt{margin:0;flex:1;font-size:12.5px}
+ #soltar.chica .boton{padding:6px 12px;font-size:12px}
+ .boton{background:#1a2536;color:#cfe6ff;border:1px solid #274058;border-radius:9px;
+        padding:8px 15px;font-size:13px;cursor:pointer;font-family:inherit}
+ .boton:hover{background:#213048}
+ .boton:disabled{opacity:.4;cursor:default}
+
+ /* --- Una pista (un audio de la fila) --- */
+ #lista{margin-top:16px;display:flex;flex-direction:column;gap:10px}
+ .pista{background:#12161f;border:1px solid #1e2634;border-radius:12px;padding:10px 12px;
+        display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+ .pista.moviendo{opacity:.4}
+ .pista.destino{border-color:#8ecbff}
+ .mango{cursor:grab;color:#46505f;font-size:16px;line-height:1;user-select:none;
+        padding:0 2px;text-align:center}
+ .mango:active{cursor:grabbing}
+ .flechas{display:flex;flex-direction:column;gap:2px}
+ .flechas button{background:none;border:0;color:#5c6675;cursor:pointer;font-size:11px;
+                 line-height:1;padding:1px 3px;font-family:inherit}
+ .flechas button:hover{color:#8ecbff}
+ .flechas button:disabled{opacity:.25;cursor:default}
+ .izq{display:flex;align-items:center;gap:6px}
+ .contenidoPista{min-width:0}
+ .nom{font-size:12.5px;color:#9aa6b5;display:flex;gap:8px;align-items:baseline;
+      margin-bottom:5px}
+ .nom .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+ .nom .t{color:#5c6675;font-size:11px;white-space:nowrap}
+ /* La onda y sus dos manijas de recorte. El contenedor es la referencia de posicion
+    de todo lo que va encima, asi que va relativo — y ⚠ NO recorta lo que se sale:
+    las manijas viven en los extremos (0 % y 100 %) y con `overflow:hidden` quedaban
+    partidas al medio contra el borde, o sea casi imposibles de agarrar. Lo que si
+    recorta es `.lienzo`, que es lo que tiene que quedar con las esquinas redondeadas. */
+ .onda{position:relative;height:54px;touch-action:none}
+ .lienzo{position:absolute;inset:0;background:#0d1119;border-radius:8px;overflow:hidden}
+ .onda canvas{display:block;width:100%;height:100%}
+ /* Lo que queda AFUERA del recorte se tapa con un velo: se sigue viendo la onda, pero
+    se lee de un vistazo que ese pedazo no va a entrar. */
+ .velo{position:absolute;top:0;bottom:0;background:#0b0d12cc;pointer-events:none}
+ .man{position:absolute;top:-4px;bottom:-4px;width:18px;margin-left:-9px;cursor:ew-resize;
+      display:flex;align-items:center;justify-content:center;touch-action:none;z-index:2}
+ .man i{display:block;width:3px;height:100%;background:#8ecbff;border-radius:2px;
+        box-shadow:0 0 0 1px #0b0d12}
+ /* La cabecita de arriba: sin algo que se vea, no hay forma de saber que eso se agarra. */
+ .man::after{content:'';position:absolute;top:-2px;width:10px;height:8px;border-radius:3px;
+             background:#8ecbff;box-shadow:0 0 0 1px #0b0d12}
+ .man:hover i,.man.tomada i{background:#cfe6ff;width:4px}
+ .man:hover::after,.man.tomada::after{background:#cfe6ff}
+ .quitar{background:none;border:0;color:#4b5563;cursor:pointer;font-size:15px;
+         padding:2px 4px;font-family:inherit}
+ .quitar:hover{color:#ff8a8a}
+ .oir{background:#161d29;border:1px solid #232d3d;color:#9aa6b5;border-radius:8px;
+      cursor:pointer;font-size:13px;padding:6px 9px;font-family:inherit}
+ .oir:hover{color:#cfe6ff;border-color:#2f435c}
+ .der{display:flex;align-items:center;gap:6px}
+
+ /* --- El pie: silencio, total y el boton grande --- */
+ #pie{margin-top:18px;background:#0f1320;border:1px solid #1b2130;border-radius:12px;
+      padding:14px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+ #pie label{font-size:12.5px;color:#9aa6b5;display:flex;align-items:center;gap:9px}
+ #sil{width:150px;accent-color:#8ecbff}
+ #total{flex:1;min-width:120px;color:#5c6675;font-size:12.5px}
+ #btnUnir{background:#1d4ed8;border-color:#2a5fe0;color:#eaf1ff;font-size:14px;
+          padding:10px 20px;font-weight:600}
+ #btnUnir:hover{background:#2a5fe0}
+ #aviso{margin-top:12px;font-size:13px;color:#ff9d9d;display:none}
+ /* El video tarda bastante más que un audio. Esta tarjeta no es una fuente editable:
+    es el cartel de obra que explica, con el avance real, qué está pasando antes de
+    que aparezcan las frases. */
+ #estadoProceso{display:none;margin-top:11px}
+ .progresoVideo{background:#101a27;border:1px solid #29445e;border-radius:12px;padding:12px 14px;
+                 color:#d5e8fa;box-shadow:inset 3px 0 0 #63b3ed}
+ .progresoVideo .proCab{display:flex;align-items:baseline;gap:8px;font-size:13px}
+ .progresoVideo .proCab b{flex:1;font-weight:650}
+ .progresoVideo .proCab strong{font-variant-numeric:tabular-nums;color:#9fd3ff;font-size:15px}
+ .progresoVideo .proPaso{display:block;margin:5px 0 8px;color:#9eb4c9;font-size:12px}
+ .progresoVideo .proBarra{height:7px;border-radius:9px;background:#18283a;overflow:hidden}
+ .progresoVideo .proBarra i{display:block;height:100%;width:0;border-radius:inherit;
+                              background:linear-gradient(90deg,#468bd1,#85cef8);transition:width .45s ease}
+ .progresoVideo.indefinido .proBarra i{width:34%;animation:progresoEnEspera 1.25s ease-in-out infinite}
+ @keyframes progresoEnEspera{0%{transform:translateX(-115%)}100%{transform:translateX(310%)}}
+ /* --- El resultado --- */
+ #salida{margin-top:16px;background:#0f1a14;border:1px solid #1d5c39;border-radius:12px;
+         padding:14px 16px;display:none}
+ #salida h3{margin:0 0 10px;font-size:14px;color:#8ff0b6;font-weight:600}
+ #salida audio{width:100%;margin-bottom:10px}
+ #salida video{width:100%;max-height:58vh;background:#05070a;border-radius:9px;margin-bottom:10px}
+ .previewVideo{width:100%;max-height:320px;background:#05070a;border-radius:9px;
+                margin:3px 0 9px;display:block}
+  /* En video, la tira no decora: es el mapa visual para cortar sin adivinar. Son ocho
+     momentos del clip; tocar uno pone el cursor ahí y lo reproduce desde ese instante. */
+  .miniaturas{display:block;width:100%;padding:0;border:1px solid #232d3d;background:#080b11;
+              border-radius:8px;overflow:hidden;cursor:pointer;margin:0 0 9px}
+  .miniaturas:hover{border-color:#49769d}
+ .miniaturas img{display:block;width:100%;height:auto;opacity:.88}
+  .miniaturas:hover img{opacity:1}
+ /* Video no es un audio alto. En esta mesa el reproductor ocupa el ancho, el título
+    queda arriba y las acciones bajan a una barra que se entiende de un vistazo. */
+ .caja.modo-video #lista{gap:14px}
+ .caja.modo-video .pista{display:block;position:relative;padding:17px 18px 13px;
+                          background:#0d121d;border-color:#273249;border-radius:15px}
+ .caja.modo-video .pista > .izq{position:absolute;top:17px;right:18px;z-index:2;
+                                 padding:4px 6px;border-radius:8px;background:#121a28}
+ .caja.modo-video .pista > .contenidoPista{display:block;min-width:0}
+ .caja.modo-video .pista .nom{min-height:28px;margin:0 116px 10px 0;color:#c9d5e4}
+ .caja.modo-video .pista .nom .n{font-size:14px;font-weight:600}
+ .caja.modo-video .previewVideo{max-height:min(60vh,620px);margin:0 0 12px;
+                                 border:1px solid #202d40;border-radius:11px}
+ .caja.modo-video .miniaturas{margin-bottom:12px;border-radius:10px}
+ .caja.modo-video .pista > .der{display:flex;justify-content:flex-end;gap:7px;
+                                 margin-top:12px;padding-top:11px;border-top:1px solid #202a3a}
+ .caja.modo-video .pista > .der button{min-width:36px;min-height:34px}
+ .caja.modo-video #pie{margin-top:14px;background:#111927;border-color:#293c57}
+ .caja.modo-video .rot{color:#a5bad4;margin:15px 3px 9px}
+  #vistaArmado{display:none;position:fixed;inset:0;z-index:30;background:#020408e8;
+               padding:20px;align-items:center;justify-content:center}
+  #vistaArmado.abierta{display:flex}
+  #vistaArmado .visor{width:min(100%,960px);max-height:100%;display:flex;flex-direction:column;
+                       gap:10px;background:#10151f;border:1px solid #2a3546;border-radius:14px;padding:12px}
+  #vistaArmado video{width:100%;max-height:72vh;background:#000;border-radius:9px}
+  #vistaArmado .cabVista{display:flex;gap:10px;align-items:center;font-size:13px;color:#cfe6ff}
+  #vistaArmado .cabVista span{flex:1;color:#9aa6b5}
+  #vistaArmado button{background:#151920;border:1px solid #31455c;color:#cfe6ff;border-radius:8px;
+                      padding:6px 11px;cursor:pointer;font-family:inherit}
+ .tipoMedia{display:inline-flex;align-items:center;padding:1px 6px;border-radius:999px;
+            background:#251d3b;color:#d6c4ff;font-size:10px;font-weight:700}
+ #salida .fila{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+ #salida a.descargar{background:#123a24;border:1px solid #1d5c39;color:#8ff0b6;
+                     border-radius:9px;padding:8px 15px;font-size:13px;text-decoration:none}
+ #salida a.descargar:hover{background:#17492e}
+ /* Mandárselo al teléfono, que es donde se reenvía. El destino está FIJO en el .env
+    (sos vos): un botón que le mande audio a un tercero es un error de un solo clic. */
+ /* ⚠ `.accion` existe para que `.mandar` signifique SOLO "manda el audio a algún lado".
+    El botón de analizar tenía la clase `mandar` para heredar el estilo y eso rompió una
+    prueba que contaba "los botones de mandar" — con razón: no manda nada. */
+ #salida button.mandar, #salida button.accion{background:#151920;border:1px solid #232a35;
+                       color:#9aa6b5;border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer}
+ #salida button.mandar:hover:not(:disabled),
+ #salida button.accion:hover:not(:disabled){border-color:#31506e;color:#8ecbff}
+ #salida button.mandar:disabled, #salida button.accion:disabled{opacity:.5;cursor:default}
+ #salida .dicho{font-size:12px;color:#8ff0b6}
+ #salida .dicho.mal{color:#ff9d9d}
+ .vacio{color:#4b5563;font-size:13px;text-align:center;padding:22px 0}
+ /* En el telefono la fila no entra en tres columnas: la onda pasa abajo, entera. */
+  @media (max-width:620px){
+   #barra{padding:9px 10px;gap:8px}
+   #barra .sub,#menuPantallas{display:none}
+   #volverMovil{display:inline-flex;margin-left:auto}
+   main{padding:10px 8px 22px}
+   .caja{padding:9px;border-radius:14px}
+   .cab{align-items:stretch}
+   .cab .tit{width:100%}
+   #buscar{flex:1;min-width:0}
+   .pista{grid-template-columns:auto 1fr;gap:8px}
+   .contenidoPista{grid-column:1/-1}
+    .der{justify-self:end}
+    #vistaArmado{padding:8px}
+    #vistaArmado .visor{padding:8px}
+  }
+
+ /* ---- El cursor: dónde estás parado dentro del audio ------------------------ */
+ /* Es un div y no algo dibujado en el canvas para poder moverlo en cada `timeupdate`
+    sin redibujar los 340 palitos de la onda 4 veces por segundo. */
+ .onda .cursor{position:absolute;top:0;bottom:0;width:2px;background:#ffd166;
+               pointer-events:none;opacity:0;transition:opacity .15s}
+ .onda .cursor.puesto{opacity:1}
+ .lienzo{cursor:text}
+ /* ---- El texto del audio: cortar leyendo en vez de midiendo ----------------- */
+ .texto{display:none;margin-top:9px;max-height:230px;overflow-y:auto;
+        background:#0b0d12;border:1px solid #1b2130;border-radius:9px;padding:6px}
+ .texto.abierto{display:block}
+ .frase{display:flex;align-items:flex-start;gap:9px;padding:5px 7px;border-radius:7px;
+        font-size:12.5px;line-height:1.45;cursor:pointer}
+ .frase:hover{background:#141a26}
+ /* La que está sonando: se sigue la charla con el ojo mientras se escucha. */
+ .frase.sonando{background:#1a2130;color:#cfe6ff}
+ /* Lo que quedó FUERA del recorte se ve apagado: así el texto muestra qué entra. */
+ .frase.afuera{opacity:.38}
+ .frase .min{flex:none;color:#5c6675;font-size:11px;font-variant-numeric:tabular-nums;
+             padding-top:1px;min-width:38px}
+  .frase .dice{flex:1;min-width:0;color:#9aa6b5;border-radius:5px;outline:none;
+               white-space:pre-wrap;cursor:text}
+  .frase .dice:hover{background:#111722;box-shadow:0 0 0 1px #232a35 inset}
+  .frase .dice:focus{background:#111a27;color:#d8e9f8;box-shadow:0 0 0 1px #49769d inset;
+                     padding:2px 5px;margin:-2px -5px}
+  .frase .dice.guardando{box-shadow:0 0 0 1px #8a6d2f inset}
+  .frase .dice.guardada{box-shadow:0 0 0 1px #1d5c39 inset}
+  .frase .dice.error{box-shadow:0 0 0 1px #7a3434 inset;color:#ffb0b0}
+ .frase.sonando .dice{color:#cfe6ff}
+ .frase .cortes{flex:none;display:flex;gap:4px;opacity:0}
+ .frase:hover .cortes{opacity:1}
+ @media (hover:none){ .frase .cortes{opacity:.6} }
+ .frase .cortes button{background:#151920;border:1px solid #232a35;color:#9aa6b5;
+                       border-radius:6px;font-size:10.5px;padding:2px 6px;cursor:pointer}
+ .frase .cortes button:hover{border-color:#31506e;color:#8ecbff}
+ /* Sacar es lo único destructivo del texto, así que se pinta distinto al pasar por
+    encima. No pide confirmación a propósito: no borra nada del disco y se deshace
+    poniendo el recorte de vuelta o sumando el audio otra vez desde la bandeja. */
+ .frase .cortes button.saca:hover{border-color:#5a2a2a;color:#ff9d9d}
+ /* Una frase sacada se ve apagada y TACHADA —no alcanza con el gris, que también usa
+    lo que quedó fuera del recorte— y su botón queda siempre visible en verde: es la
+    única forma de volver a ponerla, así que no puede aparecer solo al pasar por encima. */
+ .frase.afuera .dice{text-decoration:line-through}
+ .frase.afuera .cortes{opacity:1}
+ .frase .cortes button.pone{border-color:#1d5c39;color:#8ff0b6}
+ .frase .cortes button.pone:hover{background:#123a24;color:#b9ffd4}
+ /* "Poner" es lo contrario de "sacar" y se ve distinto: verde, y SIEMPRE visible en las
+    frases que están afuera — si estuviera escondido detrás del hover, una frase sacada
+    parecería perdida para siempre. */
+ .frase.afuera .cortes{opacity:1}
+ .frase .cortes button.pone{border-color:#1d5c39;color:#8ff0b6}
+ .frase .cortes button.pone:hover{background:#123a24}
+ /* Una frase sacada se lee tachada: se entiende de un vistazo que no va a sonar. */
+ .frase.afuera .dice{text-decoration:line-through}
+ @media (max-width:620px){
+   /* En el teléfono, dejar los tres recortes al costado vuelve a convertir el texto
+      en una columna. La hora y la frase ocupan el primer renglón; las acciones bajan
+      debajo y no le roban ancho a lo que Martín vino a leer. */
+   .frase{display:grid;grid-template-columns:38px minmax(0,1fr);gap:5px 8px}
+   .frase .min{grid-column:1}
+   .frase .dice{grid-column:2}
+   .frase .cortes{grid-column:2;display:flex;flex-wrap:wrap;opacity:.72}
+ }
+ .texto .cargando{color:#5c6675;font-size:12px;padding:10px;text-align:center}
+ /* El análisis usa la misma caja que el texto pero se distingue de un vistazo: no es
+    lo que se dijo, es lo que se entendió. */
+  .texto.analisis{background:#0d1017;border-color:#232a35}
+  .analVisual{padding:8px;border-bottom:1px solid #232a35;display:flex;flex-direction:column;gap:5px}
+  .analVisual b{font-size:11px;color:#8ecbff;text-transform:uppercase;letter-spacing:.08em;padding:2px 4px}
+  .analVisual .momVisual{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:5px;align-items:stretch}
+  .analVisual button{display:flex;gap:8px;text-align:left;align-items:baseline;background:#121923;
+                     border:1px solid transparent;border-radius:6px;color:#cfd8e3;padding:7px 8px;
+                     font:12px/1.35 inherit;cursor:pointer}
+  .analVisual button:hover{border-color:#31506e;background:#172131}
+  .analVisual .verMomento{align-items:center;gap:4px}
+  .analVisual .verMomento span{flex:none;color:#8ecbff;font-variant-numeric:tabular-nums}
+  .analVisual .descripcionMomento{min-width:0;padding:7px 8px;border:1px solid #1d2938;border-radius:6px;
+                                  background:#121923;color:#cfd8e3;font:12px/1.35 inherit;
+                                  user-select:text;-webkit-user-select:text;cursor:text}
+  .analVisual .descripcionMomento::selection{background:#426d97;color:#fff}
+  .analVisual .usarMomento{flex:none;align-items:center;color:#a9dfbe;border-color:#25543a;
+                            background:#11251b;white-space:nowrap;font-weight:650}
+  .analVisual .usarMomento:hover{background:#163524;border-color:#3c865a;color:#d3f5de}
+  @media (max-width:620px){.analVisual .momVisual{gap:4px}.analVisual button{padding:8px 7px}.analVisual .verMomento{font-size:0}.analVisual .verMomento span{font-size:12px}.analVisual .descripcionMomento{padding:8px 7px}.analVisual .usarMomento{font-size:11px}}
+ .cuerpoAnal{white-space:pre-wrap;font-size:12.5px;line-height:1.55;color:#cfd8e3;padding:6px 8px}
+ #salida .analSal{margin-top:12px;background:#0b120e;border:1px solid #1d5c39;border-radius:9px;
+                  max-height:320px;overflow-y:auto}
+ select.perfil{background:#151920;border:1px solid #232a35;color:#9aa6b5;
+               border-radius:9px;padding:8px 10px;font-size:12.5px;font-family:inherit;cursor:pointer}
+ /* La barra de análisis: acciones secundarias, así que los botones son "fantasma" —
+    el único botón lleno de la pantalla sigue siendo el azul de armar el audio. */
+ #barraAnal{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:12px}
+ .boton.fantasma{background:#151920;border:1px solid #232a35;color:#9aa6b5;
+                 border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+ .boton.fantasma:hover:not(:disabled){border-color:#31506e;color:#8ecbff}
+ .boton.fantasma:disabled{opacity:.5;cursor:default}
+ /* La salida natural del Estudio: no es otra exportación sino llevar la selección a
+    una conversación. Violeta azulado para distinguirla del azul de "Armar" y del
+    verde de "Listo", sin usar ningún color del semáforo de Sesiones. */
+ #btnPasarSesion{margin-left:auto;background:#292445;border-color:#554c82;color:#eeeaff;
+                  font-weight:650;box-shadow:inset 0 0 0 1px #332d55}
+ #btnPasarSesion:hover:not(:disabled){background:#342d58;border-color:#7469a9;color:#fff}
+ .dicho{font-size:12px;color:#8ff0b6}
+ .dicho.mal{color:#ff9d9d}
+ #analisis{display:none;margin-top:10px;background:#0f1320;border:1px solid #232a35;
+           border-radius:12px}
+ #analisis.abierto{display:block}
+ #analisis .cabAnal{display:flex;align-items:center;gap:9px;padding:10px 14px;
+                    border-bottom:1px solid #1b2130;flex-wrap:wrap}
+ #analisis .cabAnal b{flex:1;font-size:13px;color:#cfe6ff}
+ #analisis .cuerpoAnal{max-height:420px;overflow-y:auto}
+
+ /* ---- Pasar la selección a una conversación --------------------------------
+    Es una hoja de despacho: arriba se ve qué viaja, abajo solo hay dos decisiones
+    reales —a qué charla y para qué—. En el teléfono sube desde abajo, no tapa la
+    pantalla con un prompt gris del navegador. */
+ #pasarSesion{display:none;position:fixed;inset:0;z-index:45;background:#03050ad9;
+               padding:18px;align-items:center;justify-content:center}
+ #pasarSesion.abierto{display:flex}
+ .pasarTarjeta{width:min(100%,610px);max-height:min(92vh,720px);overflow-y:auto;
+                background:#101521;border:1px solid #39415a;border-radius:18px;
+                box-shadow:0 28px 90px #000a}
+ .pasarCab{display:flex;gap:12px;align-items:center;padding:16px 17px 14px;
+            border-bottom:1px solid #242b3d}
+ .pasarMarca{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:11px;
+              background:#2d2850;border:1px solid #5f5790;color:#eeeaff;font-size:19px}
+ .pasarCab .tit{flex:1;min-width:0}
+ .pasarCab b{display:block;color:#f0edff;font-size:15px}
+ .pasarCab small{display:block;color:#8590a3;font-size:11.5px;margin-top:2px}
+ .pasarCerrar{border:0;background:transparent;color:#6e7889;font-size:18px;cursor:pointer;padding:6px}
+ .pasarCerrar:hover{color:#d7dce5}
+ .pasarCuerpo{padding:15px 17px 5px}
+ .pasarPaquete{display:flex;gap:7px;flex-wrap:wrap;padding:10px;border-radius:11px;
+                background:#0b0f18;border:1px solid #232b3c;margin-bottom:14px}
+ .pasarPaquete span{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:8px;
+                     background:#161b29;color:#aeb9c9;font-size:11.5px;border:1px solid #252e42}
+ .pasarPaquete .resumen{width:100%;border:0;background:transparent;padding:0 2px 3px;
+                         color:#d5dbe6;font-size:12.5px}
+ .pasarCampo{display:block;margin:0 0 13px;color:#aab4c4;font-size:12px;font-weight:650}
+ .pasarCampo select,.pasarCampo textarea{display:block;width:100%;margin-top:6px;background:#0b0f17;
+                  border:1px solid #2b3448;border-radius:10px;color:#e5e9f0;
+                  font:13px/1.45 Segoe UI,system-ui,sans-serif;padding:10px 11px;outline:none}
+ .pasarCampo select:focus,.pasarCampo textarea:focus{border-color:#7167a7;box-shadow:0 0 0 2px #40386455}
+ .pasarCampo textarea{resize:vertical;min-height:82px;max-height:180px}
+ #pasarEstado{min-height:22px;color:#9da8b9;font-size:12px;padding:0 17px 8px}
+ #pasarEstado.mal{color:#ffaaa9} #pasarEstado.bien{color:#9be4b6}
+ .pasarPie{display:flex;justify-content:flex-end;gap:9px;padding:12px 17px 16px;
+            border-top:1px solid #20283a}
+ .pasarPie button{border-radius:10px;padding:9px 14px;font:600 13px Segoe UI,system-ui,sans-serif;cursor:pointer}
+ .pasarPie .volver{background:#151a25;border:1px solid #293246;color:#9da8b9}
+ .pasarPie .enviar{background:#393267;border:1px solid #776ead;color:#f2efff;min-width:150px}
+ .pasarPie .enviar:hover:not(:disabled){background:#48407d}
+ .pasarPie button:disabled{opacity:.5;cursor:wait}
+ @media (max-width:620px){
+   #btnPasarSesion{width:100%;margin-left:0;order:8;min-height:42px}
+   #pasarSesion{padding:0;align-items:flex-end}
+   .pasarTarjeta{max-height:94vh;border-radius:18px 18px 0 0;border-bottom:0}
+   .pasarCab{padding:14px 14px 12px}.pasarCuerpo{padding:13px 14px 3px}
+   .pasarCampo select,.pasarCampo textarea{font-size:16px;min-height:44px}
+   .pasarPie{padding:11px 14px calc(13px + env(safe-area-inset-bottom))}
+   .pasarPie button{min-height:44px}.pasarPie .enviar{flex:1}
+ }
+
+ /* ---- Las bandejas (proyectos) ---------------------------------------------- */
+ /* Van como fila de chips ARRIBA y no como columna a la izquierda —que es lo que se
+    usó en la pantalla de sesiones— por dos razones: acá lo que se lee es el texto de
+    cada audio, y una columna le come el ancho justo a eso; y en el teléfono una
+    columna no entra. Los proyectos son pocos, así que una fila alcanza. */
+ #bandejas{display:flex;gap:7px;flex-wrap:wrap;padding:10px 14px;
+           border-bottom:1px solid #1b2130}
+ .chipb{background:#0b0d12;border:1px solid #232a35;color:#9aa6b5;border-radius:999px;
+        padding:5px 13px;font-size:12.5px;cursor:pointer;font-family:inherit}
+ .chipb:hover{border-color:#31506e;color:#cfe6ff}
+ .chipb.sel{background:#1a2130;border-color:#31506e;color:#cfe6ff;font-weight:600}
+ .chipb i{font-style:normal;color:#5c6675;font-size:11px;margin-left:4px}
+ .chipb.sel i{color:#8ecbff}
+ .chipb.mas{color:#8ecbff;border-style:dashed}
+ /* El selector de a qué bandeja va cada audio. Es un <select> nativo a propósito:
+    anda con el dedo en el teléfono sin que haya que construir un menú a mano. */
+ .rec select.proy{background:#0b0d12;border:1px solid #232a35;color:#9aa6b5;
+                  border-radius:7px;font-size:11px;padding:3px 5px;max-width:130px;
+                  font-family:inherit;cursor:pointer}
+ .rec select.proy:hover{border-color:#31506e;color:#cfe6ff}
+
+ /* ---- La bandeja: los audios que ya están acá, para elegir ------------------- */
+ #fuente{background:#0f1320;border:1px solid #1b2130;border-radius:12px;margin-bottom:14px}
+ #fuente .cab{display:flex;align-items:center;gap:12px;padding:12px 14px;
+              border-bottom:1px solid #1b2130;flex-wrap:wrap}
+ #fuente .tit{flex:1;min-width:150px}
+ #fuente .tit b{font-size:14px}
+ #fuente .sub{color:#5c6675;font-size:11.5px;font-weight:400}
+ #buscar{background:#0b0d12;border:1px solid #232a35;border-radius:8px;color:#e8ecf1;
+         padding:7px 11px;font:13px Segoe UI,system-ui,sans-serif;min-width:170px;flex:1;max-width:280px}
+ #buscar:focus{outline:none;border-color:#31506e}
+ .boton.chico{padding:7px 12px;font-size:12.5px}
+ /* Audio y video llegan a las mismas carpetas, pero se editan como dos mesas de
+    trabajo distintas. La pestaña tiene tamaño de control principal para que se note
+    antes de leer la lista y para que sea cómoda con el dedo. */
+ #medios{display:flex;gap:7px;padding:9px 14px;background:#0b0e16;border-bottom:1px solid #1b2130}
+ .medio{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:#10151f;
+         border:1px solid #232a35;border-radius:9px;color:#718095;padding:9px 12px;
+         font:600 13px Segoe UI,system-ui,sans-serif;cursor:pointer}
+ .medio:hover{border-color:#49769d;color:#cfe6ff}
+ .medio.sel{background:#17283b;border-color:#528bc0;color:#d9edff;box-shadow:inset 0 0 0 1px #264b69}
+ .medio.video.sel{background:#221d3a;border-color:#8a75c6;color:#eee7ff;box-shadow:inset 0 0 0 1px #463a70}
+ .medio i{font-style:normal;font-size:11px;color:#718095;background:#0b0d12;border-radius:999px;padding:1px 6px}
+ .medio.sel i{color:inherit;background:rgba(255,255,255,.09)}
+ /* La cola es la puerta del Estudio: muestra lo que acaba de entrar ANTES de que
+    exista una fuente editable. No depende de estar parado en Audio o Video. */
+ #colaViva{display:none;margin:10px 14px 4px;border:1px solid #26384b;border-radius:11px;
+            overflow:hidden;background:#0c121c}
+ #colaViva .colaCab{display:flex;align-items:center;gap:9px;padding:8px 10px;
+                    border-bottom:1px solid #1d2938;color:#cfe6ff}
+ #colaViva .colaCab b{font-size:12.5px;flex:1}
+ #colaViva .colaCab span{font-size:11px;color:#8ecbff;font-variant-numeric:tabular-nums}
+ .colaItem{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;
+           padding:8px 10px;border-bottom:1px solid #172131}
+ .colaItem:last-child{border-bottom:0}
+ .colaItem .colaIco{font-size:16px;width:20px;text-align:center}
+ .colaItem .colaTexto{min-width:0}
+ .colaItem .colaNom{font-size:12px;color:#d4dce6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .colaItem .colaMeta{font-size:10.5px;color:#718095;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .colaItem .colaAvance{width:64px;text-align:right}
+ .colaItem .colaAvance b{display:block;font-size:11px;color:#a9d9ff;font-variant-numeric:tabular-nums}
+ .colaItem .colaAvance i{display:block;height:3px;margin-top:4px;background:#203247;border-radius:99px;overflow:hidden}
+ .colaItem .colaAvance i:after{content:'';display:block;height:100%;width:var(--avance,0%);
+                               background:#74baf0;border-radius:inherit;transition:width .4s ease}
+ .colaItem.listo .colaAvance b{color:#92d9af}.colaItem.listo .colaAvance i:after{background:#4aae78}
+ .colaItem.error .colaAvance b{color:#ffabab}.colaItem.error .colaAvance i:after{background:#c76b6b}
+ @media (max-width:620px){#colaViva{margin:8px 9px 3px}.colaItem{padding:8px}.colaItem .colaAvance{width:52px}}
+ /* Alto tope con scroll propio: con 60 audios, la fila de abajo tiene que seguir
+    estando a la vista sin tener que recorrer media pantalla. */
+ #bandeja{max-height:min(46vh,420px);overflow-y:auto}
+ .rec{display:flex;align-items:center;gap:11px;padding:9px 14px;cursor:pointer;
+      border-bottom:1px solid #141a26}
+ .rec:last-child{border-bottom:0}
+ .rec:hover{background:#141a26}
+ .rec.puesto{background:#101a26}
+ .rec .can{font-size:16px;width:22px;text-align:center;flex:none}
+ .rec .cuerpo{flex:1;min-width:0}
+ .rec .meta{color:#5c6675;font-size:11px;margin-bottom:2px}
+ .rec .meta .ya{color:#8ecbff;font-weight:600}
+ /* Dos renglones de lo que dice y corta: alcanza para reconocerlo y no estira la fila. */
+ .rec .dice{font-size:12.5px;color:#9aa6b5;display:-webkit-box;-webkit-line-clamp:2;
+            -webkit-box-orient:vertical;overflow:hidden}
+ .rec .mas,.rec .tirar{flex:none;background:#151920;border:1px solid #232a35;color:#9aa6b5;
+                       border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer}
+ .rec .mas:hover{border-color:#31506e;color:#8ecbff}
+ .rec .preparar{flex:none;background:#18263a;border:1px solid #31506e;color:#cfe6ff;
+                border-radius:8px;padding:6px 9px;font:600 11.5px Segoe UI,system-ui,sans-serif;cursor:pointer}
+ .rec .preparar:hover{background:#203550;border-color:#5c96ca}
+ .rec .preparar:disabled{opacity:.55;cursor:wait}
+ .rec .pendiente{color:#d2b878;font-weight:600}
+ .rec .tirar{opacity:0;font-size:12px}
+ .rec:hover .tirar{opacity:1}
+ .rec .tirar:hover{border-color:#5a2a2a;color:#ff9d9d}
+ /* Con el dedo no hay "pasar por encima", así que el tacho va siempre visible. */
+ @media (hover:none){ .rec .tirar{opacity:.55} }
+ .rot{color:#5c6675;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+      font-weight:700;margin:18px 0 9px 2px}
+ .rot .sub{letter-spacing:0;text-transform:none;font-weight:400;margin-left:9px;font-size:11.5px}
+</style></head><body>
+
+<div id="barra">
+  <b>🎧 Estudio</b>
+  <span class="sub">recortá y pegá audios o videos usando la transcripción</span>
+  <nav id="menuPantallas"></nav>
+  <a id="volverMovil" href="/movil">← Laura</a>
+</div>
+<script src="/estaticos/menu.js"></script>
+<script src="/estaticos/aspecto.js"></script>
+
+<main><div class="caja">
+
+  <section id="fuente">
+    <div class="cab">
+      <div class="tit">
+        <b id="tituloFuente">Tus audios</b>
+        <div class="sub" id="subFuente">mandalos por Telegram y aparecen acá transcriptos y analizados</div>
+      </div>
+      <input id="buscar" placeholder="buscar por lo que dice…">
+      <button class="boton chico" id="btnElegir">＋ del disco</button>
+      <input id="arch" type="file" accept="audio/*,video/*" multiple hidden>
+    </div>
+    <div id="medios" role="tablist" aria-label="Elegí qué querés editar">
+      <button class="medio audio sel" role="tab" aria-selected="true" data-medio="audio">🎧 Audios <i id="cantAudio">0</i></button>
+      <button class="medio video" role="tab" aria-selected="false" data-medio="video">🎬 Videos <i id="cantVideo">0</i></button>
+    </div>
+    <section id="colaViva" aria-live="polite"></section>
+    <div id="bandejas"></div>
+    <div id="bandeja"><div class="vacio">Buscando…</div></div>
+  </section>
+
+  <div id="soltar">
+    <div class="ico">🎬</div>
+    <div class="txt">…o soltá acá un audio o video que tengas en la compu</div>
+  </div>
+  <div id="estadoProceso" aria-live="polite"></div>
+
+  <div class="rot" id="rotFila">La fila de audio <span class="sub" id="ayudaFila">esto es lo que va a salir, en este orden</span></div>
+  <div id="lista"></div>
+
+  <div id="pie">
+    <label id="controlSilencio">silencio entre audios
+      <input type="range" id="sil" min="0" max="3" step="0.1" value="0.4">
+      <span id="silTxt" style="color:#cfe6ff;min-width:44px">0,4 s</span>
+    </label>
+    <span id="total"></span>
+    <button class="boton" id="btnVista" disabled>▶ Ver armado</button>
+    <button class="boton" id="btnUnir" disabled>Unir</button>
+  </div>
+
+  <!-- Analizar y copiar viven ACA, antes de armar el mp3: el análisis sale del texto
+       transcripto, no del audio, así que obligar a armar el archivo para leerlo era un
+       paso al pedo (lo pidió Martín el 2026-08-18). Copiar lo que dice es gratis. -->
+  <div id="barraAnal">
+    <button class="boton fantasma" id="btnAnalizar">🧠 Analizar</button>
+    <select class="perfil" id="perfil"></select>
+    <button class="boton fantasma" id="btnCopiarDicho">📋 Copiar lo que dice</button>
+    <button class="boton fantasma" id="btnPasarSesion" disabled>↗ Pasar a una sesión</button>
+    <span class="dicho" id="dichoAnal"></span>
+  </div>
+  <div id="analisis"></div>
+
+  <div id="aviso"></div>
+  <div id="salida"></div>
+
+  <div id="vistaArmado" aria-hidden="true"><div class="visor">
+    <div class="cabVista"><b>Vista previa</b><span id="estadoVista"></span><button data-cerrar-vista>✕ Cerrar</button></div>
+    <video id="videoArmado" controls playsinline></video>
+  </div></div>
+
+  <div id="pasarSesion" aria-hidden="true"><section class="pasarTarjeta" role="dialog"
+       aria-modal="true" aria-labelledby="pasarTitulo">
+    <div class="pasarCab">
+      <span class="pasarMarca">↗</span>
+      <div class="tit"><b id="pasarTitulo">Pasar a una sesión</b>
+        <small>El Estudio prepara todo y la conversación lo recibe junto.</small></div>
+      <button class="pasarCerrar" data-cerrar-pasar aria-label="Cerrar">✕</button>
+    </div>
+    <div class="pasarCuerpo">
+      <div class="pasarPaquete" id="pasarPaquete"></div>
+      <label class="pasarCampo">Conversación
+        <select id="sesDestino" disabled><option>Buscando tus sesiones…</option></select>
+      </label>
+      <label class="pasarCampo">Qué querés que haga
+        <textarea id="sesPedido" placeholder="Por ejemplo: elegí los mejores momentos para un reel y explicame por qué."></textarea>
+      </label>
+    </div>
+    <div id="pasarEstado" aria-live="polite"></div>
+    <div class="pasarPie">
+      <button class="volver" data-cerrar-pasar>Seguir editando</button>
+      <button class="enviar" id="sesEnviar" disabled>Preparar y enviar</button>
+    </div>
+  </section></div>
+
+</div></main>
+
+<script>
+// ---------------------------------------------------------------- el estado
+// Una pista = {id, archivo, tipo, nombre, dur, ini, fin, picos}. `archivo` es el nombre que
+// le puso el servidor; `ini`/`fin` son el recorte en segundos y `picos` la onda ya
+// medida (se guarda para no volver a decodificar el audio en cada repintado).
+// ⭐ El `id` es de la FILA, no del archivo, y por eso existe: el mismo audio puede
+// entrar dos veces (una cortina que se repite al principio y al final). Si el DOM se
+// buscara por nombre de archivo, `querySelector` devolveria siempre la primera de las
+// dos y la segunda quedaria sin onda y sin manijas.
+let pistas = [], silencio = 0.4, arrastrando = null, uniendo = false, subiendo = false, proximoId = 1;
+let pasandoSesion = false, sesionesDestino = [];
+// La bandeja: los audios que YA están en la máquina y se pueden usar. Caen solos ahí
+// cuando le mandás un audio al bot de Telegram o al WhatsApp del transcriptor — el
+// pipeline los guarda con su transcripción al lado, y por eso se pueden elegir
+// leyendo lo que dicen en vez de adivinar por el nombre del archivo.
+let recibidos = [], filtro = '', bandejaPintada = false, preparandoTexto = new Set();
+let avancesVideo = new Map(), fallosVideo = new Map(), subidaEstado = null;
+let colaServidor = [], colaLocal = [], firmaCola = '';
+// Las bandejas (proyectos). `activa` es cuál estás mirando: null = todas, '' = los que
+// todavía no clasificaste, o el nombre de una. TODO audio que llega cae sin clasificar
+// y se manda a su bandeja desde acá — así lo pidió Martín: mandar todo sin pensar y
+// elegir después. Cada bandeja se acuerda de SU fila, para poder saltar de un proyecto
+// a otro sin perder lo que estabas armando.
+let bandejas = [], cuentas = {}, totalAudios = 0, activa = null, archivosVivos = new Set(), modo = 'audio';
+const tipoDe = a => a && a.tipo === 'video' ? 'video' : 'audio';
+// Un video recién llegado no es una fuente del Estudio. Se habilita recién cuando
+// se puede cortar leyendo Y Gemini terminó de mirar sus momentos visuales.
+const videoListo = a => tipoDe(a) !== 'video' || (!!a.segs && !!a.tiene_analisis);
+const claveBase = () => (activa === null ? '*' : activa);
+// Cada proyecto conserva DOS filas: una de audio y otra de video. Las carpetas y los
+// archivos son exactamente los mismos; solo cambia la mesa donde los editás.
+const claveFila = () => claveBase() + '|' + modo;
+const $ = s => document.querySelector(s);
+const seg = s => (s || 0).toFixed(1).replace('.', ',') + ' s';
+
+// Lo que se ve en la pantalla se guarda en el navegador: si cerrás la pestaña a mitad
+// de armar algo, al volver está igual. Los archivos viven en el servidor, así que al
+// abrir se comprueba cuáles siguen existiendo (ver `arrancar`).
+function guardar() {
+  try {
+    const g = JSON.parse(localStorage.getItem('estudio') || '{}');
+    const filas = g.filas || {};
+    // ⚠ `frases` y `picos` NO se guardan: son ~200 frases y 340 números por audio, y el
+    // almacenamiento del navegador aguanta ~5 MB. Se vuelven a pedir al servidor.
+    // ⭐ Cada bandeja guarda una fila por medio: así audio y video no se mezclan y al
+    // volver a cualquiera de los dos queda esperando el armado que dejaste.
+    filas[claveFila()] = pistas.map(p => ({archivo: p.archivo, tipo: p.tipo, nombre: p.nombre,
+                                           dur: p.dur, ini: p.ini, fin: p.fin, pos: p.pos,
+                                           fuera: p.fuera || []}));   // las frases sacadas
+    localStorage.setItem('estudio', JSON.stringify({silencio, activa, modo, filas}));
+    // el `id` no se guarda: se reparte de nuevo al abrir, no significa nada afuera
+  } catch (e) {}
+}
+
+// Trae la fila de la bandeja en la que estás parado. Un audio que ya no existe se cae
+// de la fila en vez de quedar como una pista muda.
+function cargarFila() {
+  try {
+    const g = JSON.parse(localStorage.getItem('estudio') || '{}');
+    const filas = g.filas || {};
+    // La clave sin `|audio` es el formato anterior. Se toma una sola vez como audio
+    // o video según corresponda, así nadie pierde una fila que ya estaba armando.
+    const guardadas = filas[claveFila()] || filas[claveBase()] || [];
+    pistas = guardadas.filter(p => archivosVivos.has(p.archivo) && tipoDe(p) === modo)
+                      .map(p => ({...p,
+                                  tipo: p.tipo || (/\.(mp4|mov|avi|mkv|webm|m4v|3gp)$/i.test(p.archivo) ? 'video' : 'audio'),
+                                  id: proximoId++}));
+  } catch (e) {
+    pistas = [];
+  }
+  parar();
+  pintar();
+  pistas.forEach(cargarOnda);
+  cargarAnalisisGuardado();
+}
+
+// ---------------------------------------------------------------- las bandejas
+async function cargarBandejas() {
+  try {
+    const r = await (await fetch('/estudio/proyectos')).json();
+    if (!r.ok) return;
+    bandejas = r.proyectos || [];
+    cuentas = r.cuentas || {};
+    totalAudios = r.total || 0;
+    pintarBandejas();
+  } catch (e) {}
+}
+
+function pintarBandejas() {
+  const c = $('#bandejas');
+  if (!c) return;
+  const chip = (clave, texto, n) =>
+    '<button class="chipb' + (activa === clave ? ' sel' : '') + '" data-band="' +
+    (clave === null ? '*' : esc(clave)) + '">' + esc(texto) + ' <i>' + (n || 0) + '</i></button>';
+  const cantidad = clave => recibidos.filter(a => tipoDe(a) === modo &&
+    (clave === null || (a.proyecto || '') === clave)).length;
+  c.innerHTML =
+    chip(null, 'Todos', recibidos.length ? cantidad(null) : totalAudios) +
+    chip('', 'Sin clasificar', recibidos.length ? cantidad('') : (cuentas[''] || 0)) +
+    bandejas.map(b => chip(b, b, recibidos.length ? cantidad(b) : (cuentas[b] || 0))).join('') +
+    '<button class="chipb mas" data-nueva="1">＋ bandeja</button>';
+}
+
+function pintarMedios() {
+  const audios = recibidos.filter(a => tipoDe(a) === 'audio').length;
+  const videos = recibidos.filter(a => tipoDe(a) === 'video').length;
+  $('#cantAudio').textContent = audios;
+  $('#cantVideo').textContent = videos;
+  document.querySelectorAll('[data-medio]').forEach(b => {
+    const elegido = b.dataset.medio === modo;
+    b.classList.toggle('sel', elegido);
+    b.setAttribute('aria-selected', elegido ? 'true' : 'false');
+  });
+  const esVideo = modo === 'video';
+  document.querySelector('.caja').classList.toggle('modo-video', esVideo);
+  $('#tituloFuente').textContent = esVideo ? 'Tus videos' : 'Tus audios';
+  $('#subFuente').textContent = esVideo
+    ? 'los videos de las mismas carpetas, listos para mirar, cortar y armar'
+    : 'los audios de las mismas carpetas, listos para leer, recortar y armar';
+  $('#buscar').placeholder = esVideo ? 'buscar en tus videos…' : 'buscar por lo que dice…';
+  $('#rotFila').firstChild.textContent = esVideo ? 'La fila de video ' : 'La fila de audio ';
+}
+
+function cambiarMedio(nuevo) {
+  if (nuevo !== 'audio' && nuevo !== 'video') return;
+  if (nuevo === modo) return;
+  guardar();
+  parar();
+  modo = nuevo;
+  // Si venías mirando una carpeta de audio que no tiene videos, al cambiar de mesa
+  // no te dejo frente a un vacío engañoso: volvés a Todos y ves lo que llegó.
+  if (activa !== null && !recibidos.some(a => tipoDe(a) === modo && (a.proyecto || '') === activa) &&
+      recibidos.some(a => tipoDe(a) === modo)) activa = null;
+  pintarMedios();
+  pintarBandejas();
+  cargarFila();
+  sumarPreparados();
+  pintarBandeja();
+  guardar();
+}
+
+async function guardarBandejas() {
+  try {
+    await fetch('/estudio/proyectos', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                       body: JSON.stringify({proyectos: bandejas})});
+  } catch (e) {}
+}
+
+// Mandar UN audio a una bandeja. Se toca la pantalla al toque y se avisa al servidor
+// después: mover es barato y esperar la respuesta se siente lento.
+async function moverA(archivo, proyecto) {
+  const a = recibidos.find(x => x.archivo === archivo);
+  if (a) a.proyecto = proyecto;
+  pintarBandeja();
+  try {
+    await fetch('/estudio/mover', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                   body: JSON.stringify({archivo, proyecto})});
+  } catch (e) {}
+  cargarBandejas();
+}
+
+// ---------------------------------------------------------------- subir archivos
+async function subir(files) {
+  const lista = [...files].filter(f => f.size > 0);
+  // Un `drop` dentro de #soltar también llega a document. Aunque la burbuja se corta
+  // abajo, este seguro evita que una carga pesada se duplique ante cualquier doble gesto.
+  if (!lista.length || subiendo) return;
+  // Elegir la mesa antes de empezar la transferencia. En un video grande la respuesta
+  // final tarda (copiarlo y abrirlo lleva tiempo), y dejar "Audios" seleccionado hace
+  // parecer que el soltar no hizo nada aunque ya esté entrando al servidor.
+  const soloVideos = lista.every(f => /\.(mp4|mov|avi|mkv|webm|m4v|3gp)$/i.test(f.name || ''));
+  if (soloVideos) cambiarMedio('video');
+  subiendo = true;
+  const total = lista.reduce((n, f) => n + f.size, 0);
+  // La cola local aparece desde el primer byte. Cuando el servidor confirma el
+  // archivo, la reemplaza su misma ficha compartida (también visible desde WhatsApp).
+  colaLocal = lista.map((f, i) => ({id: 'subiendo-' + Date.now() + '-' + i,
+    nombre: f.name, de: f.name, tipo: /\.(mp4|mov|avi|mkv|webm|m4v|3gp)$/i.test(f.name || '') ? 'video' : 'audio',
+    origen: 'disco', estado: 'en_curso', pct: 0, paso: 'Subiendo desde esta página…'}));
+  pintarCola();
+  subidaEstado = {pct: 0, titulo: lista.length > 1 ? 'Subiendo los archivos…' : 'Subiendo el video…',
+                  paso: 'Todavía no llegó completo a la máquina.'};
+  pintarEstadoProceso();
+  avisar('');
+  const fd = new FormData();
+  lista.forEach(f => fd.append('archivos', f, f.name));
+  $('#soltar').classList.add('encima');
+  try {
+    const r = await enviarSubida(fd, total);
+    if (!r.ok) return avisar(r.error || 'no se pudieron subir');
+    // Lo que subís entra a la MISMA bandeja que lo que llega por WhatsApp, y además
+    // se suma solo a la fila: si te tomaste el trabajo de arrastrarlo, lo querés usar.
+    recibidos = r.audios || recibidos;
+    colaLocal = [];
+    pintarCola();
+    cargarCola();
+    // Si subiste solamente videos (o solamente audios), te llevo a la mesa correcta.
+    // Las carpetas son compartidas; la separación es para no armar una fila mezclada.
+    const nuevos = (r.guardados || []).map(archivo => recibidos.find(a => a.archivo === archivo)).filter(Boolean);
+    const tipos = [...new Set([...nuevos, ...(r.pendientes || [])].map(tipoDe))];
+    if (tipos.length === 1) cambiarMedio(tipos[0]);
+    nuevos.filter(a => tipoDe(a) === modo && videoListo(a))
+          .forEach(a => sumar(a.archivo));
+    // Lo subido se prepara por el pipeline común en segundo plano. La cola muestra
+    // Whisper y Gemini; recién al terminar entra en `recibidos` como fuente lista.
+    pintarMedios();
+    if ((r.errores || []).length) avisar(r.errores.join(' · '));
+    pintarBandeja();
+  } catch (e) {
+    colaLocal.forEach(a => { a.estado = 'error'; a.paso = 'No se pudo subir: ' + e.message; });
+    pintarCola();
+    avisar('no se pudieron subir: ' + e);
+  } finally {
+    subiendo = false;
+    subidaEstado = null;
+    pintarEstadoProceso();
+    $('#soltar').classList.remove('encima');
+  }
+}
+
+// `fetch` no cuenta los bytes que están saliendo. XHR sí, y por eso se usa sólo en
+// esta puerta: un video de varios GB no puede dejar una pantalla muda hasta el final.
+function enviarSubida(fd, total) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', '/estudio/subir');
+    x.upload.onprogress = e => {
+      if (!e.lengthComputable) return;
+      subidaEstado = {pct: Math.round(e.loaded * 100 / Math.max(1, total)),
+        titulo: 'Subiendo el video…',
+        paso: Math.round(e.loaded / 1048576) + ' de ' + Math.round(total / 1048576) + ' MB llegaron a la máquina.'};
+      colaLocal.forEach(a => { a.pct = subidaEstado.pct; a.paso = subidaEstado.paso; });
+      pintarCola();
+      pintarEstadoProceso();
+    };
+    x.upload.onload = () => {
+      subidaEstado = {pct: 100, titulo: 'Guardando el video…',
+        paso: 'El archivo llegó; se está preparando la copia para editar.'};
+      colaLocal.forEach(a => { a.pct = 100; a.paso = subidaEstado.paso; });
+      pintarCola();
+      pintarEstadoProceso();
+    };
+    x.onerror = () => reject(new Error('se cortó la subida'));
+    x.onload = () => {
+      let datos;
+      try { datos = JSON.parse(x.responseText || '{}'); }
+      catch (e) { return reject(new Error('la respuesta de la subida no se entiende')); }
+      if (x.status < 200 || x.status >= 300) return reject(new Error(datos.error || 'falló la subida'));
+      resolve(datos);
+    };
+    x.send(fd);
+  });
+}
+
+function tarjetaProgreso(titulo, paso, pct, clase = '') {
+  const n = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+  return '<div class="progresoVideo ' + clase + '"><div class="proCab"><b>' + esc(titulo) +
+    '</b><strong>' + n + '%</strong></div><span class="proPaso">' + esc(paso) +
+    '</span><div class="proBarra"><i style="width:' + n + '%"></i></div></div>';
+}
+
+function pintarEstadoProceso() {
+  const caja = $('#estadoProceso');
+  if (!caja) return;
+  if (!subidaEstado) { caja.style.display = 'none'; caja.innerHTML = ''; return; }
+  caja.innerHTML = tarjetaProgreso(subidaEstado.titulo, subidaEstado.paso, subidaEstado.pct,
+                                  subidaEstado.pct === 0 ? 'indefinido' : '');
+  caja.style.display = '';
+}
+
+// ---------------------------------------------------------------- la bandeja
+const CANALES = {
+  whatsapp: {ico: '📱', nom: 'WhatsApp'},
+  telegram: {ico: '✈️', nom: 'Telegram'},
+  disco:    {ico: '💾', nom: 'del disco'},
+  subida:   {ico: '⬆',  nom: 'subido'}
+};
+
+function pintarCola() {
+  const caja = $('#colaViva');
+  if (!caja) return;
+  const items = [...colaLocal, ...colaServidor].slice(0, 8);
+  const firma = JSON.stringify(items.map(a => [a.id, a.estado, a.pct, a.paso, a.actualizado]));
+  if (firma === firmaCola) return;
+  firmaCola = firma;
+  if (!items.length) { caja.style.display = 'none'; caja.innerHTML = ''; return; }
+  const activos = items.filter(a => a.estado === 'en_curso').length;
+  const etiqueta = activos ? activos + (activos === 1 ? ' preparando' : ' preparando') : 'recién terminados';
+  caja.innerHTML = '<div class="colaCab"><b>Cola en vivo</b><span>' + etiqueta + '</span></div>' +
+    items.map(a => {
+      const esVideo = tipoDe(a) === 'video';
+      const canal = CANALES[a.origen] || CANALES.subida;
+      const estado = a.estado === 'error' ? 'error' : a.estado === 'listo' ? 'listo' : '';
+      const pct = Math.max(0, Math.min(100, Number(a.pct) || 0));
+      const nombre = a.de || a.nombre || a.archivo || (esVideo ? 'video' : 'audio');
+      const paso = a.error || a.paso || 'Esperando…';
+      return '<div class="colaItem ' + estado + '"><span class="colaIco">' + (esVideo ? '🎬' : '🎧') +
+        '</span><div class="colaTexto"><div class="colaNom">' + esc(nombre) + '</div><div class="colaMeta">' +
+        esc(canal.nom + ' · ' + paso) + '</div></div><div class="colaAvance"><b>' + pct +
+        '%</b><i style="--avance:' + pct + '%"></i></div></div>';
+    }).join('');
+  // La hoja de estilos la deja oculta mientras está vacía. Al llegar un trabajo hay
+  // que poner un valor explícito: `''` sólo quitaba el estilo inline y volvía a ganar
+  // ese `display:none`, por eso la cola existía pero no se veía nunca.
+  caja.style.display = 'block';
+}
+
+async function cargarCola() {
+  try {
+    const r = await (await fetch('/estudio/cola')).json();
+    if (!r.ok) return;
+    colaServidor = Array.isArray(r.items) ? r.items : [];
+    pintarCola();
+  } catch (e) {}
+}
+
+// "recién / hace 12 min / hace 3 h / ayer / 14 ago". Sirve para ubicarse en la lista
+// sin leer una fecha completa, que es ruido cuando lo que buscás es el de hace un rato.
+function hace(ts) {
+  const s = Math.max(0, Date.now() / 1000 - (ts || 0));
+  if (s < 90) return 'recién';
+  if (s < 3600) return 'hace ' + Math.round(s / 60) + ' min';
+  if (s < 86400) return 'hace ' + Math.round(s / 3600) + ' h';
+  if (s < 172800) return 'ayer';
+  const d = new Date((ts || 0) * 1000);
+  return d.getDate() + ' ' + ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()];
+}
+
+async function cargarRecibidos() {
+  try {
+    const r = await (await fetch('/estudio/entrantes')).json();
+    if (!r.ok) return;
+    // Se compara una FIRMA antes de repintar: esto se refresca solo cada 20 s y
+    // repintar de gusto te tira el scroll y te borra lo que estabas escribiendo en
+    // el buscador. (Misma regla que el resto de las pantallas del panel.)
+    // ⚠ `bandejaPintada` no sobra: sin él, con CERO audios la firma da '' igual que
+    // la lista vacía del arranque, el return se dispara en la primera vuelta y la
+    // bandeja se queda para siempre en "Buscando…" — que es justo lo que ve alguien
+    // que entra por primera vez y todavía no mandó ningún audio. Visto en vivo el
+    // 2026-08-17: la firma tiene que decidir si REPINTAR, no si pintar la primera vez.
+    const firma = (r.audios || []).map(a => a.archivo).join('|');
+    if (bandejaPintada && firma === recibidos.map(a => a.archivo).join('|')) return;
+    const primeraPintada = !bandejaPintada;
+    bandejaPintada = true;
+    recibidos = r.audios || [];
+    // Si entrás por primera vez y solo hay material del otro tipo, mostrámelo en vez
+    // de hacerte llegar a una pestaña vacía. Después manda tu elección, sin saltos.
+    if (primeraPintada && !pistas.length && !recibidos.some(a => tipoDe(a) === modo)) {
+      const otro = recibidos.find(a => tipoDe(a) !== modo);
+      if (otro) modo = tipoDe(otro);
+    }
+    // La última carpeta elegida puede ser de Audio y no tener ningún Video. Solo al
+    // abrir, ahí sí volvemos a Todos; una carpeta que elijas después queda elegida.
+    if (primeraPintada && activa !== null &&
+        !recibidos.some(a => tipoDe(a) === modo && (a.proyecto || '') === activa) &&
+        recibidos.some(a => tipoDe(a) === modo)) activa = null;
+    // Una fila vieja podía haber guardado un video antes de que existiera esta regla.
+    // Si le falta texto o análisis, vuelve arriba: la mesa de edición no muestra medios a medias.
+    const sinPreparar = new Set(recibidos.filter(a => tipoDe(a) === 'video' && !videoListo(a)).map(a => a.archivo));
+    if (sinPreparar.size && pistas.some(p => sinPreparar.has(p.archivo))) {
+      pistas = pistas.filter(p => !sinPreparar.has(p.archivo));
+      parar(); pintar();
+    }
+    // También los videos que llegan por Telegram/WhatsApp se preparan al abrir el
+    // Estudio. Hasta que terminen no se muestran como clips editables.
+    recibidos.filter(a => tipoDe(a) === 'video' && !videoListo(a) && !fallosVideo.has(a.archivo))
+      .forEach(a => prepararVideo(a.archivo));
+    pintarMedios();
+    pintarBandejas();
+    pintarBandeja();
+    cargarBandejas();          // llegó uno nuevo: las cuentas de los chips cambiaron
+  } catch (e) {}
+}
+
+function pintarBandeja() {
+  const cont = $('#bandeja');
+  if (!cont) return;
+  const q = filtro.trim().toLowerCase();
+  if (!recibidos.length) {
+    cont.innerHTML = '<div class="vacio">Todavía no hay ningún audio ni video.<br>' +
+      'Mandale uno al bot de Telegram y aparece acá solo.</div>';
+    return;
+  }
+  const enPreparacion = recibidos.filter(a => tipoDe(a) === modo && tipoDe(a) === 'video' && !videoListo(a));
+  const vistos = recibidos.filter(a => tipoDe(a) === modo &&
+    videoListo(a) &&
+    (activa === null || (a.proyecto || '') === activa) &&
+    (!q || (a.texto || '').toLowerCase().includes(q) || (a.de || '').toLowerCase().includes(q)));
+  if (!vistos.length) {
+    const nombre = modo === 'video' ? 'videos' : 'audios';
+    cont.innerHTML = enPreparacion.length
+      ? enPreparacion.map(tarjetaPreparandoVideo).join('')
+      : '<div class="vacio">' + (q ? 'Ninguno de tus ' + nombre + ' dice eso.'
+      : 'No hay ' + nombre + ' en esta bandeja. Elegí la otra pestaña o mandá uno nuevo.') + '</div>';
+    return;
+  }
+  cont.innerHTML = vistos.map(a => {
+    const c = CANALES[a.origen] || CANALES.subida;
+    const puesto = pistas.filter(p => p.archivo === a.archivo).length;
+    const necesitaTexto = tipoDe(a) === 'video' && !videoListo(a);
+    const preparando = preparandoTexto.has(a.archivo);
+    return '<div class="rec' + (puesto ? ' puesto' : '') + '"' +
+      (necesitaTexto ? '' : ' data-sumar="' + a.archivo + '"') + '>' +
+      '<div class="can" title="' + c.nom + '">' + c.ico + '</div>' +
+      '<div class="cuerpo">' +
+        '<div class="meta">' + (a.tipo === 'video' ? '<span class="tipoMedia">VIDEO</span> · ' : '') +
+          esc(a.de) + ' · ' + hace(a.cuando) + ' · ' + seg(a.dur) +
+          (necesitaTexto ? ' · <b class="pendiente">generá el texto para editarlo</b>' : '') +
+          (puesto ? ' · <b class="ya">en la fila' + (puesto > 1 ? ' ×' + puesto : '') + '</b>' : '') +
+        '</div>' +
+        '<div class="dice">' + (a.texto ? esc(a.texto)
+                                        : '<i style="color:#5c6675">no se le escuchó voz</i>') + '</div>' +
+      '</div>' +
+      '<select class="proy" data-mover="' + a.archivo + '" title="a qué bandeja va">' +
+        '<option value=""' + (!a.proyecto ? ' selected' : '') + '>— sin bandeja —</option>' +
+        bandejas.map(b => '<option value="' + esc(b) + '"' +
+                          (a.proyecto === b ? ' selected' : '') + '>' + esc(b) + '</option>').join('') +
+        '<option value="__nueva__">＋ bandeja nueva…</option>' +
+      '</select>' +
+      (necesitaTexto
+        ? '<button class="preparar" data-preparar="' + a.archivo + '"' + (preparando ? ' disabled' : '') +
+          '>' + (preparando ? 'Generando…' : '📝 Generar texto') + '</button>'
+        : '<button class="mas" data-sumar="' + a.archivo + '" title="sumar a la fila">＋</button>') +
+      '<button class="tirar" data-tirar="' + a.archivo + '" title="borrar esta copia">🗑</button>' +
+    '</div>';
+  }).join('');
+}
+
+// Sumar el mismo audio dos veces está PERMITIDO (podés querer repetir un pedazo):
+// cada fila de la fila tiene su propio `id`, que es con lo que se dibuja, así que
+// dos filas del mismo archivo no se pisan.
+function sumar(archivo) {
+  const a = recibidos.find(x => x.archivo === archivo);
+  if (!a || tipoDe(a) !== modo) return;
+  if (tipoDe(a) === 'video' && !videoListo(a)) {
+    avisar('Este video todavía está preparando el texto y el análisis inteligente.');
+    return;
+  }
+  const p = {archivo: a.archivo, tipo: a.tipo || 'audio', id: proximoId++, dur: a.dur || 0,
+             ini: 0, fin: a.dur || 0,
+             nombre: (a.texto || '').trim().slice(0, 70) || (a.de || a.tipo || 'audio')};
+  pistas.push(p);
+  pintar();
+  pintarBandeja();
+  cargarOnda(p);
+  return p;
+}
+
+function tarjetaPreparandoVideo(a) {
+  const fallo = fallosVideo.get(a.archivo);
+  const p = avancesVideo.get(a.archivo) || {pct: 0, paso: fallo || 'Esperando para preparar el video…'};
+  const titulo = 'Tu video está en preparación';
+  const reintentar = fallo
+    ? '<button class="preparar" data-preparar="' + a.archivo + '">Reintentar</button>' : '';
+  return tarjetaProgreso(titulo, p.paso || 'Preparando el video…', p.pct,
+                         p.pct ? '' : 'indefinido') + reintentar;
+}
+
+async function prepararVideo(archivo) {
+  const a = recibidos.find(x => x.archivo === archivo);
+  if (!a || tipoDe(a) !== 'video' || videoListo(a) || preparandoTexto.has(archivo)) return;
+  fallosVideo.delete(archivo);
+  preparandoTexto.add(archivo);
+  avancesVideo.set(archivo, {pct: 0, paso: 'Preparando el video…'});
+  pintarBandeja();
+  try {
+    let previo = await leerProgresoVideo(archivo);
+    if (previo && previo.en_curso) {
+      const final = await esperarProgresoVideo(archivo);
+      if (final.error) throw new Error(final.error);
+      return finalizarVideoDesdeServidor(a);
+    }
+    const r = await pedirTranscripcionConProgreso(archivo);
+    if (!r.ok) throw new Error(r.error || 'no se pudo generar el texto');
+    if (r.en_curso) {
+      const final = await esperarProgresoVideo(archivo);
+      if (final.error) throw new Error(final.error);
+      return finalizarVideoDesdeServidor(a);
+    }
+    return finalizarVideoDesdeServidor(a);
+  } catch (e) {
+    const error = e.message || 'no se pudo terminar la preparación';
+    fallosVideo.set(archivo, error);
+    avancesVideo.set(archivo, {pct: 0, paso: 'No terminó: ' + error});
+    avisar('El video quedó oculto: no se pudo terminar su análisis inteligente. Podés reintentar.');
+  } finally {
+    preparandoTexto.delete(archivo);
+    if (!fallosVideo.has(archivo)) avancesVideo.delete(archivo);
+    pintarBandeja();
+  }
+}
+
+async function leerProgresoVideo(archivo) {
+  try {
+    const r = await fetch('/estudio/progreso/' + encodeURIComponent(archivo));
+    if (!r.ok) return null;              // panel todavía no actualizado: sigue igual de usable
+    const d = await r.json();
+    if (!d.ok) return null;
+    avancesVideo.set(archivo, {pct: d.pct || 0, paso: d.paso || 'Preparando el video…'});
+    pintarBandeja();
+    return d;
+  } catch (e) { return null; }
+}
+
+async function esperarProgresoVideo(archivo) {
+  let estado = null;
+  do {
+    await new Promise(resolve => setTimeout(resolve, 900));
+    estado = await leerProgresoVideo(archivo);
+  } while (estado && estado.en_curso);
+  return estado || {};
+}
+
+async function pedirTranscripcionConProgreso(archivo) {
+  let termino = false, resultado, fallo;
+  fetch('/estudio/transcribir/' + encodeURIComponent(archivo), {method:'POST'})
+    .then(r => r.json())
+    .then(d => { resultado = d; termino = true; })
+    .catch(e => { fallo = e; termino = true; });
+  while (!termino) {
+    await new Promise(resolve => setTimeout(resolve, 900));
+    await leerProgresoVideo(archivo);
+  }
+  if (fallo) throw fallo;
+  return resultado;
+}
+
+async function finalizarVideoDesdeServidor(a) {
+  const [fichas, segmentos] = await Promise.all([
+    fetch('/estudio/entrantes').then(r => r.json()),
+    fetch('/estudio/segmentos/' + encodeURIComponent(a.archivo)).then(r => r.json()),
+  ]);
+  const fresco = (fichas.audios || []).find(x => x.archivo === a.archivo) || a;
+  Object.assign(a, fresco);
+  if (!videoListo(a)) throw new Error('todavía faltan el texto o el análisis inteligente');
+  finalizarVideoPreparado(a, a.texto || '', segmentos.segmentos || []);
+}
+
+function finalizarVideoPreparado(a, texto, frases) {
+    a.texto = texto || '';
+    a.segs = frases.length;
+    a.tiene_analisis = true;
+    if (!frases.length) return avisar('No se detectaron frases en este video.');
+    a.frases = frases;
+    const p = tipoDe(a) === modo ? sumar(a.archivo) : null;
+    if (p) { p.frases = frases; acomodarFrases(p); }
+    else a.autosumar = true;     // se suma al abrir su pestaña, ya listo para editar
+    avisar(p ? 'Listo: el video ya está en la fila y podés editarlo por frases.'
+             : 'Listo: el video va a aparecer listo al abrir la pestaña Videos.');
+}
+
+function sumarPreparados() {
+  recibidos.filter(a => a.autosumar && tipoDe(a) === modo && videoListo(a)).forEach(a => {
+    a.autosumar = false;
+    const p = sumar(a.archivo);
+    if (p && a.frases) { p.frases = a.frases; acomodarFrases(p); }
+  });
+}
+
+async function tirar(archivo) {
+  const a = recibidos.find(x => x.archivo === archivo);
+  const dice = a && a.texto ? '\n\n"' + a.texto.slice(0, 90) + '"' : '';
+  if (!confirm('¿Borrar esta copia de la lista?' + dice +
+               '\n\nEl original sigue en tu WhatsApp o Telegram; esto borra la copia de acá.')) return;
+  try {
+    await fetch('/estudio/borrar', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({archivo})});
+  } catch (e) {}
+  recibidos = recibidos.filter(x => x.archivo !== archivo);
+  // Lo que ya estaba en la fila se va también: el archivo dejó de existir y esas
+  // filas quedarían mudas.
+  pistas = pistas.filter(p => p.archivo !== archivo);
+  pintar();
+  pintarBandeja();
+}
+
+// ---------------------------------------------------------------- el texto del audio
+// ⭐ Ésta es la idea que ningún editor de audio puede copiar: el proyecto YA transcribe
+// todo lo que entra, con marcas de tiempo. Entonces cortar no es medir píxeles, es leer
+// y tocar la frase. Los segmentos se piden una sola vez por pista y quedan en `p.frases`.
+const reloj = s => Math.floor((s || 0) / 60) + ':' + String(Math.floor((s || 0) % 60)).padStart(2, '0');
+
+async function verTexto(i) {
+  const p = pistas[i];
+  if (!p) return;
+  p.abierto = !p.abierto;
+  const caja = document.querySelector('[data-texto="' + p.id + '"]');
+  if (caja) caja.classList.toggle('abierto', p.abierto);
+  if (!p.abierto) return;
+  if (!p.frases) {
+    if (caja) caja.innerHTML = '<div class="cargando">buscando lo que dice…</div>';
+    try {
+      const r = await (await fetch('/estudio/segmentos/' + p.archivo)).json();
+      p.frases = r.segmentos || [];
+    } catch (e) {
+      p.frases = [];
+    }
+    acomodarFrases(p);
+  }
+  pintarTexto(p);
+}
+
+// ⚠⚠ Whisper puede terminar la ÚLTIMA frase después de que el audio se acabó: cierra el
+// bloque con lo que estimó, no con lo que dura el archivo (visto el 2026-08-18 en un audio
+// de 24,51 s con la última frase marcada hasta 26,03). Con ese `fin` de más la frase nunca
+// entra en el recorte: se veía tachada sin que Martín la sacara, y "＋ poner" no la podía
+// poner porque el recorte no se puede estirar más allá del final del audio — el mismo
+// "botón que no hace lo que dice" de más abajo, pero por el otro motivo.
+// Por eso se recortan las frases al largo real apenas se sabe cuánto dura.
+// ⛔ Se recortan, NO se descartan: `fuera` guarda ÍNDICES de frases y se guarda en el
+// navegador, así que sacar una de la lista correría todas las demás y las frases sacadas
+// pasarían a ser otras al volver a abrir la pestaña.
+function acomodarFrases(p) {
+  if (!p || !p.frases || !p.dur) return;
+  p.frases = p.frases.map(s => ({...s,
+    inicio: Math.max(0, Math.min(s.inicio, p.dur)),
+    fin: Math.max(0, Math.min(s.fin, p.dur))}));
+}
+
+function pintarTexto(p) {
+  const caja = document.querySelector('[data-texto="' + p.id + '"]');
+  if (!caja) return;
+  const fr = p.frases || [];
+  if (!fr.length) {
+    caja.innerHTML = '<div class="cargando">Este archivo se guardó antes de que existieran ' +
+      'los cortes por texto.<br><button class="retranscribir" data-retranscribir="' + p.id + '"' +
+      (p.retranscribiendo ? ' disabled' : '') + '>' +
+      (p.retranscribiendo ? 'Transcribiendo…' : 'Generar fragmentos editables') + '</button></div>';
+    const b = caja.querySelector('[data-retranscribir]');
+    if (b) {
+      // En pantallas táctiles este botón se reemplaza apenas empieza el trabajo. Si el
+      // gesto sigue propagándose, el navegador puede terminar el toque sobre el control
+      // que quedó debajo y disparar otra acción (en el celular era "Hablarle ahora").
+      // Frenamos el gesto completo antes de repintar, no solamente el `click` final.
+      ['pointerdown', 'pointerup', 'touchstart', 'touchend'].forEach(ev =>
+        b.addEventListener(ev, e => e.stopPropagation(), {passive: false}));
+      b.onclick = e => {
+        e.preventDefault();
+        e.stopPropagation();
+        retranscribir(p);
+      };
+    }
+    return;
+  }
+  caja.innerHTML = fr.map((s, j) => {
+    const puesta = frasePuesta(p, j);
+    return '<div class="frase' + (puesta ? '' : ' afuera') + '" data-frase="' + j + '">' +
+      '<span class="min">' + reloj(s.inicio) + '</span>' +
+      '<span class="dice" contenteditable="true" spellcheck="true" data-editar="' + j + '"' +
+        ' title="tocá para corregir; se guarda solo">' + esc(s.texto) + '</span>' +
+      '<span class="cortes">' +
+        '<button data-desde="' + j + '" title="que el audio empiece en esta frase">⟨ desde</button>' +
+        '<button data-hasta="' + j + '" title="que el audio termine en esta frase">hasta ⟩</button>' +
+        (puesta
+          ? '<button class="saca" data-sacar="' + j + '" title="sacar esta frase del audio">✕ sacar</button>'
+          : '<button class="pone" data-sacar="' + j + '" title="volver a poner esta frase">＋ poner</button>') +
+      '</span>' +
+    '</div>';
+  }).join('');
+  resaltarFrase(p);
+}
+
+// Sin repintar: se llama en cada `timeupdate` mientras suena.
+function resaltarFrase(p) {
+  const caja = document.querySelector('[data-texto="' + p.id + '"]');
+  if (!caja || !p.frases) return;
+  const t = typeof p.pos === 'number' ? p.pos : -1;
+  caja.querySelectorAll('.frase').forEach((el, j) => {
+    const s = p.frases[j];
+    el.classList.toggle('sonando', !!s && t >= s.inicio && t < s.fin);
+  });
+}
+
+// Corregir lo que entendió Whisper sin salir del Estudio. Se guarda la ficha completa
+// porque los tiempos y el texto viven juntos; así copiar y analizar usan la corrección.
+const guardadosTexto = new Map();
+function claveTexto(p) { return p && p.archivo; }
+
+async function guardarTexto(p, dice) {
+  if (!p || !p.frases) return true;
+  const clave = claveTexto(p);
+  const previo = guardadosTexto.get(clave);
+  if (previo && previo.timer) clearTimeout(previo.timer);
+  if (dice) { dice.classList.remove('guardada', 'error'); dice.classList.add('guardando'); }
+  // Si seguís escribiendo mientras todavía guarda, conserva el orden: la corrección
+  // nueva nunca puede llegar al disco antes y ser pisada después por una vieja.
+  const anterior = previo && previo.promesa;
+  const promesa = (anterior ? anterior.catch(() => false) : Promise.resolve()).then(() =>
+    fetch('/estudio/segmentos/' + encodeURIComponent(p.archivo), {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({segmentos: p.frases})
+    })).then(r => r.json()).then(r => {
+    if (!r.ok) throw new Error(r.error || 'no pude guardar');
+    if (dice && dice.isConnected) {
+      dice.classList.remove('guardando', 'error'); dice.classList.add('guardada');
+      setTimeout(() => dice.classList.remove('guardada'), 900);
+    }
+    return true;
+  }).catch(e => {
+    if (dice && dice.isConnected) {
+      dice.classList.remove('guardando', 'guardada'); dice.classList.add('error');
+    }
+    avisarAnal('no pude guardar la corrección: ' + e, true);
+    return false;
+  }).finally(() => {
+    const actual = guardadosTexto.get(clave);
+    if (actual && !actual.timer && actual.promesa === promesa) guardadosTexto.delete(clave);
+  });
+  guardadosTexto.set(clave, {promesa});
+  return promesa;
+}
+
+function programarGuardadoTexto(p, dice) {
+  const clave = claveTexto(p);
+  const previo = guardadosTexto.get(clave);
+  if (previo && previo.timer) clearTimeout(previo.timer);
+  const timer = setTimeout(() => guardarTexto(p, dice), 650);
+  guardadosTexto.set(clave, {timer, promesa: previo && previo.promesa});
+}
+
+async function guardarEdicionesPendientes() {
+  const pendientes = [];
+  for (const [clave, estado] of [...guardadosTexto.entries()]) {
+    if (estado.timer) {
+      clearTimeout(estado.timer);
+      const p = pistas.find(x => claveTexto(x) === clave);
+      if (p) pendientes.push(guardarTexto(p));
+    } else if (estado.promesa) pendientes.push(estado.promesa);
+  }
+  const resultados = await Promise.all(pendientes);
+  return resultados.every(Boolean);
+}
+
+// ⭐⭐ Sacar y PONER una frase, sobre el mismo audio y sin partir nada. Cada pista lleva
+// `fuera`: los índices de las frases que no van. Sacar es agregar a esa lista y poner es
+// quitarla — o sea que todo movimiento se deshace tocando el mismo botón.
+// Antes esto partía la pista en dos cuando la frase caía en el medio, y volver atrás
+// era imposible sin rehacer el recorte a mano. Pedido de Martín (2026-08-18): "que sea
+// fácil de sacar y de poner fragmentos sobre el mismo audio".
+// El archivo sigue sin tocarse: los agujeros viajan al servidor como TRAMOS (ver
+// `tramosDe`), que es algo que ffmpeg ya sabía hacer.
+function alternarFrase(i, j) {
+  const p = pistas[i];
+  if (!p || !(p.frases || [])[j]) return;
+  const s = p.frases[j];
+  p.fuera = p.fuera || [];
+  const donde = p.fuera.indexOf(j);
+  if (frasePuesta(p, j)) {
+    p.fuera.push(j);
+  } else {
+    if (donde >= 0) p.fuera.splice(donde, 1);
+    // ⚠ Una frase puede estar afuera por DOS motivos: la sacaste, o quedó fuera del
+    // recorte de las manijas. Si es lo segundo, sacarla de `fuera` no alcanzaba y el
+    // botón "poner" no ponía nada: hay que estirar el recorte para que entre. Un botón
+    // que no hace lo que dice es peor que no tenerlo (visto en la captura, 2026-08-18).
+    if (s.inicio < p.ini) p.ini = Math.max(0, s.inicio);
+    if (s.fin > (p.fin || p.dur || 0)) p.fin = Math.min(p.dur || s.fin, s.fin);
+  }
+  parar();
+  colocar(p); dibujar(p); pintarTexto(p); totalizar(); guardar();
+}
+
+// Los pedazos que de verdad van a sonar: el recorte de las manijas menos los agujeros
+// que dejaste sacando frases. Se calcula acá y el servidor recibe varias entradas del
+// mismo archivo — no hubo que cambiarle nada, ya sabía pegar N pedazos.
+function tramosDe(p) {
+  const fin = p.fin || p.dur || 0;
+  const fuera = (p.fuera || []).map(j => (p.frases || [])[j]).filter(Boolean)
+    .map(s => [Math.max(p.ini, s.inicio), Math.min(fin, s.fin)])
+    .filter(([a, b]) => b > a + 0.01)
+    .sort((x, y) => x[0] - y[0]);
+  if (!fuera.length) return [{archivo: p.archivo, ini: p.ini, fin}];
+  const tramos = [];
+  let cursor = p.ini;
+  for (const [a, b] of fuera) {
+    if (a > cursor + 0.05) tramos.push({archivo: p.archivo, ini: cursor, fin: a});
+    cursor = Math.max(cursor, b);
+  }
+  if (fin > cursor + 0.05) tramos.push({archivo: p.archivo, ini: cursor, fin});
+  return tramos;
+}
+
+// Lo que se le manda al servidor para unir, analizar o copiar: la fila con los agujeros
+// ya resueltos. Una pista con dos agujeros viaja como tres entradas.
+const paraEnviar = () => pistas.flatMap(tramosDe);
+
+const duraPista = p => tramosDe(p).reduce((s, t) => s + Math.max(0, t.fin - t.ini), 0);
+
+// ¿Esta frase está adentro de lo que va a sonar?
+function frasePuesta(p, j) {
+  const s = (p.frases || [])[j];
+  if (!s) return false;
+  if ((p.fuera || []).includes(j)) return false;
+  return s.inicio >= p.ini - 0.01 && s.fin <= (p.fin || p.dur || 0) + 0.01;
+}
+
+// Los "lentes" con los que Gemini mira el audio (general, reuniones, ventas, clínica).
+let perfiles = [], perfilElegido = '';
+
+let loDicho = '', loAnalizado = '', consultaAnalisis = 0;
+
+async function cargarPerfiles() {
+  try {
+    const r = await (await fetch('/estudio/perfiles')).json();
+    if (!r.ok) return;
+    perfiles = r.perfiles || [];
+    perfilElegido = localStorage.getItem('estudioPerfil') || r.defecto || perfiles[0] || '';
+    const sel = $('#perfil');
+    if (sel) sel.innerHTML = perfiles.map(p =>
+      '<option value="' + esc(p) + '"' + (p === perfilElegido ? ' selected' : '') + '>' +
+      esc(p === 'generico' ? 'análisis general' : p) + '</option>').join('');
+  } catch (e) {}
+}
+
+function avisarAnal(txt, mal) {
+  const d = $('#dichoAnal');
+  if (!d) return;
+  d.className = 'dicho' + (mal ? ' mal' : '');
+  d.textContent = txt || '';
+}
+
+function borrarAnalisisArmado() {
+  loDicho = ''; loAnalizado = '';
+  const caja = $('#analisis');
+  if (caja) { caja.classList.remove('abierto'); caja.innerHTML = ''; }
+}
+
+function mostrarAnalisisArmado(texto, dicho, perfil, guardado) {
+  loAnalizado = texto || '';
+  loDicho = dicho || loDicho;
+  const caja = $('#analisis');
+  if (!caja || !loAnalizado) return;
+  caja.innerHTML =
+    '<div class="cabAnal">' +
+      '<b>Análisis · ' + esc(perfil || 'general') + (guardado ? ' · guardado' : '') + '</b>' +
+      '<button class="boton fantasma" data-copiar="anal">📋 Copiar el análisis</button>' +
+      '<button class="boton fantasma" data-copiar="dicho">📋 Copiar lo que dice</button>' +
+      '<button class="boton fantasma" data-cerrar-anal="1">✕</button>' +
+    '</div>' +
+    '<div class="cuerpoAnal">' + esc(loAnalizado) + '</div>';
+  caja.classList.add('abierto');
+}
+
+async function cargarAnalisisGuardado() {
+  const mio = ++consultaAnalisis;
+  borrarAnalisisArmado();
+  if (!pistas.length) return;
+  const sel = $('#perfil');
+  const perfil = (sel && sel.value) || perfilElegido;
+  if (!perfil) return;
+  try {
+    const r = await (await fetch('/estudio/analizar/guardado', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({perfil, pistas: paraEnviar()})
+    })).json();
+    if (mio !== consultaAnalisis || !r.ok || !r.guardado) return;
+    mostrarAnalisisArmado(r.texto, r.dicho, perfil, true);
+    avisarAnal('análisis guardado recuperado');
+  } catch (e) {}
+}
+
+// Copiar de verdad, con el respaldo puesto: `navigator.clipboard` necesita conexión
+// segura y foco, y falla callado más seguido de lo que uno espera. Si no anda, se cae
+// a un textarea escondido + execCommand, que funciona en cualquier lado.
+async function copiar(texto, comoSeLlama) {
+  if (!texto) return avisarAnal('no hay nada para copiar', true);
+  try {
+    await navigator.clipboard.writeText(texto);
+  } catch (e) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    } catch (e2) {
+      return avisarAnal('no pude copiar: ' + e2, true);
+    }
+  }
+  avisarAnal('✅ ' + comoSeLlama + ' copiado (' + texto.length.toLocaleString('es-AR') + ' letras)');
+}
+
+// Lo que dice la fila con los recortes puestos. Gratis: no toca la GPU ni a Gemini.
+async function traerDicho() {
+  if (!await guardarEdicionesPendientes()) throw new Error('hay una corrección sin guardar');
+  const r = await (await fetch('/estudio/texto', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({pistas: paraEnviar()})
+  })).json();
+  loDicho = (r && r.texto) || '';
+  return loDicho;
+}
+
+// El análisis de la fila entera, con los recortes puestos. No transcribe: junta las
+// frases que quedaron adentro de cada pedazo y manda ESE texto.
+async function analizarArmado() {
+  if (!pistas.length) return avisarAnal('primero poné algún audio en la fila', true);
+  const boton = $('#btnAnalizar'), caja = $('#analisis'), sel = $('#perfil');
+  if (sel) { perfilElegido = sel.value; localStorage.setItem('estudioPerfil', perfilElegido); }
+  boton.disabled = true;
+  avisarAnal('leyendo lo que dice…');
+  try {
+    if (!await guardarEdicionesPendientes()) return;
+    const r = await (await fetch('/estudio/analizar', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({perfil: perfilElegido,
+                            pistas: paraEnviar()})
+    })).json();
+    if (!r.ok) return avisarAnal('⚠ ' + (r.error || 'no salió'), true);
+    loAnalizado = r.texto || '';
+    loDicho = r.dicho || loDicho;
+    avisarAnal((r.guardado ? '✅ guardado · ' : '✅ ') +
+                'sobre ' + (r.letras || 0).toLocaleString('es-AR') + ' letras');
+    mostrarAnalisisArmado(loAnalizado, loDicho, perfilElegido, !!r.guardado);
+    caja.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  } catch (e) {
+    avisarAnal('no salió: ' + e, true);
+  } finally {
+    boton.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------- el análisis
+// Gemini ya analizó cada audio cuando entró (resumen, temas, pendientes según el perfil)
+// y hasta hoy eso se mandaba por WhatsApp y se tiraba. Ahora queda pegado a la ficha del
+// audio y se mira acá; no se vuelve a pedir nada, es leer algo que ya está hecho.
+async function verAnalisis(i) {
+  const p = pistas[i];
+  if (!p) return;
+  p.verAnal = !p.verAnal;
+  const caja = document.querySelector('[data-anal="' + p.id + '"]');
+  if (caja) caja.classList.toggle('abierto', p.verAnal);
+  if (!p.verAnal) return;
+  if (p.analisis === undefined) {
+    if (caja) caja.innerHTML = '<div class="cargando">buscando el análisis…</div>';
+    try {
+      const r = await (await fetch('/estudio/analisis/' + p.archivo)).json();
+      p.analisis = r.ok ? (r.texto || '') : '';
+      p.analisisVisual = r.ok ? (r.visual || []) : [];
+    } catch (e) {
+      p.analisis = '';
+    }
+  }
+  pintarAnalisis(p);
+}
+
+function pintarAnalisis(p) {
+  const caja = document.querySelector('[data-anal="' + p.id + '"]');
+  if (!caja) return;
+  const visual = p.analisisVisual || [];
+  caja.innerHTML = p.analisis
+    ? (visual.length
+        ? '<div class="analVisual"><b>Momentos que detectó · elegí los que querés usar</b>' + visual.map((v, j) =>
+            '<div class="momVisual"><button class="verMomento" data-vermomento="' + j +
+            '" title="ver este momento"><span>' + reloj(v.segundo) + '</span>ver</button>' +
+            '<span class="descripcionMomento" title="podés seleccionar y copiar este texto">' +
+            esc(v.descripcion) + '</span><button class="usarMomento" data-selecmomento="' + j +
+            '" title="sumar este tramo a la fila">＋ elegir</button></div>').join('') + '</div>'
+        : '') + '<div class="cuerpoAnal">' + esc(p.analisis) + '</div>'
+    : '<div class="cargando">Este audio no tiene análisis guardado. Los que entren de ahora ' +
+      'en más lo traen; para este, armá el audio y usá "Analizar" abajo.</div>';
+}
+
+function cortarEnFrase(p, j, cual) {
+  const s = (p.frases || [])[j];
+  if (!s) return;
+  if (cual === 'desde') {
+    p.ini = Math.max(0, Math.min(s.inicio, (p.fin || p.dur) - 0.25));
+    marcar(p, p.ini);
+  } else {
+    p.fin = Math.min(p.dur || s.fin, Math.max(s.fin, p.ini + 0.25));
+    marcar(p, p.fin);
+  }
+  colocar(p); dibujar(p); pintarTexto(p); totalizar(); guardar();
+}
+
+// ---------------------------------------------------------------- la onda
+// Se dibuja con lo que el propio navegador sabe decodificar. Si no conoce el códec
+// (pasa con algún .amr raro), no es grave: se muestra una raya y el audio se une
+// igual, porque el que corta de verdad es ffmpeg, no esto.
+async function cargarOnda(p) {
+  if (p.picos || p.sinOnda) return;
+  // ⭐ Primero se la pedimos al servidor, que la mide con ffmpeg y la deja guardada.
+  // Antes se decodificaba acá el audio entero: con media hora de audio eso son ~400 MB
+  // en memoria y Chrome se plantaba dejando una raya en vez de la onda (2026-08-17).
+  // El camino de abajo queda como red: si el servidor no la puede medir, se intenta acá.
+  try {
+    const r = await (await fetch('/estudio/onda/' + p.archivo)).json();
+    if (r.ok && (r.picos || []).length) {
+      p.picos = r.picos;
+      dibujar(p);
+      totalizar();
+      return;
+    }
+  } catch (e) {}
+  try {
+    const buf = await (await fetch('/estudio/audio/' + p.archivo)).arrayBuffer();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const audio = await ctx.decodeAudioData(buf);
+    const canal = audio.getChannelData(0), N = 340;
+    const paso = Math.floor(canal.length / N) || 1, picos = [];
+    for (let i = 0; i < N; i++) {
+      let m = 0;
+      for (let j = i * paso; j < (i + 1) * paso && j < canal.length; j++) {
+        const v = Math.abs(canal[j]); if (v > m) m = v;
+      }
+      picos.push(m);
+    }
+    const tope = Math.max(...picos, 0.01);
+    p.picos = picos.map(v => v / tope);
+    // Si la ficha no traía el largo, recién acá se sabe: hay que recortarle las frases
+    // ahora, porque cuando se pidieron todavía no había con qué compararlas.
+    if (!p.dur) { p.dur = audio.duration; if (!p.fin) p.fin = p.dur; acomodarFrases(p); }
+    ctx.close();
+  } catch (e) {
+    p.sinOnda = true;
+  }
+  dibujar(p);
+  totalizar();
+}
+
+function dibujar(p) {
+  const c = document.querySelector('canvas[data-a="' + p.id + '"]');
+  if (!c) return;
+  const an = c.clientWidth || 600, al = c.clientHeight || 54, dpr = devicePixelRatio || 1;
+  c.width = an * dpr; c.height = al * dpr;
+  const g = c.getContext('2d');
+  g.scale(dpr, dpr);
+  g.clearRect(0, 0, an, al);
+  const picos = p.picos || [];
+  if (!picos.length) {                       // no se pudo medir: una raya y listo
+    g.fillStyle = '#2a3342';
+    g.fillRect(0, al / 2 - 1, an, 2);
+    return;
+  }
+  const w = an / picos.length, fin = p.fin || p.dur || 1;
+  // Los tramos que van a sonar: lo que está afuera del recorte O sacado por frase se
+  // dibuja apagado, así la onda muestra exactamente lo que va a salir.
+  const suena = tramosDe(p);
+  for (let i = 0; i < picos.length; i++) {
+    const t = (i / picos.length) * (p.dur || 1);
+    const dentro = t >= p.ini && t <= fin && suena.some(x => t >= x.ini - 0.01 && t <= x.fin + 0.01);
+    g.fillStyle = dentro ? '#8ecbff' : '#28313f';
+    const h = Math.max(2, picos[i] * (al - 8));
+    g.fillRect(i * w, (al - h) / 2, Math.max(1, w - 0.6), h);
+  }
+}
+
+// ---------------------------------------------------------------- pintar la fila
+function pintar() {
+  const cont = $('#lista');
+  if (arrastrando) return;        // ⚠ repintar con algo agarrado le saca al navegador
+  cont.innerHTML = '';            //    el elemento y el arrastre se corta al primer paso
+  $('#soltar').classList.toggle('chica', pistas.length > 0);
+  if (!pistas.length) {
+    cont.innerHTML = '<div class="vacio">Todavía no pusiste ningún audio ni video.</div>';
+  }
+  pistas.forEach((p, i) => {
+    const f = document.createElement('div');
+    f.className = 'pista';
+    f.dataset.i = i;
+    f.innerHTML =
+      '<div class="izq">' +
+        '<div class="mango" draggable="true" title="arrastrar para reordenar">⠿</div>' +
+        '<div class="flechas">' +
+          '<button data-sube="' + i + '" ' + (i ? '' : 'disabled') + ' title="subir">▲</button>' +
+          '<button data-baja="' + i + '" ' + (i < pistas.length - 1 ? '' : 'disabled') + ' title="bajar">▼</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="contenidoPista">' +
+        '<div class="nom"><span class="n">' + (i + 1) + '. ' + esc(p.nombre) + '</span>' +
+          '<span class="t" data-t="' + p.id + '"></span></div>' +
+        (p.tipo === 'video' ? '<video class="previewVideo" controls playsinline preload="metadata" data-preview="' +
+          p.id + '" src="/estudio/audio/' + p.archivo + '#t=' + (p.ini || 0) + '"></video>' +
+          '<button class="miniaturas" data-miniaturas="' + i + '" title="tocá una foto para ir a ese momento">' +
+            '<img src="/estudio/miniaturas/' + p.archivo + '" alt="ocho momentos del video"></button>' : '') +
+        '<div class="onda" data-onda="' + p.id + '">' +
+          '<div class="lienzo"><canvas data-a="' + p.id + '"></canvas>' +
+            '<div class="velo" data-velo="izq"></div><div class="velo" data-velo="der"></div>' +
+          '</div>' +
+          '<div class="cursor" data-cur="' + p.id + '"></div>' +
+          '<div class="man" data-man="ini"><i></i></div>' +
+          '<div class="man" data-man="fin"><i></i></div>' +
+        '</div>' +
+        '<div class="texto' + (p.abierto ? ' abierto' : '') + '" data-texto="' + p.id + '"></div>' +
+        '<div class="texto analisis' + (p.verAnal ? ' abierto' : '') + '" data-anal="' + p.id + '"></div>' +
+      '</div>' +
+      '<div class="der">' +
+        '<button class="oir" data-oir="' + i + '" title="escuchar el pedazo elegido">▶</button>' +
+        '<button class="verTexto" data-vertexto="' + i + '" title="ver lo que dice y cortar por ahí">📝</button>' +
+        '<button class="verTexto" data-veranal="' + i + '" title="el análisis que ya se le hizo a este audio">🧠</button>' +
+        '<button class="partir" data-partir="' + i + '" title="partir en dos por donde está la marca">✂</button>' +
+        '<button class="quitar" data-quitar="' + i + '" title="sacar de la lista">✕</button>' +
+      '</div>';
+    cont.appendChild(f);
+  });
+  pistas.forEach(p => {
+    colocar(p); dibujar(p);
+    if (p.tipo === 'video') activarVideo(p);
+    if (p.abierto) pintarTexto(p);
+    if (p.verAnal) pintarAnalisis(p);
+  });
+  totalizar();
+  guardar();
+}
+
+const esc = t => (t || '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+
+// Pone las dos manijas y los dos velos donde corresponde segun el recorte de la pista.
+// Se llama en cada movimiento, asi que NO repinta nada: solo mueve estilos.
+function colocar(p) {
+  const caja = document.querySelector('[data-onda="' + p.id + '"]');
+  if (!caja) return;
+  const dur = p.dur || 1;
+  const a = Math.max(0, Math.min(1, p.ini / dur)) * 100;
+  const b = Math.max(0, Math.min(1, (p.fin || dur) / dur)) * 100;
+  caja.querySelector('[data-man="ini"]').style.left = a + '%';
+  caja.querySelector('[data-man="fin"]').style.left = b + '%';
+  caja.querySelector('[data-velo="izq"]').style.cssText = 'left:0;width:' + a + '%';
+  caja.querySelector('[data-velo="der"]').style.cssText = 'left:' + b + '%;right:0';
+  const et = document.querySelector('[data-t="' + p.id + '"]');
+  if (et) {
+    const fin = p.fin || dur;
+    const recortada = p.ini > 0.05 || fin < dur - 0.05 || (p.fuera || []).length;
+    // Con el rango puesto, dos pedazos del MISMO audio (los que deja la tijera) se
+    // distinguen de un vistazo: sin esto los dos heredan el mismo nombre y no se sabe
+    // cuál es cuál. Visto en la captura de la prueba, 2026-08-17.
+    const quedan = (p.fuera || []).length;
+    et.textContent = seg(duraPista(p)) +
+                     (recortada ? ' · ' + reloj(p.ini) + '–' + reloj(fin) + ' de ' + seg(dur) : '') +
+                     (quedan ? ' · ' + quedan + (quedan === 1 ? ' frase sacada' : ' frases sacadas') : '');
+  }
+  const cur = caja.querySelector('[data-cur="' + p.id + '"]');
+  if (cur) {
+    const hay = typeof p.pos === 'number';
+    cur.classList.toggle('puesto', hay);
+    if (hay) cur.style.left = Math.max(0, Math.min(1, p.pos / dur)) * 100 + '%';
+  }
+}
+
+// ---------------------------------------------------------------- la marca y partir
+// `p.pos` es la marca: dónde estás parado dentro del audio. La pone un clic en la onda
+// o tocar una frase del texto, y la mueve la reproducción. Es lo que usa la tijera.
+function marcar(p, t) {
+  p.pos = Math.max(0, Math.min(p.dur || 0, t));
+  colocar(p);
+  if (p.abierto) resaltarFrase(p);
+}
+
+function tiempoDelClic(p, ev) {
+  const caja = document.querySelector('[data-onda="' + p.id + '"]');
+  if (!caja) return 0;
+  const c = caja.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (ev.clientX - c.left) / c.width)) * (p.dur || 0);
+}
+
+// Partir NO toca el archivo ni duplica nada en el disco: deja dos filas del MISMO
+// audio con recortes distintos. Es lo que permite sacar un pedazo del medio, que en
+// un audio largo es lo que más se necesita: partís dos veces y borrás la del medio.
+function partir(i) {
+  const p = pistas[i];
+  if (!p) return;
+  const fin = p.fin || p.dur || 0;
+  const corte = typeof p.pos === 'number' ? p.pos : (p.ini + fin) / 2;
+  // Sin marca parte por el medio, que es lo que uno espera de una tijera sin apuntar.
+  // Lo único que no se puede es partir tan al borde que quede un pedazo de nada.
+  if (corte <= p.ini + 0.2 || corte >= fin - 0.2) {
+    return avisar('Ese pedazo es muy corto para partirlo ahí. Tocá la onda donde querés ' +
+                  'cortar —o una frase del texto— y volvé a darle a la tijera.');
+  }
+  avisar('');
+  const nueva = {...p, id: proximoId++, ini: corte, fin: fin, pos: undefined};
+  p.fin = corte;
+  pistas.splice(i + 1, 0, nueva);
+  parar();
+  pintar();
+  pintarBandeja();          // la bandeja cuenta cuántas veces está puesto cada audio
+}
+
+function totalizar() {
+  const n = pistas.length;
+  const tipos = new Set(pistas.map(p => p.tipo || 'audio'));
+  // La pestaña define la mesa de trabajo incluso vacía: si estás en Video no debe
+  // aparecer ni un control ni una indicación propia del audio antes de sumar el clip.
+  const esVideo = modo === 'video';
+  const mezclado = tipos.size > 1;
+  const suma = pistas.reduce((s, p) => s + duraPista(p), 0) +
+               (esVideo ? 0 : Math.max(0, n - 1) * silencio);
+  $('#total').textContent = n ? n + (n === 1 ? (esVideo ? ' video' : ' audio') : (esVideo ? ' videos' : ' audios')) +
+    ' · queda uno de ' + seg(suma) : '';
+  $('#controlSilencio').style.display = esVideo ? 'none' : '';
+  $('#btnVista').style.display = esVideo ? '' : 'none';
+  $('#btnVista').disabled = !n || uniendo || !esVideo;
+  $('#btnUnir').disabled = !n || uniendo || mezclado;
+  $('#btnPasarSesion').disabled = !n || uniendo || pasandoSesion || mezclado;
+  // ⚠ Con UN solo audio el botón no "une" nada: lo que hace es aplicar los recortes y
+  // devolverte el audio editado. Decirle "Unir" ahí confunde — Martín preguntó
+  // justamente "no sé cómo hacer para unir audios" teniendo uno solo en la fila.
+  $('#btnUnir').textContent = uniendo ? 'Armando…'
+                            : mezclado ? 'Separá audio y video'
+                            : (n > 1 ? 'Unir los ' + n + (esVideo ? ' videos' : ' audios')
+                                     : 'Armar el ' + (esVideo ? 'video' : 'audio'));
+  const ayuda = $('#ayudaFila');
+  if (ayuda) ayuda.textContent =
+    !n ? 'tocá un ' + (esVideo ? 'video' : 'audio') + ' de arriba y baja acá'
+    : mezclado ? 'audio y video se editan por separado para no perder la imagen'
+    : n === 1 ? 'con uno solo, el botón te devuelve el recorte · para PEGAR dos, tocá otro de arriba (o partí este con la ✂)'
+    : 'se pegan en este orden, uno atrás del otro · arrastralos para cambiarlo';
+}
+
+function verMomento(i, j) {
+  const p = pistas[i], v = p && (p.analisisVisual || [])[j];
+  if (!p || !v) return;
+  const t = Math.max(0, Math.min(p.dur || 0, Number(v.segundo) || 0));
+  marcar(p, t);
+  oir(i, t);
+}
+
+function sumarMomentoVisual(i, j) {
+  const p = pistas[i], visual = p && (p.analisisVisual || []), v = visual[j];
+  if (!p || p.tipo !== 'video' || !v) return;
+  const ini = Math.max(0, Math.min(p.dur || 0, Number(v.segundo) || 0));
+  // Cada descripción señala un cambio visual. El tramo llega hasta el siguiente
+  // cambio; para la última elegimos hasta diez segundos, para que no se convierta en
+  // todo el resto de un video largo. Después se ajusta con las manijas como siempre.
+  const siguiente = visual.slice(j + 1).map(x => Number(x.segundo) || 0)
+    .find(t => t > ini + .25);
+  let fin = siguiente ? Math.min(p.dur, siguiente) : Math.min(p.dur, ini + 10);
+  if (fin < ini + .25) fin = Math.min(p.dur, ini + .25);
+  if (fin <= ini) return avisar('Ese momento está al final del video y no tiene tramo para sumar.');
+  const clip = {archivo: p.archivo, tipo: 'video', id: proximoId++, dur: p.dur, ini, fin,
+                nombre: ('📍 ' + (v.descripcion || 'momento detectado')).slice(0, 90),
+                analisis: p.analisis, analisisVisual: visual};
+  pistas.splice(i + 1, 0, clip);
+  parar(); pintar(); cargarOnda(clip);
+  avisar('Agregué este momento a la fila. Podés ajustar sus bordes si querés.');
+}
+
+function videoDe(p) {
+  return p && document.querySelector('video[data-preview="' + p.id + '"]');
+}
+
+// Los controles nativos del video también mandan sobre la onda y el texto. Sin este
+// puente se podía mirar un video, pero el cursor seguía clavado en otro lugar.
+function activarVideo(p) {
+  const video = videoDe(p);
+  if (!video || video.dataset.activado) return;
+  video.dataset.activado = '1';
+  video.addEventListener('play', () => {
+    document.querySelectorAll('video[data-preview]').forEach(v => { if (v !== video) v.pause(); });
+    reproductor.pause(); sonando = p;
+    const b = document.querySelector('[data-oir="' + pistas.indexOf(p) + '"]');
+    if (b) b.textContent = '⏸';
+  });
+  video.addEventListener('timeupdate', () => {
+    if (sonando !== p) return;
+    const fin = p.fin || p.dur || Infinity;
+    if (video.currentTime >= fin - 0.015) return parar();
+    marcar(p, video.currentTime);
+  });
+  video.addEventListener('seeked', () => marcar(p, video.currentTime));
+  video.addEventListener('pause', () => {
+    if (sonando === p) {
+      sonando = null;
+      const b = document.querySelector('[data-oir="' + pistas.indexOf(p) + '"]');
+      if (b) b.textContent = '▶';
+    }
+  });
+}
+
+async function retranscribir(p) {
+  if (!p || p.retranscribiendo) return;
+  p.retranscribiendo = true; pintarTexto(p);
+  try {
+    const r = await (await fetch('/estudio/transcribir/' + p.archivo, {method:'POST'})).json();
+    if (!r.ok) throw new Error(r.error || 'no se pudo transcribir');
+    p.frases = r.segmentos || [];
+    acomodarFrases(p);
+    const rec = recibidos.find(x => x.archivo === p.archivo);
+    if (rec) { rec.texto = r.texto || ''; rec.segs = p.frases.length; }
+    if (!p.frases.length) avisar('No se detectó ninguna frase en este archivo.');
+    else avisar('Listo: ya podés editarlo tocando las frases.');
+  } catch (e) {
+    avisar('No se pudo transcribir: ' + e.message);
+  } finally {
+    p.retranscribiendo = false; pintarTexto(p); pintarBandeja();
+  }
+}
+
+function avisar(t) {
+  $('#aviso').textContent = t || '';
+  $('#aviso').style.display = t ? 'block' : 'none';
+}
+
+// ---------------------------------------------------------------- mover y sacar
+function mover(desde, hasta) {
+  if (desde === hasta || hasta < 0 || hasta >= pistas.length) return;
+  pistas.splice(hasta, 0, pistas.splice(desde, 1)[0]);
+  pintar();
+}
+
+// ⚠ Sacar de la FILA no borra nada: el audio sigue en la bandeja de arriba para
+// volver a usarlo. Antes esto borraba el archivo del servidor, y tenía sentido
+// cuando lo único que había eran copias subidas a mano; desde que la bandeja es
+// lo que te mandaste por WhatsApp, borrarlo al sacarlo de la fila sería tirar el
+// original. Para borrar de verdad está el 🗑 de cada fila de la bandeja.
+function quitar(i) {
+  pistas.splice(i, 1);
+  parar();
+  pintar();
+  pintarBandeja();
+}
+
+// ---------------------------------------------------------------- escuchar un pedazo
+// Un solo reproductor para toda la pantalla (el parlante tiene un solo dueño, igual
+// que la lectura automática del panel). Arranca en el recorte y se corta al final.
+const reproductor = new Audio();
+let sonando = null;
+reproductor.addEventListener('timeupdate', () => {
+  if (!sonando) return;
+  if (reproductor.currentTime >= (sonando.fin || sonando.dur)) return parar();
+  // La marca sigue a lo que suena: se ve por dónde va en la onda y qué frase es.
+  marcar(sonando, reproductor.currentTime);
+});
+reproductor.addEventListener('ended', parar);
+
+function parar() {
+  reproductor.pause();
+  document.querySelectorAll('video[data-preview]').forEach(v => v.pause());
+  sonando = null;
+  document.querySelectorAll('[data-oir]').forEach(b => b.textContent = '▶');
+}
+
+// `desde` (opcional) es para tocar una frase del texto: arranca justo ahí. Sin él,
+// arranca donde está la marca si cae adentro del recorte, y si no, en el principio.
+function oir(i, desde) {
+  const p = pistas[i], era = sonando;
+  parar();
+  if (era === p && desde === undefined) return;   // volver a tocarlo lo apaga
+  sonando = p;
+  const fin = p.fin || p.dur || 0;
+  const arranque = typeof desde === 'number' ? desde
+                 : (typeof p.pos === 'number' && p.pos > p.ini && p.pos < fin - 0.1 ? p.pos : p.ini);
+  if (p.tipo === 'video') {
+    const video = videoDe(p);
+    if (!video) return;
+    const arrancar = () => {
+      video.currentTime = arranque;
+      video.play().catch(() => {});
+    };
+    if (video.readyState >= 1) arrancar();
+    else video.addEventListener('loadedmetadata', arrancar, {once: true});
+    const b = document.querySelector('[data-oir="' + i + '"]');
+    if (b) b.textContent = '⏸';
+    return;
+  }
+  reproductor.src = '/estudio/audio/' + p.archivo;
+  reproductor.currentTime = arranque;
+  // Firefox y Chrome no siempre aceptan currentTime antes de tener metadata.
+  reproductor.addEventListener('loadedmetadata', () => { reproductor.currentTime = arranque; },
+                               {once: true});
+  reproductor.play().catch(() => {});
+  const b = document.querySelector('[data-oir="' + i + '"]');
+  if (b) b.textContent = '⏸';
+}
+
+// Vista previa REAL de la fila antes de gastar tiempo exportando. Reproduce los mismos
+// tramos que recibirá ffmpeg, incluidos los huecos que se sacaron por frase.
+let vista = null;
+function cerrarVista() {
+  const caja = $('#vistaArmado'), video = $('#videoArmado');
+  vista = null; video.pause(); video.removeAttribute('src'); video.load();
+  caja.classList.remove('abierta'); caja.setAttribute('aria-hidden', 'true');
+}
+function siguienteVista() {
+  if (!vista) return;
+  const video = $('#videoArmado'), p = vista.pistas[vista.indice];
+  if (!p) return cerrarVista();
+  const turno = ++vista.turno;
+  $('#estadoVista').textContent = 'Fragmento ' + (vista.indice + 1) + ' de ' + vista.pistas.length;
+  video.src = '/estudio/audio/' + p.archivo;
+  const arrancar = () => {
+    if (!vista || vista.pistas[vista.indice] !== p) return;
+    video.currentTime = p.ini || 0;
+    video.play().catch(() => {});
+  };
+  video.addEventListener('loadedmetadata', arrancar, {once:true});
+  video.ontimeupdate = () => {
+    if (vista && vista.turno === turno && video.currentTime >= (p.fin || Infinity) - 0.015) {
+      vista.indice += 1; siguienteVista();
+    }
+  };
+  video.onended = () => {
+    if (vista && vista.turno === turno) { vista.indice += 1; siguienteVista(); }
+  };
+}
+function verArmado() {
+  const tipos = new Set(pistas.map(p => p.tipo || 'audio'));
+  if (!pistas.length || tipos.size !== 1 || !tipos.has('video')) return;
+  parar();
+  vista = {pistas: paraEnviar(), indice: 0, turno: 0};
+  $('#vistaArmado').classList.add('abierta'); $('#vistaArmado').setAttribute('aria-hidden', 'false');
+  siguienteVista();
+}
+
+// ---------------------------------------------------------------- unir
+async function unir() {
+  if (!pistas.length || uniendo) return;
+  uniendo = true; avisar(''); totalizar();
+  $('#salida').style.display = 'none';
+  try {
+    const r = await (await fetch('/estudio/unir', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      // `proyecto` va para que el mp3 que sale lleve el nombre de la bandeja: meses
+      // después se sabe de qué era sin abrirlo.
+      body: JSON.stringify({silencio, proyecto: activa || '',
+                            pistas: paraEnviar()})
+    })).json();
+    if (!r.ok) return avisar('no se pudo unir: ' + (r.error || ''));
+    const url = '/estudio/audio/' + r.archivo;
+    const esVideo = r.tipo === 'video';
+    $('#salida').innerHTML =
+      '<h3>✅ Listo: un ' + (esVideo ? 'video' : 'audio') + ' de ' + seg(r.dur) + '</h3>' +
+      (esVideo ? '<video controls src="' + url + '"></video>' : '<audio controls src="' + url + '"></audio>') +
+      '<div class="fila"><a class="descargar" href="' + url + '" download="' + r.archivo + '">⬇ Descargar</a>' +
+      '<button class="mandar" data-mandar="telegram" data-arch="' + r.archivo + '">✈️ Mandármelo por Telegram</button>' +
+      (esVideo ? '' : '<button class="mandar" data-mandar="whatsapp" data-arch="' + r.archivo + '">📱 …por WhatsApp</button>') +
+      '<span class="dicho" id="dicho"></span>' +
+      '<span style="color:#5c6675;font-size:12px">' + esc(r.archivo) + '</span></div>';
+    $('#salida').style.display = 'block';
+    $('#salida').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  } catch (e) {
+    avisar('no se pudo unir: ' + e);
+  } finally {
+    uniendo = false; totalizar();
+  }
+}
+
+// ---------------------------------------------------------------- pasar a una sesión
+// El Estudio y Sesiones viven en el mismo servidor y en la misma máquina. No se sube
+// el video a un tercero: se prepara una copia estable de los cortes, una ficha .md y
+// un mosaico, y a la conversación se le mandan sus rutas locales por la puerta que ya
+// usa toda la pantalla de Sesiones (`/movil/mandar`).
+function estadoPasar(texto, clase='') {
+  const e = $('#pasarEstado');
+  e.className = clase; e.textContent = texto || '';
+}
+
+function destinoRecordado() {
+  let activa = '';
+  try { activa = (JSON.parse(localStorage.getItem('sesSitio') || '{}') || {}).activa || ''; }
+  catch (e) {}
+  return activa || localStorage.getItem('estudioSesionDestino') || '';
+}
+
+function resumenPaquete() {
+  const tramos = paraEnviar(), esVideo = modo === 'video';
+  const dura = tramos.reduce((s, p) => s + Math.max(0, (p.fin || 0) - (p.ini || 0)), 0) +
+               (esVideo ? 0 : Math.max(0, tramos.length - 1) * silencio);
+  $('#pasarPaquete').innerHTML =
+    '<span class="resumen"><b>' + tramos.length + (tramos.length === 1 ? ' fragmento' : ' fragmentos') +
+    '</b> · ' + seg(dura) + ' · se prepara sin tocar los originales</span>' +
+    '<span>' + (esVideo ? '🎬 video armado' : '🎧 audio armado') + '</span>' +
+    '<span>📝 transcripción con tiempos</span>' +
+    '<span>🧠 análisis' + (esVideo ? ' + mosaico visual' : '') + '</span>';
+}
+
+function cerrarPasarSesion() {
+  if (pasandoSesion) return;
+  const m = $('#pasarSesion');
+  m.classList.remove('abierto'); m.setAttribute('aria-hidden', 'true');
+}
+
+async function abrirPasarSesion() {
+  if (!pistas.length || pasandoSesion) return;
+  const m = $('#pasarSesion'), sel = $('#sesDestino'), enviar = $('#sesEnviar');
+  resumenPaquete(); estadoPasar('Buscando tus conversaciones…');
+  sel.disabled = true; enviar.disabled = true;
+  m.classList.add('abierto'); m.setAttribute('aria-hidden', 'false');
+  try {
+    const r = await (await fetch('/movil/sesiones', {cache:'no-store'})).json();
+    const preferida = destinoRecordado(), todas = [];
+    for (const p of (r.proyectos || [])) {
+      for (const s of (p.sesiones || [])) {
+        if (!s.id || s.tapada || s.archivada) continue;
+        todas.push({sid:s.id, cwd:p.cwd, proyecto:p.proyecto, nombre:s.nombre || 'Sin título',
+                    cerebro:s.cerebro === 'codex' ? 'Codex' : 'Claude',
+                    ocupada:!!s.ocupada, ts:Number(s.ts || s.cuando || 0)});
+      }
+    }
+    todas.sort((a,b) => (b.sid === preferida) - (a.sid === preferida) || b.ts - a.ts);
+    sesionesDestino = todas.slice(0, 60);
+    sel.replaceChildren();
+    for (let i = 0; i < sesionesDestino.length; i++) {
+      const s = sesionesDestino[i], op = document.createElement('option');
+      op.value = String(i); op.disabled = s.ocupada;
+      op.textContent = s.cerebro + ' · ' + s.nombre + ' — ' + s.proyecto +
+                       (s.ocupada ? ' (está trabajando)' : '');
+      sel.appendChild(op);
+    }
+    const elegible = sesionesDestino.findIndex(s => !s.ocupada && s.sid === preferida);
+    const primera = elegible >= 0 ? elegible : sesionesDestino.findIndex(s => !s.ocupada);
+    if (primera < 0) {
+      sel.innerHTML = '<option>No hay una conversación libre</option>';
+      return estadoPasar(todas.length
+        ? 'Tus conversaciones están trabajando. Esperá a que termine alguna y volvé a abrir esta ventana.'
+        : 'No encontré conversaciones. Abrí una en Sesiones y después volvé al Estudio.', 'mal');
+    }
+    sel.value = String(primera); sel.disabled = false; enviar.disabled = false;
+    estadoPasar('Elegí la conversación y, si querés, escribí una indicación.');
+    $('#sesPedido').focus();
+  } catch (e) {
+    estadoPasar('No pude leer las conversaciones. Refrescá el Estudio y probá de nuevo.', 'mal');
+  }
+}
+
+async function pasarASesion() {
+  if (pasandoSesion) return;
+  const indice = Number($('#sesDestino').value), destino = sesionesDestino[indice];
+  if (!destino || destino.ocupada) return estadoPasar('Elegí una conversación libre.', 'mal');
+  pasandoSesion = true; totalizar();
+  $('#sesDestino').disabled = true; $('#sesPedido').disabled = true;
+  $('#sesEnviar').disabled = true; $('#sesEnviar').textContent = 'Preparando…';
+  document.querySelectorAll('[data-cerrar-pasar]').forEach(x => x.disabled = true);
+  estadoPasar('Armando el material, la transcripción y el análisis…');
+  try {
+    if (!await guardarEdicionesPendientes()) throw new Error('hay una corrección sin guardar');
+    const paquete = await (await fetch('/estudio/preparar-sesion', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pistas:paraEnviar(), silencio, proyecto:activa || '',
+                           perfil:perfilElegido || ''})
+    })).json();
+    if (!paquete.ok) throw new Error(paquete.error || 'no se pudo preparar el material');
+
+    estadoPasar('Material listo. Entregándolo a ' + destino.nombre + '…');
+    const pedido = $('#sesPedido').value.trim() ||
+      'Revisá estos fragmentos y contame qué se dice, qué se ve y cuáles son los puntos importantes.';
+    const lineas = [
+      '[Te paso una selección preparada en el Estudio de audio y video.',
+      'Ficha con la transcripción, los tiempos y el análisis: ' + paquete.ruta_contexto,
+      (paquete.tipo === 'video' ? 'Video' : 'Audio') + ' armado: ' + paquete.ruta_medio,
+    ];
+    if (paquete.ruta_mosaico) lineas.push('Mosaico visual: ' + paquete.ruta_mosaico);
+    lineas.push('Leé primero la ficha. Si es video, mirá el mosaico y verificá en el archivo los momentos que necesites.',
+                'Trabajá únicamente con los fragmentos seleccionados.]', '',
+                'Pedido de Martín: ' + pedido);
+    const f = new FormData();
+    f.append('cwd', destino.cwd); f.append('sid', destino.sid);
+    f.append('texto', lineas.join('\n')); f.append('segundo_plano', '1');
+    const enviado = await (await fetch('/movil/mandar', {method:'POST', body:f})).json();
+    if (!enviado.ok) throw new Error(enviado.error || 'la conversación no recibió el material');
+
+    localStorage.setItem('estudioSesionDestino', destino.sid);
+    $('#sesPedido').value = '';
+    estadoPasar('Enviado. Abriendo la conversación…' +
+                (paquete.advertencia ? ' ' + paquete.advertencia : ''), 'bien');
+    $('#sesEnviar').textContent = 'Enviado';
+    setTimeout(() => window.location.assign('/sesiones?c=' + encodeURIComponent(destino.sid)), 550);
+  } catch (e) {
+    pasandoSesion = false; totalizar();
+    $('#sesDestino').disabled = false; $('#sesPedido').disabled = false;
+    $('#sesEnviar').disabled = false; $('#sesEnviar').textContent = 'Preparar y enviar';
+    document.querySelectorAll('[data-cerrar-pasar]').forEach(x => x.disabled = false);
+    estadoPasar('No salió: ' + e.message, 'mal');
+  }
+}
+
+// ---------------------------------------------------------------- los eventos
+$('#btnElegir').onclick = () => $('#arch').click();
+$('#arch').onchange = e => { subir(e.target.files); e.target.value = ''; };
+$('#medios').addEventListener('click', e => {
+  const b = e.target.closest('[data-medio]');
+  if (b) cambiarMedio(b.dataset.medio);
+});
+$('#btnUnir').onclick = unir;
+$('#btnVista').onclick = verArmado;
+$('#btnPasarSesion').onclick = abrirPasarSesion;
+$('#sesEnviar').onclick = pasarASesion;
+$('#pasarSesion').addEventListener('click', e => {
+  if (e.target === e.currentTarget || e.target.closest('[data-cerrar-pasar]')) cerrarPasarSesion();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('#pasarSesion').classList.contains('abierto')) cerrarPasarSesion();
+});
+$('#vistaArmado').addEventListener('click', e => {
+  if (e.target === e.currentTarget || e.target.closest('[data-cerrar-vista]')) cerrarVista();
+});
+
+// Mandarse el resultado al teléfono. El destino lo pone el servidor y sos vos: acá no
+// se elige a quién, a propósito. Desde el celular lo reenviás a quien sea, que es un toque.
+$('#salida').addEventListener('click', async e => {
+  const b = e.target.closest('[data-mandar]');
+  if (!b) return;
+  const dicho = $('#dicho');
+  document.querySelectorAll('#salida button.mandar').forEach(x => x.disabled = true);
+  dicho.className = 'dicho';
+  dicho.textContent = 'mandando…';
+  try {
+    const r = await (await fetch('/estudio/mandar', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({archivo: b.dataset.arch, por: b.dataset.mandar})
+    })).json();
+    dicho.textContent = r.ok ? '✅ te lo mandé por ' + b.dataset.mandar
+                             : '⚠ no salió: ' + (r.error || '');
+    if (!r.ok) dicho.classList.add('mal');
+  } catch (err) {
+    dicho.textContent = '⚠ no salió: ' + err;
+    dicho.classList.add('mal');
+  } finally {
+    document.querySelectorAll('#salida button.mandar').forEach(x => x.disabled = false);
+  }
+});
+
+$('#btnAnalizar').onclick = analizarArmado;
+$('#perfil').onchange = e => {
+  perfilElegido = e.target.value;
+  localStorage.setItem('estudioPerfil', perfilElegido);
+  cargarAnalisisGuardado();
+};
+$('#btnCopiarDicho').onclick = async () => {
+  if (!pistas.length) return avisarAnal('primero poné algún audio en la fila', true);
+  avisarAnal('juntando lo que dice…');
+  try {
+    copiar(await traerDicho(), 'lo que dice');
+  } catch (e) {
+    avisarAnal('no salió: ' + e, true);
+  }
+};
+$('#analisis').addEventListener('click', e => {
+  if (e.target.closest('[data-cerrar-anal]')) return $('#analisis').classList.remove('abierto');
+  const c = e.target.closest('[data-copiar]');
+  if (!c) return;
+  if (c.dataset.copiar === 'anal') return copiar(loAnalizado, 'el análisis');
+  // ⚠ Si por lo que sea no tenemos el texto a mano, se pide en vez de quedarse mudo:
+  // un botón de copiar que no copia y no explica nada es peor que no tenerlo.
+  (loDicho ? Promise.resolve(loDicho) : traerDicho())
+    .then(t => copiar(t, 'lo que dice'))
+    .catch(e => avisarAnal('no salió: ' + e, true));
+});
+
+$('#buscar').oninput = e => { filtro = e.target.value; pintarBandeja(); };
+$('#bandeja').addEventListener('click', e => {
+  // ⚠ Tocar el selector de bandeja NO tiene que sumar el audio a la fila: la fila
+  // entera es un `data-sumar`, así que sin esto elegir una bandeja te metía el audio.
+  if (e.target.closest('select')) return;
+  const t = e.target.closest('[data-tirar]');
+  if (t) { e.stopPropagation(); return tirar(t.dataset.tirar); }
+  const p = e.target.closest('[data-preparar]');
+  if (p) { e.stopPropagation(); return prepararVideo(p.dataset.preparar); }
+  const s = e.target.closest('[data-sumar]');
+  if (s) sumar(s.dataset.sumar);
+});
+
+$('#bandeja').addEventListener('change', async e => {
+  const s = e.target.closest('[data-mover]');
+  if (!s) return;
+  let destino = s.value;
+  if (destino === '__nueva__') {
+    destino = (prompt('¿Cómo se llama la bandeja nueva?') || '').trim();
+    if (!destino) return pintarBandeja();            // se arrepintió: se deja como estaba
+    if (!bandejas.some(b => b.toLowerCase() === destino.toLowerCase())) {
+      bandejas.push(destino);
+      await guardarBandejas();
+    }
+  }
+  moverA(s.dataset.mover, destino);
+});
+
+$('#bandejas').addEventListener('click', async e => {
+  if (e.target.closest('[data-nueva]')) {
+    const n = (prompt('¿Cómo se llama la bandeja nueva?') || '').trim();
+    if (!n || bandejas.some(b => b.toLowerCase() === n.toLowerCase())) return;
+    bandejas.push(n);
+    await guardarBandejas();
+    await cargarBandejas();
+    return;
+  }
+  const b = e.target.closest('[data-band]');
+  if (!b) return;
+  const destino = b.dataset.band === '*' ? null : b.dataset.band;
+  if (destino === activa) return;
+  guardar();                    // deja la fila de la bandeja de la que te vas
+  activa = destino;
+  cargarFila();                 // y trae la de la bandeja a la que entrás
+  pintarBandejas();
+  pintarBandeja();
+});
+// El audio que acabás de mandar por WhatsApp tiene que aparecer solo, sin recargar:
+// se relee cada 20 s y también al volver a la pestaña, que es el momento exacto en
+// que volvés del teléfono. `cargarRecibidos` no repinta si la lista no cambió.
+setInterval(cargarRecibidos, 20000);
+// La cola tiene que sentirse viva: dos segundos alcanzan para ver que WhatsApp llegó
+// y no repinta la bandeja ni toca el scroll donde Martín está leyendo.
+setInterval(cargarCola, 2000);
+addEventListener('visibilitychange', () => { if (!document.hidden) cargarRecibidos(); });
+$('#sil').oninput = e => {
+  silencio = parseFloat(e.target.value);
+  $('#silTxt').textContent = seg(silencio);
+  totalizar(); guardar();
+};
+
+['dragenter', 'dragover'].forEach(ev => $('#soltar').addEventListener(ev, e => {
+  e.preventDefault(); $('#soltar').classList.add('encima');
+}));
+['dragleave', 'drop'].forEach(ev => $('#soltar').addEventListener(ev, e => {
+  e.preventDefault(); $('#soltar').classList.remove('encima');
+}));
+$('#soltar').addEventListener('drop', e => {
+  // Sin esto el mismo archivo llega también al `drop` global de abajo y FastAPI lo
+  // guardaba dos veces. En un video largo eran dos copias enormes, no dos cortes.
+  e.stopPropagation();
+  subir(e.dataTransfer.files);
+});
+// Soltar en cualquier parte de la pagina tambien sirve; el navegador, si no, abre el archivo.
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.dataTransfer && e.dataTransfer.files.length) { e.preventDefault(); subir(e.dataTransfer.files); }
+});
+
+$('#lista').addEventListener('click', e => {
+  const fila = e.target.closest('.pista');
+  const i = fila ? +fila.dataset.i : -1;
+  const p = pistas[i];
+  const b = e.target.closest('button');
+  if (b) {
+    if (b.dataset.quitar !== undefined) return quitar(+b.dataset.quitar);
+    if (b.dataset.oir !== undefined) return oir(+b.dataset.oir);
+    if (b.dataset.sube !== undefined) return mover(+b.dataset.sube, +b.dataset.sube - 1);
+    if (b.dataset.baja !== undefined) return mover(+b.dataset.baja, +b.dataset.baja + 1);
+    if (b.dataset.vertexto !== undefined) return verTexto(+b.dataset.vertexto);
+    if (b.dataset.veranal !== undefined) return verAnalisis(+b.dataset.veranal);
+    if (b.dataset.vermomento !== undefined) return verMomento(i, +b.dataset.vermomento);
+    if (b.dataset.selecmomento !== undefined) return sumarMomentoVisual(i, +b.dataset.selecmomento);
+    if (b.dataset.miniaturas !== undefined) {
+      const rect = b.getBoundingClientRect();
+      const col = Math.min(3, Math.max(0, Math.floor((e.clientX - rect.left) / rect.width * 4)));
+      const filaMini = Math.min(1, Math.max(0, Math.floor((e.clientY - rect.top) / rect.height * 2)));
+      const t = (filaMini * 4 + col + 0.5) / 8 * (p.dur || 0);
+      marcar(p, t); return oir(i, t);
+    }
+    if (b.dataset.partir !== undefined) return partir(+b.dataset.partir);
+    if (p && b.dataset.desde !== undefined) return cortarEnFrase(p, +b.dataset.desde, 'desde');
+    if (p && b.dataset.hasta !== undefined) return cortarEnFrase(p, +b.dataset.hasta, 'hasta');
+    if (b.dataset.sacar !== undefined) return alternarFrase(i, +b.dataset.sacar);
+    return;
+  }
+  if (!p) return;
+  // Editar una frase no reproduce el audio: el clic pertenece al texto, no a la fila.
+  if (e.target.closest('[data-editar]')) return;
+  // Tocar una frase del texto: la marca se va ahí y se escucha DESDE esa frase.
+  const fr = e.target.closest('.frase');
+  if (fr) {
+    const s = (p.frases || [])[+fr.dataset.frase];
+    if (s) { marcar(p, s.inicio); oir(i, s.inicio); }
+    return;
+  }
+  // Tocar la onda: deja la marca donde tocaste. Es lo que después usa la tijera.
+  // ⚠ Las manijas de recorte viven encima y agarran su propio pointerdown, así que
+  // un clic en una manija no llega hasta acá y no mueve la marca sin querer.
+  if (e.target.closest('.lienzo')) marcar(p, tiempoDelClic(p, e));
+});
+
+$('#lista').addEventListener('input', e => {
+  const dice = e.target.closest('[data-editar]');
+  const fila = e.target.closest('.pista');
+  if (!dice || !fila) return;
+  const p = pistas[+fila.dataset.i], j = +dice.dataset.editar;
+  if (!p || !(p.frases || [])[j]) return;
+  const texto = (dice.innerText || '').replace(/\r/g, '').trim();
+  // Si el mismo audio está dos veces en la fila, las dos copias comparten la corrección.
+  pistas.filter(x => x.archivo === p.archivo && x.frases && x.frases[j])
+    .forEach(x => { x.frases[j].texto = texto; });
+  loDicho = '';
+  dice.classList.remove('guardada', 'error');
+  programarGuardadoTexto(p, dice);
+});
+
+$('#lista').addEventListener('focusout', e => {
+  const dice = e.target.closest('[data-editar]');
+  const fila = e.target.closest('.pista');
+  if (!dice || !fila) return;
+  const p = pistas[+fila.dataset.i];
+  if (p && guardadosTexto.has(claveTexto(p))) guardarTexto(p, dice);
+});
+
+// --- reordenar con el mouse ---------------------------------------------------
+// ⚠ El `dragover` va en el CONTENEDOR y el destino se calcula solo con `e.clientY`.
+// Puesto en cada fila entraba en un bucle: al quedar sobre el borde de la vecina se
+// pasaban de lugar sin parar. Como el destino es funcion pura de donde esta el mouse,
+// si ya esta ahi no se toca nada y el sistema queda quieto. (Misma piedra que las
+// pestañas de sesiones.html, 2026-08-17.)
+$('#lista').addEventListener('dragstart', e => {
+  const mango = e.target.closest('.mango');
+  if (!mango) return e.preventDefault();
+  const fila = mango.closest('.pista');
+  arrastrando = +fila.dataset.i;
+  fila.classList.add('moviendo');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(arrastrando));   // Firefox no arranca sin esto
+  if (e.dataTransfer.setDragImage) e.dataTransfer.setDragImage(fila, 20, 20);
+});
+$('#lista').addEventListener('dragover', e => {
+  if (arrastrando === null) return;
+  e.preventDefault();
+  const destino = destinoPara(e.clientY);
+  document.querySelectorAll('.pista').forEach((f, i) => f.classList.toggle('destino', i === destino));
+});
+$('#lista').addEventListener('drop', e => {
+  if (arrastrando === null) return;
+  e.preventDefault();
+  const desde = arrastrando, hasta = destinoPara(e.clientY);
+  arrastrando = null;
+  mover(desde, hasta > desde ? hasta - 1 : hasta);
+});
+$('#lista').addEventListener('dragend', () => { arrastrando = null; pintar(); });
+
+// La primera fila cuya mitad quedo por debajo del puntero; si ninguna, va al final.
+function destinoPara(y) {
+  const filas = [...document.querySelectorAll('.pista')];
+  for (let i = 0; i < filas.length; i++) {
+    const c = filas[i].getBoundingClientRect();
+    if (y < c.top + c.height / 2) return i;
+  }
+  return filas.length;
+}
+
+// --- recortar tirando de las manijas ------------------------------------------
+// Va con eventos de puntero (no con drag de HTML5) para que ande igual con el dedo:
+// el arrastre de HTML5 no existe en pantallas tactiles.
+$('#lista').addEventListener('pointerdown', e => {
+  const man = e.target.closest('.man');
+  if (!man) return;
+  const caja = man.closest('.onda');
+  const p = pistas.find(x => String(x.id) === caja.dataset.onda);
+  if (!p || !p.dur) return;
+  e.preventDefault();
+  man.classList.add('tomada');
+  man.setPointerCapture(e.pointerId);
+  const cual = man.dataset.man;
+  const mueve = ev => {
+    const c = caja.getBoundingClientRect();
+    const t = Math.max(0, Math.min(1, (ev.clientX - c.left) / c.width)) * p.dur;
+    // Los dos extremos no se cruzan: siempre queda al menos un cuarto de segundo.
+    if (cual === 'ini') p.ini = Math.min(t, (p.fin || p.dur) - 0.25);
+    else                p.fin = Math.max(t, p.ini + 0.25);
+    p.ini = Math.max(0, p.ini);
+    p.fin = Math.min(p.dur, p.fin || p.dur);
+    colocar(p); dibujar(p); totalizar();
+  };
+  const suelta = () => {
+    man.classList.remove('tomada');
+    man.removeEventListener('pointermove', mueve);
+    man.removeEventListener('pointerup', suelta);
+    man.removeEventListener('pointercancel', suelta);
+    guardar();
+  };
+  man.addEventListener('pointermove', mueve);
+  man.addEventListener('pointerup', suelta);
+  man.addEventListener('pointercancel', suelta);
+});
+
+// Al cambiar el ancho de la ventana el canvas se estira y la onda queda borrosa:
+// se vuelve a dibujar con el ancho nuevo.
+let redibujo;
+addEventListener('resize', () => {
+  clearTimeout(redibujo);
+  redibujo = setTimeout(() => pistas.forEach(p => { colocar(p); dibujar(p); }), 150);
+});
+
+// ---------------------------------------------------------------- arranque
+async function arrancar() {
+  try {
+    const g = JSON.parse(localStorage.getItem('estudio') || '{}');
+    if (typeof g.silencio === 'number') {
+      silencio = g.silencio;
+      $('#sil').value = silencio;
+      $('#silTxt').textContent = seg(silencio);
+    }
+    if (typeof g.activa === 'string' || g.activa === null) activa = g.activa;
+    if (g.modo === 'audio' || g.modo === 'video') modo = g.modo;
+    // Los archivos viven en el servidor: si alguno ya no esta (se limpio la carpeta),
+    // se saca de la lista en vez de dejar una fila que no suena.
+    const r = await (await fetch('/estudio/lista')).json();
+    archivosVivos = new Set(r.archivos || []);
+  } catch (e) {}
+  await cargarPerfiles();
+  await cargarBandejas();
+  await cargarCola();
+  // ⚠ Si la bandeja donde estabas se borró, se vuelve a Todos en vez de quedar mirando
+  // una lista vacía sin saber por qué.
+  if (activa && !bandejas.includes(activa)) activa = null;
+  // La pestaña elegida se pinta aun si justo falló o tarda en llegar la bandeja: el
+  // lugar donde estás editando no puede quedar diciendo "Audios" mientras la fila ya
+  // es la de video.
+  pintarMedios();
+  pintarBandejas();
+  cargarFila();
+  await cargarRecibidos();
+}
+arrancar();
+</script>
+</body></html>

@@ -1,0 +1,81 @@
+# --- Secretos: NUNCA versionar ---
+.env
+spotify_token.json
+
+# --- Datos de ejecucion: son mensajes reales de terceros (audios, frames, transcripciones) ---
+resultados/
+
+# --- Logs en vivo (voz.log es la fuente del chat del panel) ---
+logs/
+
+# --- Estado en vivo, cambia todo el tiempo ---
+claude_sesion.json
+codex_sesion.json
+cerebro.json
+pausa_escucha.flag
+STOP
+escribir_en.json
+pizarra_estado.json
+# Lo que el vigia se acuerda de la vuelta anterior (para no repetir el mismo aviso).
+# El vigilar.json SI se versiona; su estado no, que es de esta maquina.
+vigilar.json.estado.json
+laura_pregunta.json
+laura_respuesta.json
+
+# --- Configuracion de TU maquina: tu tunel y tu vigia. Se arman copiando los .ejemplo ---
+wpp-config.yml
+vigilar.json
+
+# --- Permisos locales de Claude Code (son de cada uno) ---
+.claude/settings.local.json*
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Salida generada por graphify (se reconstruye con /graphify) ---
+graphify-out/
+
+# --- Worktrees de Claude Code (sesiones paralelas) ---
+.claude/worktrees/
+seguir_lectura.json
+
+# --- Estado del panel y del celular (cambia todo el tiempo, no es codigo) ---
+pestanas_movil.json
+nombres_sesiones.json
+carpetas_sesiones.json
+sesiones_archivadas.json
+aspecto.json
+avisos.json
+ajustes_sesiones.json
+borradores_sesiones.json
+marcas_chat.json
+orden_carpetas.json
+# La identidad de cada carpeta (icono, color, apodo) y, desde el 2026-08-28, CON QUE
+# perfil de Chrome trabaja ese proyecto. Es estado del panel como sus hermanos de
+# arriba, y ademas lleva rutas de perfiles de navegador: no va al repo.
+aspecto_carpetas.json
+pensando.flag
+compactar.flag
+leer_panel.flag
+cortar_voz.flag
+escuchar_ya.flag
+nueva_sesion.flag
+mic_bloqueado.flag
+logs/horas_chat.json
+
+# --- Ventana de escritorio (app/escritorio.py) ---
+# Donde la dejaste en la pantalla, lo que WebView2 guarda del navegador, y el .ico
+# que se genera solo a partir de icono_laura.png.
+ventana_escritorio.json
+webview_datos/
+app/estaticos/icono_laura.ico
+
+# --- Capturas de las pruebas: se regeneran corriendo la prueba ---
+pruebas/*.png
+pruebas/*.jpg
+# Las tandas de `foto_pantallas.py` (antes/despues/claro), que sirven para comparar una
+# pantalla consigo misma pixel a pixel. Son megas de PNG y se rehacen en 20 segundos.
+pruebas/fotos/
+pruebas/voz_falsa.wav

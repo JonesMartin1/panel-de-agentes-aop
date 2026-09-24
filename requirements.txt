@@ -1,0 +1,67 @@
+# Dependencias del Servidor IA. Generado a partir del entorno que anda
+# (conda env "wpp", Python 3.11.15) el 2026-09-04.
+#
+# pip install -r requirements.txt
+# Si tu red intercepta HTTPS y pip falla con error de certificado, agregale:
+#   --trusted-host pypi.org --trusted-host files.pythonhosted.org
+#
+# Despues de esto: playwright install chromium
+
+# --- Transcripcion (Whisper local en GPU) ---
+faster-whisper==1.2.1
+ctranslate2==4.8.1
+numpy==2.4.6
+nvidia-cuda-nvrtc-cu12==12.9.86
+nvidia-cudnn-cu12==9.24.0.43
+
+# --- Voz: sintesis (Piper) y captura de audio ---
+piper-tts==1.6.0
+onnxruntime==1.28.0
+sounddevice==0.5.5
+pvporcupine==4.0.3
+
+# --- Analisis con Gemini ---
+google-genai==1.65.0
+
+# --- Servidores web: panel (8750) y webhook de WhatsApp (8080) ---
+fastapi==0.141.1
+uvicorn==0.52.1
+requests==2.33.0
+python-dotenv==1.2.2
+truststore==0.10.4
+certifi==2026.7.22
+
+# --- Telegram ---
+python-telegram-bot==22.8
+
+# --- Control de Windows: ventanas, escritorios, teclado, audio ---
+# (esto es lo que ata el proyecto a Windows)
+pywin32==312
+pywinauto==0.6.9
+pyvda==0.6.0
+PyGetWindow==0.0.9
+PyAutoGUI==0.9.54
+keyboard==0.13.5
+pyperclip==1.11.0
+pycaw==20251023
+comtypes==1.4.16
+winsdk==1.0.0b10
+psutil==7.2.2
+mss==10.2.0
+pillow==12.2.0
+
+# --- Interfaz: icono en la bandeja y ventanas propias ---
+pystray==0.19.5
+pywebview==6.2.1
+
+# --- Navegador por voz (opcional: si no lo vas a usar, podes sacar estas dos) ---
+browser-use==0.13.7
+playwright==1.62.0
+
+# --- Calendario (opcional) ---
+caldav==3.2.1
+
+# --- Laura por Discord (opcional) ---
+# Sin version fijada: en la maquina de Martin esta parte no esta instalada, asi
+# que no hay una version probada. Descomentalo solo si vas a usar Discord.
+# discord.py

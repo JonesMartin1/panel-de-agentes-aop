@@ -1,0 +1,6 @@
+interface:
+  display_name: "Notas"
+  short_description: "Actualiza el cuaderno del proyecto"
+  default_prompt: "Usá $notas para repasar esta sesión y actualizar la nota del proyecto."
+policy:
+  allow_implicit_invocation: true
