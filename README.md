@@ -1,6 +1,7 @@
 # Panel de agentes AOP
 
-**Servidor IA: transcriptor de WhatsApp y Telegram + asistente de voz, en tu propia PC.**
+**AOP = Agent Orchestrator Panel**: un panel para orquestar agentes de IA (Claude Code y
+Codex) desde tu propia PC, con transcriptor de WhatsApp y Telegram y asistente de voz.
 
 Dos cosas en una, corriendo en tu PC:
 
