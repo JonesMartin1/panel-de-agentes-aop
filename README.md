@@ -11,7 +11,11 @@ Dos cosas en una, corriendo en tu PC:
 2. **Asistente de voz**: decís "Venus" y le pedís cosas a la PC (abrir programas, poner música,
    dictar donde esté el cursor), o decís "Laura" y charlás con Claude o ChatGPT por voz.
 
-Todo se maneja desde un panel web en `http://localhost:8750`.
+Todo se maneja desde un panel web en `http://localhost:8750`, y **también desde el
+celular**: una pantalla pensada para el teléfono donde seguís y le escribís a tus sesiones de
+Claude y Codex, hablás con Laura, ves si algo se cayó y usás la pizarra con el dedo. Funciona
+desde cualquier lado, por una red privada entre tu PC y tu teléfono (Tailscale), sin abrir
+nada a internet (paso 8b).
 
 ---
 
@@ -159,6 +163,41 @@ Dejá esa ventana abierta (si la cerrás, se apaga todo) y abrí en Chrome
 3. Decí **"Venus, qué hora es"**.
 
 **Anduvo si** te contesta la hora en voz alta.
+
+### 8b. Usarlo desde el celular — opcional
+
+El panel tiene una pantalla hecha para el teléfono (`/movil`): ves y seguís tus sesiones de
+Claude y Codex, les escribís o les hablás, pausás la escucha si te entra una llamada, ves si
+algo se cayó y usás la pizarra con el dedo. Se llega por **Tailscale**, una red privada
+entre tu PC y tu celular: anda con datos móviles y desde cualquier lado, pero para el resto de
+internet el panel no existe.
+
+1. **En la PC**, instalá Tailscale e iniciá sesión (con Google, por ejemplo):
+
+   ```powershell
+   winget install -e --id tailscale.tailscale
+   ```
+
+2. **En el celular**, instalá la app **Tailscale** (App Store o Play Store) y entrá con **la
+   misma cuenta**.
+3. **Publicá el panel adentro de tu red privada**, con el panel prendido (paso 8):
+
+   ```powershell
+   tailscale serve --bg 8750
+   ```
+
+   Si te dice que falta habilitar HTTPS, te da un link: abrilo y aceptá. Hace falta porque el
+   navegador del celular solo deja usar el micrófono en páginas con HTTPS. El comando te
+   muestra la dirección, algo como `https://tu-pc.tu-red.ts.net`.
+4. **En el celular**, abrí esa dirección agregándole `/movil` al final
+   (`https://tu-pc.tu-red.ts.net/movil`) y, desde el menú del navegador, **"Agregar a pantalla
+   de inicio"**: queda como una app más.
+
+⚠ Usá `tailscale serve`, **nunca `tailscale funnel`**: *funnel* publica el panel en internet
+para cualquiera, y desde el panel se le puede pedir a Laura que ejecute cosas en tu PC.
+
+**Anduvo si** con el wifi apagado, solo con datos, la app del celular abre y muestra el
+estado de los servicios.
 
 ### 9. Hablar con Laura (Claude o ChatGPT) — opcional
 
