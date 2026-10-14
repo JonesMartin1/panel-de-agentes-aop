@@ -296,13 +296,23 @@
     carpetas y el zoom arriba, la lista era lo primero que dejaba de entrar. */
  .carpeta{display:flex;align-items:center;gap:calc(10px * var(--ui,1));
           padding:calc(9px * var(--ui,1)) calc(18px * var(--ui,1));cursor:pointer;
-          font-size:calc(13.5px * var(--ui,1));position:relative}
+          font-size:calc(13.5px * var(--ui,1));position:relative;
+          /* Todas con el mismo margen que la pintada y la elegida: si no, las marcas de la
+             derecha de un renglón sin color quedaban 14 px más allá que las de al lado. */
+          margin-right:14px}
  .carpeta:hover{background:var(--c141a26,#141a26)}
  .carpeta .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
- .carpeta .num{color:var(--c5c6675,#5c6675);font-size:calc(11.5px * var(--ui,1))}
+ .carpeta .num{color:var(--c5c6675,#5c6675);font-size:calc(11.5px * var(--ui,1));
+               flex:none;min-width:2.2ch;text-align:right}
  /* La marca de "esta carpeta maneja un navegador": apagada, para que no le compita al
     nombre, que es lo único que se viene a leer acá. Nunca en rojo. */
- .carpeta .naveg{flex:none;font-size:10px;opacity:.5;line-height:1}
+ .carpeta .naveg{flex:none;font-size:10px;opacity:.5;line-height:1;width:13px;text-align:center}
+ /* Los lugares vacíos de las marcas de la derecha: miden lo mismo que la marca que
+    les falta, así todo queda en columna aunque un renglón no tenga alguna. */
+ .carpeta .hueco{flex:none}
+ .carpeta .h-naveg{width:13px}
+ .carpeta .h-vive{width:6px}
+ .carpeta .h-plegar{width:17px}
  .carpeta.sel{background:var(--c16233a,#16233a);color:var(--c8ecbff,#8ecbff);border-radius:0 999px 999px 0;
               margin-right:14px;font-weight:600}
  /* --- ⭐ Mover las carpetas y sacarlas (pedido de Martín, 2026-08-18) -------------
@@ -311,13 +321,9 @@
     entera y así moverla"). Hubo un ⠿ y se sacó. Que la misma fila sea el clic que ENTRA
     y el agarre que MUEVE se resuelve con un umbral de movimiento, no con dos zonas:
     ver `arrancarArrastreCarpeta`. */
- .carpeta .sacar{flex:none;width:17px;height:17px;display:flex;align-items:center;
-                 justify-content:center;border-radius:5px;color:var(--c5c6675,#5c6675);font-size:12px;
-                 opacity:0;transition:opacity .14s,background .14s,color .14s}
- .carpeta:hover .sacar{opacity:.7}
- .carpeta .sacar:hover{opacity:1;background:var(--c2a2036,#2a2036);color:var(--cc9a6e8,#c9a6e8)}
- /* El número se corre cuando aparece la ✕, así no bailan las dos en el mismo lugar. */
- .carpeta:hover .num{display:none}
+ /* ⚠ Sacar una carpeta de la lista va SOLO por el botón derecho ("✕ Sacarla de la
+    lista"). Hubo una ✕ en la fila al pasar el mouse y se sacó el 2026-10-10, por pedido
+    de Martín: quedaba al lado de la flechita y se apretaba sin querer. */
  /* ⭐⭐ La animación de mover. La que se arrastra se levanta (sombra y un pelo más
     grande) y las demás se acomodan SOLAS con una transición de posición — es la
     técnica FLIP: se mide dónde estaba cada una, se rearma la lista, se mide dónde
@@ -361,6 +367,23 @@
    width:3px;border-radius:0 3px 3px 0;background:currentColor}
  /* Con ícono propio se pierde el 📂/📁 que contaba si el proyecto tiene algo vivo:
     ese estado pasa a un puntito, que no se pinta (la misma regla del semáforo). */
+ /* --- ⭐ Las charlas activas colgando de su carpeta (2026-10-10) ------------------
+    Más chicas y corridas a la derecha, con una línea fina a la izquierda que las ata a
+    su carpeta: se tienen que leer como "adentro de", no como otra carpeta más. */
+ .carpeta .plegar{flex:none;width:17px;text-align:center;color:var(--c5c6675,#5c6675);
+                  font-size:11px;border-radius:5px}
+ .carpeta .plegar:hover{color:var(--ce8ecf1,#e8ecf1);background:var(--c1a2333,#1a2333)}
+ .subcarpeta{display:flex;align-items:center;gap:calc(8px * var(--ui,1));cursor:pointer;
+             margin:0 14px 0 calc(30px * var(--ui,1));padding:calc(5px * var(--ui,1)) calc(10px * var(--ui,1));
+             border-left:1px solid var(--c232a35,#232a35);font-size:calc(12.5px * var(--ui,1));
+             color:var(--c8b93a1,#8b93a1);border-radius:0 8px 8px 0}
+ .subcarpeta:hover{background:var(--c141a26,#141a26);color:var(--ce8ecf1,#e8ecf1)}
+ .subcarpeta .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .subcarpeta .pto{flex:none;width:6px;height:6px;border-radius:50%;
+                  background:var(--c3a4252,#3a4252)}
+ .subcarpeta.trabaja .pto{background:var(--c5eead4,#5eead4)}
+ .subcarpeta.sel{background:var(--c16233a,#16233a);color:var(--c8ecbff,#8ecbff);font-weight:600;
+                 border-left-color:currentColor}
  .carpeta .vive{flex:none;width:6px;height:6px;border-radius:50%;background:var(--c5eead4,#5eead4);
                 opacity:.85}
  #buscar{width:calc(100% - 28px);margin:0 14px 10px;padding:7px 11px;border-radius:9px;
@@ -374,7 +397,7 @@
                  background:var(--c151b26,#151b26);color:var(--ce8ecf1,#e8ecf1);font-size:13px;width:230px}
  .cabeza #filtro::placeholder{color:var(--c5c6675,#5c6675)}
  .dedonde{font-size:11px;color:var(--c7c8797,#7c8797);font-weight:400;background:var(--c1a2130,#1a2130);padding:2px 7px;
-          border-radius:999px;margin-left:7px}
+          border-radius:999px;margin-right:7px}
  /* ⭐ LA CHAPA DE BORRADOR (pedido de Martín, 2026-08-18: "quiero que lo que yo escriba
     dentro de una sesión quede guardado como borrador y se pueda ver en todas, con una
     señalización que diga que está en borrador, que tenga un color y una animación").
@@ -573,13 +596,15 @@
     se trepan ARRIBA de todo, y los que tenían `align-self:center` flotan en el medio —
     tres alturas distintas en una sola fila. Por eso los `align-self:center` de acá abajo
     se sacaron: pisaban esta regla. Se mide en `pruebas/ver_caja_crece_compu.py`. */
- /* ⭐⭐ `flex-wrap` + el `min-width` de abajo son el arreglo del ZOOM (Martín, 2026-08-25,
-    con una captura al 110 %): la caja de escribir había quedado en 28 px de ancho, una
-    rendija donde solo se veía la barra de scroll — y encima alta, porque cualquier frase
-    metida en 28 px se parte en treinta renglones. La razón es que los botones no se
-    achican y la caja era el único elástico de la fila: TODO el recorte lo pagaba ella.
-    Con esto, cuando no entra, los botones del final se van a un segundo renglón (pegados
-    a la derecha por el `justify-content`) en vez de comerse el lugar de escribir.
+ /* ⭐⭐ UNA SOLA LÍNEA a cualquier zoom (Martín, 2026-10-10, con captura: "quiero que sea
+    una misma línea dentro de cualquier zoom, pero con todos los botones del mismo
+    tamaño"). Reemplaza al `flex-wrap` del 2026-08-25, que mandaba los botones del final
+    a un segundo renglón cuando no entraban.
+    ⚠ Lo que aquel arreglo cuidaba sigue valiendo: la caja de escribir NO puede quedar en
+    una rendija (el 25/08 llegó a 28 px). Por eso ahora hay DOS elásticos y no uno: la
+    caja (con su piso de `min-width`) y el botón ⚙ del modelo, que se achica cortando su
+    rótulo con "…" hasta quedar casi en el engranaje. Todo lo demás es `flex:none` y
+    mide `--bh` de alto; los de un dibujito, además, `--bh` de ancho.
     Se mide en `pruebas/ver_caja_zoom.py`, a los anchos que le dan sus zooms. */
  /* ⭐⭐ `--ui` es el tamaño de los CONTROLES (2026-09-12, pedido de Martín: "me gustaría
     poder encoger más los botones de la interfaz, o que queden en un tamaño fijo cuando
@@ -589,14 +614,17 @@
     antes el 38 estaba escrito en seis reglas distintas y bastaba olvidarse de una para
     que un botón quedara más alto que sus vecinos. */
  .caja{--bh:calc(38px * var(--ui,1));
-       display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:flex-end;
+       display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:flex-end;
        gap:calc(9px * var(--ui,1));padding:calc(12px * var(--ui,1)) calc(22px * var(--ui,1));
        border-top:1px solid var(--c1b2130,#1b2130);background:var(--c0f1320,#0f1320);flex:none}
  /* El `flex-basis` es el ancho que la caja PIDE (si sobra lugar crece hasta llenar la
     fila, como antes); el `min-width` es el que no negocia ni con el zoom más bruto.
     ⚠ El `min-width` SÍ sigue a `--ui`: achicando los botones se gana lugar, y si la caja
     siguiera pidiendo 280 px fijos la fila se partiría igual que antes. */
- .caja textarea{flex:1 1 420px;min-width:calc(280px * var(--ui,1));
+ /* ⚠ El piso bajó de 280 a 160 con la fila de una línea (2026-10-10): con 280 la fila no
+    entraba en el monitor vertical con zoom fuerte. 160 sigue siendo una caja donde se
+    lee una frase, no la rendija del 25/08. */
+ .caja textarea{flex:1 1 420px;min-width:calc(160px * var(--ui,1));
        background:var(--c151b26,#151b26);border:1px solid var(--c232a35,#232a35);border-radius:11px;
        color:var(--ce8ecf1,#e8ecf1);padding:calc(11px * var(--ui,1)) calc(13px * var(--ui,1));
        font:calc(14px * var(--ui,1))/1.45 inherit;resize:none;max-height:calc(130px * var(--ui,1))}
@@ -615,6 +643,16 @@
     `align-items:center`. Con ese nombre, la fila de iconos se comía ese estilo y
     quedaba 14 px más alta que el resto (medido). */
  .caja .grupo-iconos{display:inline-flex;align-items:flex-end;gap:calc(3px * var(--ui,1))}
+ /* Nada de la fila se achica salvo la caja de texto y el ⚙ (ver arriba). */
+ .caja > button,.caja > .ctx,.caja .grupo-iconos{flex:none;white-space:nowrap}
+ /* ⭐ El ⚡ lo dibuja `atajos.js` con 38 px clavados, que no siguen a `--ui`: con
+    "botones mínimos" o "quedan fijos" quedaba de otro tamaño que 🖼 y 🔎 (captura de
+    Martín, 2026-10-10). Acá se lo iguala a los demás de un dibujito. El texto largo
+    "⚡ Skills y comandos" no se pierde: el botón ya muestra solo el rayo en esta barra.
+    ⚠ El selector lleva el id para ganarle a la regla que inyecta `atajos.js`, que se
+    carga DESPUÉS y a igual peso ganaría ella. */
+ .caja #atajosAqui button.at-boton{height:var(--bh);width:var(--bh);padding:0;gap:0;
+       justify-content:center;font-size:calc(15px * var(--ui,1));align-self:auto}
  /* Rojo apagado: es un freno, no un botón que uno quiera apretar de paso. */
  .caja button.parar{background:var(--mal-bg);color:var(--mal-txt);font-weight:600}
  .caja button.parar:hover{background:var(--mal-bd)}
@@ -651,8 +689,12 @@
  /* Modelo, esfuerzo y modo/velocidad viven detrás de un solo botón: son ajustes de
     una misma sesión y separados ocupaban media barra. El panel abre hacia arriba para
     no tapar la caja de escritura. */
- .ajustes-modelo{position:relative;display:inline-flex}
+ /* ⭐ El ⚙ es el segundo elástico de la fila de una línea (2026-10-10): se achica hasta
+    el ancho de un botón cuadrado y el rótulo se corta con "…". `min-width:0` en los dos
+    niveles hace falta: sin él, un hijo flex no baja de lo que mide su texto. */
+ .ajustes-modelo{position:relative;display:inline-flex;flex:0 1 auto;min-width:var(--bh)}
  .caja button.ajustes-modelo-boton{height:var(--bh);max-width:calc(250px * var(--ui,1));
+       flex:1 1 auto;min-width:0;
        padding:0 calc(28px * var(--ui,1)) 0 calc(12px * var(--ui,1));
        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;
        background:var(--c151b26,#151b26);color:var(--c9aa4b3,#9aa4b3);border:1px solid var(--c232a35,#232a35);font-size:calc(12.5px * var(--ui,1));
@@ -734,6 +776,16 @@
        overflow-wrap:anywhere}
  .paso + .paso::before{content:' · ';color:var(--c5a657a,#5a657a)}
  .pasos + .msg{margin-top:10px}
+ /* ⭐ El texto en vivo (2026-09-27): el bloque que se está escribiendo lleva un cursor
+    que late al final, y el paso que todavía corre, el mismo latido que la pestaña. */
+ .msg.envivo.escribiendo::after{content:'▍';margin-left:1px;color:var(--burbuja-ia-borde);
+       animation:pulso 1s infinite ease-in-out}
+ .paso.corriendo{animation:pulso 1.2s infinite ease-in-out}
+ /* Un mensaje tuyo en fila (2026-09-27): se mandó mientras trabajaba y todavía no lo tomó.
+    Apagado y con borde punteado: está, pero todavía no es parte de la charla. */
+ .msg.vos.enfila{opacity:.62;outline:1px dashed rgba(var(--c8ecbff-rgb,142,203,255),.45);outline-offset:-1px}
+ .msg.vos.enfila .filaNota{display:block;font-size:11px;opacity:.85;margin-top:4px}
+ #envivo{display:contents}
  /* La pregunta de compactar, adentro del hilo. Ámbar como el botón "conviene". */
  .pideComp{background:var(--aviso-bg);color:var(--aviso-txt);padding:12px 15px;border-radius:10px;
            font-size:13px;margin:10px 0;line-height:1.5}
@@ -812,10 +864,20 @@
 <!-- El markdown de Claude, dibujado (negritas, titulos, viñetas, codigo). Trae sus
      propios estilos: son los mismos que usa la pestaña de sesiones del celular. -->
 <script src="/estaticos/marcado.js"></script>
+<!-- El texto en vivo: la respuesta se ve escribirse, como en Claude Code (2026-09-27).
+     El mismo archivo lo usa la pestaña de sesiones del celular. -->
+<script src="/estaticos/envivo.js"></script>
+<!-- El rastro con pasos desplegables: el cambio de cada edición y la salida de cada
+     comando, y si a un paso se lo negaron (2026-09-27). El mismo archivo usa el celular. -->
+<script src="/estaticos/pasos.js"></script>
+<!-- El @ de la caja: nombrar un archivo del proyecto como en Claude Code (2026-09-27). -->
+<script src="/estaticos/arroba.js"></script>
 <!-- El marcador de texto: pintar y subrayar adentro de una conversación. Trae sus propios
      estilos y su menú de clic derecho; las marcas viven en el servidor, así que también se
      ven desde el celular. -->
 <script src="/estaticos/marcas.js"></script>
+<!-- El color propio de cada charla (2026-10-10), el mismo archivo que el celular. -->
+<script src="/estaticos/colorcharla.js"></script>
 <!-- ⭐ La dirección web de cada conversación: `/sesiones?c=<id>`. La escribe sola al abrir
      una charla y la lee al entrar, así se puede guardar en favoritos y tener varias
      pestañas del navegador, cada una en una conversación (pedido de Martín, 2026-08-18).
@@ -936,6 +998,15 @@
              los cambios sin commitear y diga qué está mal. Anda con los dos cerebros. -->
         <button class="compactar" id="revisar" data-cierra onclick="revisarCodigo()"
                 title="Pedirle a esta charla que revise los cambios que todavía no commiteaste">⌕ Revisar</button>
+        <!-- ⭐ Bifurcar (2026-09-27): probar otro camino sin perder esta charla. Abre una
+             pestaña que sigue con todo lo anterior y un id propio; la original no se toca. -->
+        <button class="compactar" id="bifurcar" data-cierra onclick="bifurcar()"
+                title="Abrir una copia de esta charla para probar otro camino, sin tocar la original">⑂ Bifurcar</button>
+        <!-- ⭐ El color propio de esta charla (2026-10-10): las dos burbujas y un tinte del
+             fondo. Lo elegido acá se ve igual en el celular (colorcharla.js). -->
+        <button class="compactar" id="colorCharla" data-cierra
+                onclick="ColorCharla.editor(activa, $('#ajustesModeloBoton'), cwdActiva())"
+                title="Elegir los colores de las burbujas y del fondo, de esta charla o de toda su carpeta">🎨 Colores</button>
       </span>
     </span>
   </span>
@@ -1429,7 +1500,41 @@ async function ocultarCarpeta(nombre, ocultar){
 
 let marcarVuelve = '';      // la que acaba de volver, para animarle la entrada UNA vez
 
+// --- ⭐ Las charlas activas, colgando de su carpeta (pedido de Martín, 2026-10-10) ----
+// "Me gustaría poder ver las sesiones activas como subcarpetas". Activa = la que tenés
+// abierta en la barra de pestañas, más la que esté trabajando aunque no la tengas abierta.
+// ⚠ No se usa `viva` sola: desde que las sesiones se duermen por memoria, casi ninguna
+// figura viva, y la columna habría quedado vacía justo con todo abierto.
+// Cada carpeta se puede plegar con su flechita; lo plegado queda en este navegador.
+let subPlegadas = new Set();
+try { subPlegadas = new Set(JSON.parse(localStorage.getItem('sesSubPlegadas') || '[]')); } catch(e){}
+const guardarSubPlegadas = () => localStorage.setItem('sesSubPlegadas', JSON.stringify([...subPlegadas]));
+
+function subsDe(p){
+  const vistas = new Set();
+  const subs = [];
+  abiertas.forEach(t => {
+    if (!t.sid || /^nueva-/.test(t.sid) || proyectoDe(t) !== p.proyecto || vistas.has(t.sid)) return;
+    vistas.add(t.sid);
+    const s = p.sesiones.find(x => x.id === t.sid) || {};
+    subs.push({sid: t.sid, nombre: s.nombre || t.nombre || '…', cwd: t.cwd || p.cwd,
+               cerebro: t.cerebro || s.cerebro || '', trabaja: !!s.ocupada});
+  });
+  p.sesiones.forEach(s => {
+    if (vistas.has(s.id) || !s.ocupada || esArchivada(s)) return;
+    subs.push({sid: s.id, nombre: s.nombre || '…', cwd: p.cwd, cerebro: s.cerebro || '', trabaja: true});
+  });
+  return subs;
+}
+
+// Qué subcarpetas se ven ahora: si no cambió, no hace falta rearmar la columna.
+let subsPintadas = '';
+const firmaSubs = () => JSON.stringify([activa, [...subPlegadas],
+  datos.proyectos.map(p => subsDe(p).map(s => s.sid + s.nombre + s.trabaja))]);
+function refrescarSubs(){ if (firmaSubs() !== subsPintadas) pintarCarpetas(); }
+
 function pintarCarpetas(){
+  iconoPestana();      // cambiaste el ícono de una carpeta: la pestaña lo sigue
   // ⚠ En medio de un arrastre no se repinta: rearmar el HTML le saca al navegador el
   // renglón que estás moviendo (misma lección que las pestañas de arriba).
   if (arrastrandoCarp) return;
@@ -1446,9 +1551,11 @@ function pintarCarpetas(){
   // había 67, que es de esas diferencias que te hacen desconfiar de todo lo demás.
   const enBandeja = s => !esArchivada(s) && !s.tapada;
   const cuantas = datos.proyectos.reduce((n, x) => n + x.sesiones.filter(enBandeja).length, 0);
+  subsPintadas = firmaSubs();
   const fila = p => {
     const clave = claveGrupo(p.proyecto);        // ⭐ la MISMA llave que su pastilla
     const ico = iconos[p.proyecto];
+    const subs = subsDe(p), plegada = subPlegadas.has(p.proyecto);
     return '<div class="carpeta ' + (p.proyecto===proy?'sel':'') +
         (tonos[clave]?' pintada':'') + (p.proyecto===marcarVuelve?' vuelve':'') +
         '" data-proy="' + esc(p.proyecto) + '"' + pinta(clave) +
@@ -1461,14 +1568,27 @@ function pintarCarpetas(){
       // normal. Se distingue del puntito de "tiene algo vivo" porque es un dibujito.
       // ⚠ Mira el navegador EFECTIVO: casi ninguna carpeta declara el suyo, lo heredan
       // del de base, y una marca que solo mirara lo declarado no aparecería nunca.
+      // ⭐ Las marcas de la derecha van SIEMPRE, vacías si no corresponden (2026-10-10,
+      // "me da toc esto"): cada una tiene su lugar fijo y quedan en columna de arriba a
+      // abajo. Si una faltaba, las de al lado se corrían y ningún renglón coincidía.
       (navegEfectivo(p.proyecto)
         ? '<span class="naveg" title="Sus conversaciones manejan un navegador">🌐</span>'
-        : '') +
+        : '<span class="hueco h-naveg"></span>') +
       // Con ícono propio, "tiene algo vivo" lo cuenta el puntito: el 📂 ya no está.
-      (ico && p.vivo ? '<span class="vive" title="Tiene una conversación viva"></span>' : '') +
+      (ico && p.vivo ? '<span class="vive" title="Tiene una conversación viva"></span>'
+                     : '<span class="hueco h-vive"></span>') +
       '<span class="num">' + p.sesiones.filter(enBandeja).length + '</span>' +
-      '<span class="sacar" data-sacar="' + esc(p.proyecto) +
-        '" title="Sacar de la lista (no borra nada, se puede devolver)">✕</span></div>';
+      (subs.length ? '<span class="plegar" data-plegar="' + esc(p.proyecto) + '" title="' +
+        (plegada ? 'Mostrar' : 'Esconder') + ' sus charlas activas">' +
+        (plegada ? '▸' : '▾') + '</span>' : '<span class="hueco h-plegar"></span>') + '</div>' +
+      // Las subcarpetas: van como renglones aparte, SIN `data-proy`, así el arrastre
+      // y los clics de carpeta no las toman por una carpeta más.
+      (plegada ? '' : subs.map(s =>
+        '<div class="subcarpeta' + (s.sid === activa ? ' sel' : '') + (s.trabaja ? ' trabaja' : '') +
+          '" data-subsid="' + esc(s.sid) + '" data-cwd="' + esc(s.cwd) + '" data-nom="' +
+          esc(s.nombre) + '" data-cer="' + esc(s.cerebro) + '" title="' + esc(s.nombre) +
+          (s.trabaja ? ' · trabajando' : '') + ' · botón del medio: otra pestaña">' +
+          '<span class="pto"></span><span class="nom">' + esc(s.nombre) + '</span></div>').join(''));
   };
   $('#carpetas').innerHTML =
     '<div class="carpeta ' + (proy===TODAS?'sel':'') + '" data-proy="' + esc(TODAS) + '">' +
@@ -1489,16 +1609,44 @@ function pintarCarpetas(){
   marcarVuelve = '';
   document.querySelectorAll('.carpeta[data-proy]').forEach(c => {
     c.onclick = e => {
-      if (e.target.dataset.sacar) return;        // la ✕ tiene lo suyo
       // ⚠ Si el clic viene de terminar un arrastre, NO entra al proyecto: soltar la
       // carpeta donde la moviste no puede además cambiarte de carpeta.
       if (movioCarpeta){ movioCarpeta = false; return; }
+      // Ctrl+clic = lo mismo que el botón del medio (como en las conversaciones).
+      if (e.ctrlKey || e.metaKey) return abrirCarpetaEnNavegador(c.dataset.proy);
       irProyecto(c.dataset.proy);
+    };
+    // ⭐ Botón del medio sobre una carpeta = esa carpeta en una pestaña nueva del
+    // navegador, y vos te quedás donde estabas (pedido de Martín, 2026-10-10). "Todas"
+    // también, por pedido suyo. El `mousedown` del botón del medio se lo come
+    // `engancharArrastreCarpetas`, que es el dueño de ese evento.
+    c.onauxclick = e => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      abrirCarpetaEnNavegador(c.dataset.proy);
     };
     c.oncontextmenu = e => abrirMenuCarpeta(e, c);
   });
-  document.querySelectorAll('[data-sacar]').forEach(x =>
-    x.onclick = e => { e.stopPropagation(); ocultarCarpeta(x.dataset.sacar, true); });
+  document.querySelectorAll('[data-plegar]').forEach(x => {
+    x.onmousedown = e => e.stopPropagation();       // que no arranque un arrastre
+    x.onclick = e => {
+      e.stopPropagation();
+      const n = x.dataset.plegar;
+      subPlegadas.has(n) ? subPlegadas.delete(n) : subPlegadas.add(n);
+      guardarSubPlegadas(); pintarCarpetas();
+    };
+  });
+  // Una subcarpeta es la charla misma: clic entra, botón del medio (o Ctrl) abre otra
+  // pestaña del navegador — lo mismo que en la bandeja.
+  document.querySelectorAll('.subcarpeta[data-subsid]').forEach(x => {
+    const sid = x.dataset.subsid;
+    x.onmousedown = e => { if (e.button === 1) e.preventDefault(); };
+    x.onclick = e => {
+      if (e.ctrlKey || e.metaKey) return abrirEnNavegador(sid);
+      abrirSesion(x.dataset.cwd, sid, x.dataset.nom, false, x.dataset.cer);
+    };
+    x.onauxclick = e => { if (e.button !== 1) return; e.preventDefault(); abrirEnNavegador(sid); };
+  });
   document.querySelectorAll('[data-volver]').forEach(x =>
     x.onclick = () => ocultarCarpeta(x.dataset.volver, false));
   const ver = $('#verOcultas');
@@ -1540,8 +1688,10 @@ function engancharArrastreCarpetas(){
   if (!cont) return;
   cont.querySelectorAll('.carpeta[data-proy]').forEach(fila => {
     fila.onmousedown = e => {
+      // ⚠ El del medio abre la carpeta en otra pestaña: sin esto Chrome le prende el
+      // desplazamiento automático y queda el iconito redondo dando vueltas.
+      if (e.button === 1){ e.preventDefault(); return; }
       if (e.button !== 0) return;                          // el derecho abre el menú
-      if (e.target.dataset.sacar) return;                  // la ✕ tiene lo suyo
       if (fila.dataset.proy === TODAS) return;             // la bandeja no se mueve
       esperarArrastreCarpeta(e, fila, cont);
     };
@@ -1567,6 +1717,9 @@ function esperarArrastreCarpeta(ev, fila, cont){
 function arrancarArrastreCarpeta(ev, fila, cont){
   arrastrandoCarp = true;
   movioCarpeta = true;
+  // Las charlas colgadas no viajan con la carpeta: se esconden mientras dura el
+  // arrastre y vuelven solas con el repintado de `soltar`.
+  cont.querySelectorAll('.subcarpeta').forEach(x => x.remove());
   fila.classList.add('deslizando');
   const movibles = () => [...cont.querySelectorAll('.carpeta[data-proy]')]
     .filter(f => f.dataset.proy !== TODAS);
@@ -1879,6 +2032,7 @@ function abrirMenuCarpeta(e, el){
     '<div class="rub">Y para todos los proyectos</div>' +
     '<select class="buscaIco" id="carpNavegBase"><option>cargando…</option></select>' +
     '<div class="sep"></div>' +
+    '<div class="op" data-hace="fondo">🖼 Colores y foto de fondo…</div>' +
     '<div class="op" data-hace="nombre">✎ Cambiarle el nombre</div>' +
     '<div class="op" data-hace="sacar">✕ Sacarla de la lista</div>';
 
@@ -2142,6 +2296,20 @@ function abrirMenuCarpeta(e, el){
     cerrarMenuTarjeta();
     ocultarCarpeta(nombre, true);
   };
+  // El mismo cuadro de colorcharla.js, pero solo con la parte de la carpeta: lo que se
+  // elige acá lo heredan todas sus charlas, y la foto se ve también en su bandeja.
+  m.querySelector('[data-hace="fondo"]').onclick = ev => {
+    const cwd = (datos.proyectos.find(x => x.proyecto === nombre) || {}).cwd;
+    // ⚠ Sin colorcharla.js (un panel prendido desde antes de que existiera contesta 404)
+    // el clic no hacía NADA: se avisa en el mismo renglón en vez de quedar mudo.
+    if (!window.ColorCharla || !cwd){
+      ev.currentTarget.textContent = !window.ColorCharla
+        ? '⟳ Falta reiniciar el panel para esto' : 'Esta carpeta no tiene ruta en el disco';
+      return;
+    }
+    cerrarMenuTarjeta();
+    ColorCharla.editor(null, el, cwd);
+  };
 
   m.classList.add('abierto');
   ubicar();
@@ -2215,6 +2383,7 @@ function pintarTabs(){
   // elemento que estás moviendo y el arrastre se corta solo. El refresco de cada 8 s
   // cae justo acá (2026-08-17).
   if (arrastrando) return;
+  refrescarSubs();      // abrir o cerrar una pestaña cambia lo que cuelga de cada carpeta
   const viva = sid => datos.proyectos.some(p => p.sesiones.some(s => s.id===sid && s.viva));
   const grupos = gruposDeTabs();
   // ⭐ El grupo de la charla que estás LEYENDO va siempre desplegado: si no, la
@@ -2647,8 +2816,23 @@ function fijarDireccion(opciones){
   if (!window.Direccion) return;
   const t = abiertas.find(x => x.sid === activa);
   const real = !!t && !t.sid.startsWith('nueva-');
-  Direccion.fijar(real ? {c: t.sid} : {},
-                  Object.assign({titulo: real ? nombreDe(t) : ''}, opciones || {}));
+  // Parado en la bandeja de UNA carpeta, la dirección lo dice (`?p=`): así la pestaña que
+  // abre el botón del medio, un F5 o un favorito caen en esa misma carpeta.
+  const carpeta = !real && !activa && proy && proy !== TODAS ? proy : '';
+  Direccion.fijar(real ? {c: t.sid} : carpeta ? {p: carpeta} : {},
+                  Object.assign({titulo: real ? nombreDe(t) : carpeta ? nombreGrupo(carpeta) : ''},
+                                opciones || {}));
+  iconoPestana();
+}
+
+// El ícono de la pestaña del navegador es el de la carpeta que estás mirando (la de la
+// charla, o la de la bandeja); en "Todas", uno fijo. Mismo ícono que en la columna.
+function iconoPestana(){
+  if (!window.Direccion || !Direccion.icono) return;
+  const t = activa ? abiertas.find(x => x.sid === activa) : null;
+  const nom = t ? proyectoDe(t) : (proy && proy !== TODAS ? proy : '');
+  const p = nom && datos.proyectos.find(x => x.proyecto === nom);
+  Direccion.icono(p ? (iconos[p.proyecto] || (p.vivo ? '📂' : '📁')) : '🗂');
 }
 
 // Abrir una conversación te devuelve lo que habías dejado escrito, listo para seguir.
@@ -2745,9 +2929,37 @@ function abrirSesion(cwd, sid, nombre, fondo, cerebro){
 
 let recienTab = '';      // la pestaña recién abierta en segundo plano, para que parpadee
 
+// ⭐ Botón del medio (o Ctrl+clic) sobre una charla = pestaña NUEVA DEL NAVEGADOR, como
+// cualquier enlace (pedido de Martín, 2026-10-10). Antes la abría en la barra de pestañas
+// del panel. Entra por `/sesiones?c=<id>`, el mismo camino de un favorito: la pestaña
+// nueva sola averigua en qué carpeta vive. Y como el `localStorage` es compartido, la
+// charla también aparece en la barra de arriba de esta ventana (ver el `storage` del final).
+function abrirEnNavegador(sid){
+  if (!sid) return;
+  window.open(location.pathname + '?c=' + encodeURIComponent(sid), '_blank', 'noopener');
+}
+// Lo mismo con una carpeta de la columna izquierda: la pestaña nueva entra por `?p=`.
+// "Todas" va a la dirección pelada, la bandeja de siempre. ⚠ Con `noreferrer`: si la
+// pestaña nueva supiera que viene del panel, `volverAlSitio` la mandaría a donde estabas
+// parado vos (una carpeta, una charla) en vez de a la bandeja.
+function abrirCarpetaEnNavegador(nombre){
+  if (!nombre) return;
+  if (nombre === TODAS) return window.open(location.pathname, '_blank', 'noreferrer');
+  window.open(location.pathname + '?p=' + encodeURIComponent(nombre), '_blank', 'noopener');
+}
+
 async function pintar(){
   $('#caja').style.display = activa ? 'flex' : 'none';
   sincronizarArbol();
+  refrescarSubs();      // la charla que estás leyendo se marca en su subcarpeta
+  // El color propio de la charla abierta (colorcharla.js): solo sobre el chat, no sobre la
+  // lista ni un archivo. Sin color elegido no pone nada y manda el 🎨 general.
+  if (window.ColorCharla){
+    if (activa && !verArchivo) ColorCharla.aplicar($('#cuerpo'), activa, cwdActiva());
+    // La bandeja de UNA carpeta lleva la foto de fondo de esa carpeta, si tiene.
+    else ColorCharla.limpiar($('#cuerpo'), activa || proy === TODAS ? ''
+      : ((datos.proyectos.find(x => x.proyecto === proy) || {}).cwd || ''));
+  }
   // Con un archivo abierto, la derecha lo muestra a él. La caja de escribir se deja
   // igual: mirás el archivo y le escribís a la conversación sin cerrar nada.
   if (verArchivo) return pintarArchivo();
@@ -2755,6 +2967,8 @@ async function pintar(){
 }
 
 const TODAS = '✉ Todas las conversaciones';
+// La carpeta de la charla abierta: de ahí salen los colores que hereda (colorcharla.js).
+const cwdActiva = () => (abiertas.find(x => x.sid === activa) || {}).cwd || '';
 
 function pintarLista(){
   // "Todas" es la bandeja de entrada: las conversaciones de TODOS los proyectos
@@ -2859,17 +3073,20 @@ function pintarLista(){
     '<div class="correo ' + estado(s) + '" data-sid="' + s.id + '" data-nom="' + esc(s.nombre) +
       '" data-cwd="' + esc(s.cwd) + '" data-cer="' + esc(s.cerebro || '') + '">' +
       '<div class="ini ' + (s.viva?'viva':'') + '">' + esc((s.nombre||'?')[0].toUpperCase()) + '</div>' +
-      '<div class="med"><div class="tit">' + esc(s.nombre) +
+      '<div class="med"><div class="tit">' +
+        // La chapa del proyecto va cuando la lista mezcla carpetas, o sea en "Todas"
+        // (también con las archivadas: sin ella no sabés qué estás devolviendo).
+        // Adentro de una carpeta sobra: todo lo que se ve salió de ahí.
+        // ⭐ Va ANTES del nombre: la carpeta es lo que se busca con el ojo, el código
+        // viene después (pedido de Martín con flechas sobre la captura, 2026-10-02).
+        (todas ? '<span class="dedonde">' + esc(s.proy) + '</span>' : '') +
+        esc(s.nombre) +
         // La chapita del cerebro: solo cuando NO es Claude, que es lo que hay que notar.
         (s.cerebro === 'codex' ? ' <span class="cer">Codex</span>' : '') +
         // ⭐ La charla que se compactó dice a dónde siguió: sin esto la bandeja se
         // llenaba de gemelas y no se sabía cuál era la viva (Martín, 2026-08-20).
         (s.sigue_en ? ' <span class="sigue" data-sigue="' + esc(s.sigue_en) +
           '" title="Se compactó: tocá para ir a la charla donde sigue">⇲ sigue en otra</span>' : '') +
-        // La chapa del proyecto va cuando la lista mezcla carpetas, o sea en "Todas"
-        // (también con las archivadas: sin ella no sabés qué estás devolviendo).
-        // Adentro de una carpeta sobra: todo lo que se ve salió de ahí.
-        (todas ? ' <span class="dedonde">' + esc(s.proy) + '</span>' : '') +
         // ⭐ La chapa de borrador, al lado del nombre: se ve en "Todas" y adentro de
         // cada carpeta, que es lo que pidió Martín señalando la bandeja.
         (hayBorrador(s.id, s.borrador)
@@ -2973,12 +3190,12 @@ function pintarLista(){
       if (el.dataset.nueva !== undefined) return nuevaPestana();
       // Ctrl+clic hace lo mismo que el botón del medio, que es como funciona en todos
       // lados: el que no tiene rueda en el mouse igual lo tiene.
-      abrirSesion(el.dataset.cwd, el.dataset.sid, el.dataset.nom,
-                  (e.ctrlKey || e.metaKey) && !!el.dataset.sid, el.dataset.cer);
+      if ((e.ctrlKey || e.metaKey) && el.dataset.sid) return abrirEnNavegador(el.dataset.sid);
+      abrirSesion(el.dataset.cwd, el.dataset.sid, el.dataset.nom, false, el.dataset.cer);
     };
-    // ⭐ Botón del medio = abrir arriba SIN salir de la lista (pedido de Martín,
-    // 2026-08-19). Van como propiedad y no con addEventListener: la lista se reengancha
-    // en cada repintado y así no se apilan diez copias del mismo gesto.
+    // ⭐ Botón del medio = pestaña nueva del navegador, SIN salir de la lista (ver
+    // `abrirEnNavegador`). Van como propiedad y no con addEventListener: la lista se
+    // reengancha en cada repintado y así no se apilan diez copias del mismo gesto.
     // ⚠ Hay que comerse el `mousedown`: Chrome le prende el desplazamiento automático al
     // botón del medio y te deja el iconito redondo dando vueltas por la pantalla.
     el.onmousedown = e => { if (e.button === 1) e.preventDefault(); };
@@ -2988,7 +3205,7 @@ function pintarLista(){
     el.onauxclick = e => {
       if (e.button !== 1 || !el.dataset.sid) return;
       e.preventDefault();
-      abrirSesion(el.dataset.cwd, el.dataset.sid, el.dataset.nom, true, el.dataset.cer);
+      abrirEnNavegador(el.dataset.sid);
     };
     // ⭐ Clic derecho = sacarla de la bandeja (o devolverla, si estás mirando las
     // archivadas). Se le come el menú del navegador a propósito: acá el botón derecho
@@ -3047,17 +3264,16 @@ function pintarElegirCarpeta(t){
   });
   document.querySelectorAll('#cuerpo .ult').forEach(el => {
     // Acá también vale el botón del medio: son conversaciones igual que las de la lista.
-    // ⚠ Pero en segundo plano NO se come la pestaña vacía del ＋: seguís parado en ella
-    // eligiendo, que es lo que estabas haciendo.
+    // ⚠ Pero NO se come la pestaña vacía del ＋: seguís parado en ella eligiendo, que es
+    // lo que estabas haciendo.
     el.onmousedown = e => { if (e.button === 1) e.preventDefault(); };
     el.onauxclick = e => {
       if (e.button !== 1) return;
       e.preventDefault();
-      abrirSesion(el.dataset.cwd, el.dataset.sid, el.dataset.nom, true, el.dataset.cer);
+      abrirEnNavegador(el.dataset.sid);
     };
     el.onclick = e => {
-      if (e.ctrlKey || e.metaKey)
-        return abrirSesion(el.dataset.cwd, el.dataset.sid, el.dataset.nom, true, el.dataset.cer);
+      if (e.ctrlKey || e.metaKey) return abrirEnNavegador(el.dataset.sid);
       // Entrar a una charla que ya existe: la pestaña vacía del ＋ no queda dando
       // vueltas, se convierte en la que abriste.
       const i = abiertas.indexOf(t);
@@ -3068,12 +3284,36 @@ function pintarElegirCarpeta(t){
   });
 }
 
+// --- ⭐⭐ El texto en vivo, como en Claude Code (2026-09-27) -------------------------
+// La respuesta se ve escribirse mientras la charla trabaja. Todo lo mecánico (el canal
+// SSE, soltar lo que ya trae el disco, el markdown a medio escribir) vive en
+// `/estaticos/envivo.js`, que es el MISMO para el celular.
+EnVivo.iniciar({activa: () => activa, repintar: () => pintarSesion()});
+// El @ de la caja (`/estaticos/arroba.js`): sugiere archivos de la carpeta de la charla.
+if (window.Arroba)
+  Arroba.enganchar($('#texto'), () => (abiertas.find(x => x.sid === activa) || {}).cwd || '');
+// El rastro desplegable (`/estaticos/pasos.js`): tocar un paso muestra su cambio o su salida.
+// ⚠ Con respaldo: si el archivo no cargó (un panel viejo que todavía no tiene la ruta), el
+// rastro se dibuja como antes en vez de romper la página entera.
+const filaPaso = (ms, i) => window.Pasos ? Pasos.fila(ms, i)
+  : ((ms[i-1]||{}).de==='paso' ? '' : '<div class="pasos">') +
+    '<div class="paso" data-msg="' + i + '">' + esc(ms[i].texto) + '</div>' +
+    ((ms[i+1]||{}).de==='paso' ? '' : '</div>');
+if (window.Pasos) Pasos.iniciar({
+  ubicacion: () => { const t = abiertas.find(x => x.sid === activa);
+                     return t && !t.sid.startsWith('nueva-') ? {cwd: t.cwd, sid: t.sid} : null; },
+  repintar: () => { firma = ''; pintarSesion(); },
+});
+
 async function pintarSesion(){
   // ⚠ Mientras mirás un archivo, la derecha es del archivo. Sin esta guarda, el
   // repintado de cada 3 segundos te tapaba el archivo con la conversación.
   if (verArchivo) return;
   const t = abiertas.find(x => x.sid === activa);
   if (!t) { activa = null; return pintar(); }
+  // ⚠ También acá y no solo en pintar(): el repintado de cada 3 s entra directo, y una
+  // charla recién nacida cambia su id de `nueva-…` al real sin pasar por pintar().
+  if (window.ColorCharla) ColorCharla.aplicar($('#cuerpo'), activa, t.cwd);
   // Con qué modelo corre esta pestaña. Adentro se sale solo si ya lo preguntó para
   // esta sesión, así que esto NO es un pedido cada 3 segundos: es uno por pestaña.
   refrescarModelo();
@@ -3085,10 +3325,12 @@ async function pintarSesion(){
   // su primer mensaje está en vuelo: si ese primer turno frena a preguntarte algo con
   // opciones, el servidor lo guarda bajo la carpeta ("nueva:<cwd>") y sin esto el
   // selector no aparecía nunca en una charla recién nacida.
-  if (!nueva || enVuelo[t.sid]){
+  // ⭐ Una copia sin estrenar (bifurcar) muestra la charla ORIGINAL: es lo que va a seguir.
+  const leerDe = nueva ? (t.desde || '') : t.sid;
+  if (!nueva || enVuelo[t.sid] || t.desde){
     try {
       d = await (await fetch('/movil/chat?cwd=' + encodeURIComponent(t.cwd) +
-                             '&sid=' + (nueva ? '' : t.sid))).json();
+                             '&sid=' + leerDe)).json();
     } catch(e){ return; }
   }
   if (activa !== t.sid) return;              // te fuiste a otra pestaña mientras cargaba
@@ -3117,6 +3359,9 @@ async function pintarSesion(){
     else trabajando = false;
   }
   const pensa = ev || trabajando;
+  EnVivo.seguir(t.sid, t.cwd, nueva ? '' : t.sid, pensa);
+  // Lo que ya trae el disco: eso se suelta del borrador en vivo.
+  EnVivo.hilo(t.sid, d.mensajes);
   // La pregunta viene también en cada GET: sobrevive recargas y cambio de dispositivo.
   // Hasta elegir Sí o Ahora no, Enviar queda frenado para que Claude no se adelante.
   const silencioActivo = silencioComp[t.sid] > Date.now();
@@ -3148,10 +3393,10 @@ async function pintarSesion(){
       // ⚠ Los pasos seguidos se juntan en UN bloque con fondo: sesenta renglones sueltos
       // sobre la foto de fondo eran una pared ilegible. La apertura y el cierre se
       // agregan mirando al vecino de arriba y al de abajo.
+      // ⭐ Desde el 2026-09-27 cada paso dice si se lo negaron o si falló, y al tocarlo se
+      // despliega el cambio o la salida: lo arma `Pasos.fila` (`/estaticos/pasos.js`).
       : m.de==='paso'
-      ? ((d.mensajes[iM-1]||{}).de==='paso' ? '' : '<div class="pasos">') +
-        '<div class="paso" data-msg="' + iM + '">' + esc(m.texto) + '</div>' +
-        ((d.mensajes[iM+1]||{}).de==='paso' ? '' : '</div>')
+      ? filaPaso(d.mensajes, iM)
       : '<div class="msg ' + (m.de==='vos'?'vos':'claude') +
         ((m.imgs||[]).length ? ' con-foto' : '') + '" data-msg="' + iM + '">' +
       fotosHtml(m.imgs) +
@@ -3182,16 +3427,27 @@ async function pintarSesion(){
   ocupadaSes[t.sid] = !!d.ocupada;
   avisandoSes[t.sid] = !!d.avisando;
   pintarAviso();
+  // Los mensajes en fila que el hilo ya trae (Claude los tomó) dejan de mostrarse aparte.
+  enFila[t.sid] = (enFila[t.sid] || []).filter(x => cuentaTuya(d.mensajes, x.texto) <= x.base);
+  const filaHtml = enFila[t.sid].map(x => '<div class="msg vos enfila">' + esc(x.texto) +
+      '<span class="filaNota">en fila: lo lee en la próxima pausa</span></div>').join('') +
+    (avisoFila[t.sid] ? '<div class="pideComp">' + esc(avisoFila[t.sid]) + '</div>' : '');
   const html = (viva ? '<div class="aviso">Esta sesión está abierta en una ventana de Claude Code: ' +
       'acá se puede leer en vivo, pero escribirle la partiría en dos.</div>' : '') +
+    (nueva && t.desde ? '<div class="aviso">⑂ Copia de «' + esc(t.desdeNombre || 'la charla') +
+      '»: lo que escribas acá sigue en una charla NUEVA con todo lo de abajo. ' +
+      'La original queda como está.</div>' : '') +
     '<div id="hilo">' + cuerpo +
     (ev && !yaLlego ? '<div class="msg vos' + (conFoto ? ' con-foto' : '') + '">' + fotosHtml(fotosVuelo[t.sid]) +
       (conFoto && ev === '(imagen)' ? '' : esc(ev)) + '</div>' : '') +
+    // El borrador del texto en vivo: se llena aparte (`EnVivo.pintar`), fuera de la firma.
+    '<div id="envivo"></div>' +
+    filaHtml +
     (tar ? htmlTareas(tar) : '') +
     (pregVisible ? htmlPregunta(preg) :
      pensa ? '<div class="msg claude pensa"><span class="pts"><i></i><i></i><i></i></span>' +
           'pensando<span class="reloj" id="reloj"></span></div>' : pedirComp) + '</div>';
-  if (html === firma) return;
+  if (html === firma){ EnVivo.pintar(); return; }
   firma = html;
   const c = $('#cuerpo');
   // Lo que ya habías marcado o tipeado en el selector no se puede perder en el
@@ -3204,6 +3460,9 @@ async function pintarSesion(){
   const entrando = recienAbierta;
   const abajo = entrando || c.scrollHeight - c.scrollTop - c.clientHeight < 90;
   c.innerHTML = html;
+  // ⚠ Antes de medir el scroll: el borrador ocupa alto, y el hilo nuevo del disco puede
+  // haber absorbido lo que ya estaba escrito en él (mismo repintado, sin parpadeo).
+  EnVivo.pintar();
   restaurarPregunta(c, pregEstado);
   // ⭐ Volviste de otra pantalla del panel: la charla queda en el renglón donde la
   // dejaste, no abajo de todo. ⚠ Con el mismo cuidado que `alFinal`: las imágenes
@@ -3227,12 +3486,18 @@ async function pintarSesion(){
   recienAbierta = false;
   // El botón Parar aparece solo cuando hay algo corriendo que se pueda cortar.
   $('#parar').style.display = pensa ? '' : 'none';
-  const bloqueada = viva || !!d.ocupada || !!preguntaComp;
+  // ⭐ Trabajando ya NO bloquea la caja en una charla de Claude (2026-09-27): lo que mandes
+  // queda en fila y lo lee en la próxima pausa. Codex sí: cada turno suyo es un proceso
+  // aparte y no hay a quién pasarle un mensaje a mitad de camino. Una charla que todavía no
+  // nació tampoco, porque no tiene id a quién mandárselo.
+  const sinFila = t.cerebro === 'codex' || nueva;
+  const bloqueada = viva || !!preguntaComp || (!!d.ocupada && sinFila);
   $('#texto').disabled = bloqueada;
   $('#enviar').disabled = bloqueada;
   $('#texto').placeholder = preguntaComp ? 'Elegí si querés compactar antes de seguir'
     : viva ? 'Esta sesión está abierta en la compu: solo lectura'
-    : d.ocupada ? 'Esta sesión está trabajando: esperá a que termine'
+    : (d.ocupada && sinFila) ? 'Esta sesión está trabajando: esperá a que termine'
+    : (d.ocupada || pensa) ? 'Está trabajando: lo que mandes lo lee en la próxima pausa (Enter)'
     : 'Escribile a esta sesión… (Enter manda)';
 }
 
@@ -3503,6 +3768,11 @@ async function refrescarModelo(){
   // Una charla sin estrenar no tiene nada que compactar ni un id donde guardar el
   // modelo: el turno lo va a arrancar igual con el de fábrica.
   if (bot) bot.style.display = (real && !codex) ? '' : 'none';
+  // Bifurcar: misma regla que compactar (Codex no tiene `--fork-session`).
+  if ($('#bifurcar')) $('#bifurcar').style.display = (real && !codex) ? '' : 'none';
+  // 🎨 Con cualquier cerebro. Sin estrenar todavía no hay id donde guardar lo de la charla,
+  // pero sí carpeta: ahí se pueden elegir los de la carpeta.
+  if ($('#colorCharla')) $('#colorCharla').style.display = (real || (t && t.cwd)) ? '' : 'none';
   if (!sel || !t) return;
   const pedido = (real || t.sid) + ':' + (codex ? 'codex' : 'claude') + ':' + (t.modelo || '');
   if (modeloPedido === pedido) { pintarModelo(); return; }
@@ -3596,7 +3866,7 @@ function pintarBotonAjustes(){
         .filter(s => s && s.style.display !== 'none' && s.options.length);
   // La línea de acciones se esconde entera cuando no queda ninguna: una charla sin
   // estrenar no tiene nada que compactar.
-  const acciones = [$('#compactar'), $('#revisar')].filter(Boolean);
+  const acciones = [$('#compactar'), $('#revisar'), $('#bifurcar'), $('#colorCharla')].filter(Boolean);
   const hayAccion = acciones.some(b => b.style.display !== 'none');
   const fila = $('#menuAcciones');
   if (fila) fila.classList.toggle('vacio', !hayAccion);
@@ -3990,6 +4260,21 @@ const PEDIDO_REVISION = {
          'que se pueda simplificar. No arregles nada todavía: quiero leer la lista.'
 };
 
+/* ⭐ Bifurcar una charla (2026-09-27): como en Claude Code, probar otro camino sin perder
+   este. Se abre una pestaña sin estrenar que MUESTRA la original y lleva `desde`; recién
+   el primer mensaje que mandes ahí crea la copia (`--resume <original> --fork-session`),
+   que sigue con todo lo anterior y un id propio. Medido con `sonda_bifurcar.py`: la copia
+   recuerda, tiene id nuevo, y la original queda intacta. Codex no se bifurca. */
+function bifurcar(){
+  const t = abiertas.find(x => x.sid === activa);
+  if (!t || t.sid.startsWith('nueva-') || t.cerebro === 'codex') return;
+  const sid = 'nueva-' + Date.now();
+  abiertas.push({sid, cwd: t.cwd, nombre: 'Copia de ' + (t.nombre || 'la charla'), cerebro: '',
+                 desde: t.sid, desdeNombre: t.nombre || '', modelo: t.modelo || modeloDe[t.sid] || ''});
+  guardar();
+  irTab(sid);
+}
+
 function revisarCodigo(){
   const t = abiertas.find(x => x.sid === activa);
   if (!t) return;
@@ -4065,18 +4350,59 @@ async function alternarAviso(){
 // `forzado` es un mensaje que manda la pantalla sola, sin pasar por la caja de
 // escribir: hoy lo usa la decisión del plan de Codex. Se comprueba que sea texto y no
 // un evento, porque a `mandar` también la llaman desde un onclick y desde el Enter.
+// --- ⭐⭐ Mensajes en fila: escribirle mientras trabaja (2026-09-27) --------------------
+// El servidor se lo pasa al MISMO proceso que está en pleno turno (`/movil/mandar` →
+// `sesiones_movil.encolar`) y el CLI lo toma en la próxima pausa. Hasta que aparece en el
+// hilo (Claude Code lo guarda como `queued_command` recién cuando lo toma) se ve una
+// burbuja tuya "en fila". Se cuenta, no se ubica, igual que el eco de siempre.
+let enFila = {};               // sid -> [{texto, base}]
+let avisoFila = {};            // sid -> texto del último rechazo, para mostrarlo abajo
+
+async function encolarMensaje(t, txt){
+  anotarMio(t, txt);
+  recorrido = null;
+  $('#texto').value = '';
+  ajustarCaja();
+  anotarBorrador(t.sid, '');
+  soltarBorrador();
+  delete avisoFila[t.sid];
+  (enFila[t.sid] = enFila[t.sid] || []).push({texto: txt, base: cuentaTuya(hiloVisto[t.sid], txt)});
+  firma = ''; pintarSesion();
+  const f = new FormData();
+  f.append('cwd', t.cwd); f.append('sid', t.sid); f.append('texto', txt);
+  let r = null;
+  try { r = await (await fetch('/movil/mandar', {method: 'POST', body: f})).json(); } catch(e){}
+  if (!r || !r.ok){
+    enFila[t.sid] = (enFila[t.sid] || []).filter(x => x.texto !== txt);
+    avisoFila[t.sid] = (r && r.error) || 'No le pude pasar el mensaje: probá de nuevo.';
+    devolverLoEscrito(t.sid, txt, []);   // no se pierde lo que escribiste
+  }
+  firma = ''; pintarSesion();
+}
+
 async function mandar(forzado){
   const impuesto = (typeof forzado === 'string' && forzado.trim()) ? forzado.trim() : '';
   const t = abiertas.find(x => x.sid === activa);
   const txt = impuesto || $('#texto').value.trim();
   const ses = datos.proyectos.flatMap(x => x.sesiones).find(s => s.id === t?.sid);
-  if (!t || (!txt && !fotos.length) || enVuelo[t.sid] || ses?.ocupada) return;
+  if (!t || (!txt && !fotos.length)) return;
+  // ⭐⭐ Escribirle MIENTRAS trabaja, como en Claude Code (2026-09-27): el mensaje queda en
+  // fila y lo toma en la próxima pausa, sin cortar lo que está haciendo. Una charla que
+  // todavía no nació (sin id) no se puede: se espera a que lo tenga, son segundos.
+  if (enVuelo[t.sid] || ses?.ocupada || ocupadaSes[t.sid]){
+    if (impuesto || t.sid.startsWith('nueva-') || !txt) return;
+    return encolarMensaje(t, txt);
+  }
   // Mandaste un mensaje: lo que querés ver es la charla, no el archivo que estabas
   // mirando. Se cierra solo (si no, la pantalla volvía al archivo en el próximo
   // repintado y tu mensaje desaparecía de la vista).
   if (verArchivo){ verArchivo = null; arb.sel = ''; pintarArbol(); }
   // Un mensaje impuesto no vacía la caja: lo que tenías a medio escribir sigue ahí.
   if (!impuesto){
+    // ⭐ Antes de vaciar la caja, tu mensaje queda anotado en este navegador: si el
+    // envío se pierde antes de llegar al servidor, lo recuperás con ↑ (2026-09-27).
+    anotarMio(t, txt);
+    recorrido = null;
     $('#texto').value = '';
     ajustarCaja();
     // Lo mandaste: el borrador de esta conversación ya no existe. Se avisa igual aunque el
@@ -4111,6 +4437,8 @@ async function mandar(forzado){
   f.append('esfuerzo', t.esfuerzo || esfuerzoDe[t.sid] || '');
   f.append('velocidad', t.velocidad || velocidadDe[t.sid] || '');
   f.append('texto', txt);
+  // Bifurcar: el primer mensaje de una copia la crea a partir de la original.
+  if (clave.startsWith('nueva-') && t.desde) f.append('desde', t.desde);
   // ⭐ El turno corre en el servidor y acá solo se pregunta cómo viene (2026-08-21).
   // Antes el pedido quedaba abierto hasta que Claude terminaba: un turno largo (un
   // deploy, una revisión) se colgaba de esa conexión y si el navegador la soltaba
@@ -4194,8 +4522,72 @@ async function mandar(forzado){
   firma=''; guardar(); pintarTabs(); pintarSesion(); cargar();
 }
 
-$('#texto').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); mandar(); }
+// --- ⭐⭐ Tus mensajes no se pierden: ↑ te devuelve los anteriores (2026-09-27) --------
+// Pedido de Martín: "no perder los prompts que yo mando". Cada mensaje queda en DOS
+// lados: el servidor lo guarda apenas llega (`/movil/mis-mensajes`, que ve también lo
+// del celular) y este navegador lo anota ANTES de vaciar la caja, que es lo único que
+// cubre un envío que se cae antes de llegar (pasó el 2026-09-27: la caja quedó vacía y
+// el servidor nunca lo recibió). Con la caja vacía, ↑ recorre tus mensajes de ESTA
+// carpeta del más nuevo al más viejo y ↓ vuelve, como en Claude Code.
+// ⚠ Solo con la caja vacía (o ya recorriendo): escribiendo, las flechas mueven el cursor.
+const MIOS = 'misMensajes';
+let recorrido = null;          // {lista, i, antes} mientras recorrés con las flechas
+
+function anotarMio(t, texto){
+  if (!t || !texto) return;
+  try {
+    const l = JSON.parse(localStorage.getItem(MIOS) || '[]');
+    l.push({texto, cwd: t.cwd, h: Date.now()});
+    localStorage.setItem(MIOS, JSON.stringify(l.slice(-300)));
+  } catch(e){}
+}
+
+async function listaMia(cwd){
+  // La misma carpeta puede venir como `D:\IA\x` o `d:/IA/x/`.
+  const igual = c => (c || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  let delServidor = [];
+  try {
+    delServidor = (await (await fetch('/movil/mis-mensajes?n=200&cwd=' +
+                   encodeURIComponent(cwd))).json()).mensajes.map(m => m.texto);
+  } catch(e){}
+  let locales = [];
+  try {
+    locales = JSON.parse(localStorage.getItem(MIOS) || '[]')
+                .filter(m => igual(m.cwd) === igual(cwd)).map(m => m.texto);
+  } catch(e){}
+  // Lo que el servidor no tiene es justo lo que se perdió en el camino: va al final.
+  const del = new Set(delServidor);
+  const lista = delServidor.concat(locales.filter(x => !del.has(x)));
+  return lista.filter((x, i) => x && x !== lista[i - 1]);
+}
+
+function ponerEnCaja(caja, v){
+  caja.value = v;          // sin evento 'input': recorrer no pisa el borrador guardado
+  ajustarCaja();
+  caja.setSelectionRange(v.length, v.length);
+}
+
+$('#texto').addEventListener('keydown', async e => {
+  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); mandar(); return; }
+  if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || e.shiftKey || e.altKey ||
+      e.ctrlKey || e.metaKey) return;
+  const caja = e.target;
+  if (!recorrido && (e.key === 'ArrowDown' || caja.value.trim())) return;
+  e.preventDefault();
+  if (!recorrido){
+    const t = abiertas.find(x => x.sid === activa);
+    if (!t || !t.cwd) return;
+    recorrido = {lista: null, i: 0, antes: caja.value};
+    const r = recorrido;
+    r.lista = await listaMia(t.cwd);
+    if (recorrido !== r) return;         // escribiste algo mientras la traía
+    r.i = r.lista.length;
+  }
+  if (!recorrido.lista) return;          // todavía la está trayendo
+  const r = recorrido;
+  r.i = Math.max(0, Math.min(r.lista.length, r.i + (e.key === 'ArrowUp' ? -1 : 1)));
+  if (r.i >= r.lista.length){ ponerEnCaja(caja, r.antes); recorrido = null; return; }
+  ponerEnCaja(caja, r.lista[r.i]);
 });
 // Cambió el ancho de la caja (cambiaste el zoom, apareció Parar, plegaste el árbol): el
 // alto se vuelve a medir. Se compara SOLO el ancho porque ajustar el alto dispara este
@@ -4211,6 +4603,7 @@ if (window.ResizeObserver){
 }
 
 $('#texto').addEventListener('input', e => {
+  recorrido = null;            // escribiste: dejás de recorrer tus mensajes anteriores
   ajustarCaja();
   // ⭐ Cada tecla queda guardada como borrador: acá en el acto, y al servidor con el
   // respiro de 700 ms de `anotarBorrador`.
@@ -4337,6 +4730,19 @@ function volverAlSitio(){
 // además está topeada al último mes, así que un favorito viejo no aparecería ahí.
 async function entrarPorDireccion(){
   const sid = window.Direccion ? Direccion.leer().c : '';
+  const carpeta = window.Direccion ? Direccion.leer().p : '';
+  // Una carpeta en la dirección (la pestaña que abre el botón del medio, un F5, un
+  // favorito): se entra a su bandeja. No hace falta esperar la lista: si todavía no
+  // llegó, el próximo `cargar()` la pinta ya parada ahí.
+  // ⚠ Pero si venís de otra pantalla del panel y estabas en ESA misma carpeta, se te
+  // devuelve la vista entera (filtro, renglón): la vuelta desde el Estudio trae `?p=`.
+  if (!sid && carpeta){
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem('sesSitio') || 'null'); } catch (e) {}
+    if (vengoDelPanel() && s && s.proy === carpeta && !s.activa && volverAlSitio())
+      return fijarDireccion({empujar: false});
+    irProyecto(carpeta); return;
+  }
   if (!sid){
     // Sin conversación en la dirección: si venís de otra pantalla del panel, se te
     // devuelve la vista donde la dejaste; si entrás de cero, la bandeja de siempre.
@@ -4374,8 +4780,8 @@ addEventListener('storage', e => {
 // historial. Sin esa guarda, cada ← agregaría una entrada nueva y no se saldría más.
 if (window.Direccion) Direccion.alVolver(async estado => {
   if (!estado.c){
-    activa = null; proy = TODAS; recienAbierta = true;
-    Direccion.fijar({}, {empujar: false});
+    activa = null; proy = estado.p || TODAS; recienAbierta = true;
+    fijarDireccion({empujar: false});
     firma=''; pintarCarpetas(); pintarTabs(); pintar();
     return;
   }

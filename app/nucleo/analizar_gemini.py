@@ -26,7 +26,8 @@ from app.rutas import ENV
 
 load_dotenv(ENV)
 
-MODELO_GEMINI = "gemini-2.5-flash"   # rapido, barato y multimodal
+# El 2.5-flash lo dio de baja Google en octubre de 2026 (404 "no longer available").
+MODELO_GEMINI = "gemini-3.8-flash"   # rapido, barato y multimodal
 
 DIR_PERFILES = Path(__file__).parent / "perfiles"
 PERFIL_DEFECTO = "generico"

@@ -990,6 +990,10 @@ class _Viva:
         self.errores = []
         self.ultimo = time.time()
         self.interrumpida = False
+        # ⭐ Lo que Martin le escribio MIENTRAS trabajaba y el CLI todavia no tomo (ver
+        # `encolar`). Se tacha cuando el CLI lo devuelve por `--replay-user-messages`.
+        self.encolados = []
+        self.con_replay = False
 
     def clave(self):
         return _clave(self.cwd, self.sid)
@@ -1056,7 +1060,13 @@ def _matar_huerfanos(sid):
             nombre = (proc.info.get("name") or "").lower()
             if nombre not in ("codex.exe", "node.exe", "claude.exe"):
                 continue
-            if sid not in " ".join(proc.info.get("cmdline") or []):
+            linea = " ".join(proc.info.get("cmdline") or [])
+            if sid not in linea:
+                continue
+            # ⚠ Una COPIA (bifurcar, 2026-09-27) lleva el id de la original en su linea
+            # (`--resume <original> --fork-session`) pero escribe OTRA charla: no es un
+            # huerfano de esta y no se la corta.
+            if "--fork-session" in linea and "--resume " + sid in linea:
                 continue
             for hijo in proc.children(recursive=True):
                 try:
@@ -1263,8 +1273,13 @@ def _arrancar_barrendero():
         _BARRENDERO[0].start()
 
 
-def _arrancar_viva(cwd, sid, modelo, esfuerzo, modo=""):
-    """Levanta el proceso de esa sesion y lo deja listo para recibir turnos."""
+def _arrancar_viva(cwd, sid, modelo, esfuerzo, modo="", desde=""):
+    """Levanta el proceso de esa sesion y lo deja listo para recibir turnos.
+
+    Con `desde` (y sin sid) arranca una COPIA de esa charla: `--resume desde --fork-session`
+    sigue la conversacion con un id nuevo y deja la original intacta (medido con
+    `pruebas/sonda_bifurcar.py`, 2026-09-27).
+    """
     # ⭐ El navegador del proyecto (2026-08-28). Si la carpeta declaro un perfil, esta
     # sesion puede manejar ESE Chrome; si no, el comando queda EXACTAMENTE como antes.
     # No hay perilla por charla a proposito, igual que en Codex: el campo de la carpeta
@@ -1287,6 +1302,15 @@ def _arrancar_viva(cwd, sid, modelo, esfuerzo, modo=""):
            "--input-format", "stream-json", "--output-format", "stream-json",
            # ⚠ Sin --verbose el CLI rechaza stream-json de salida en modo -p.
            "--verbose", "--model", modelo,
+           # ⭐ El texto en pedacitos mientras se escribe (2026-09-27): es lo que arma el
+           # borrador de `EN_VIVO`. Sin esto la pantalla ve cada mensaje recien terminado.
+           "--include-partial-messages",
+           # ⭐ El CLI devuelve cada mensaje del usuario en el momento en que lo TOMA: es la
+           # unica forma de saber si un mensaje en fila (`encolar`) ya lo leyo (2026-09-27).
+           "--replay-user-messages",
+           # ⭐ Lo que hace un subagente llega mientras trabaja (2026-09-27): lo usa
+           # `_en_vivo_subagente` para mostrarlo en el borrador.
+           "--forward-subagent-text",
            # ⚠ `default` + stdio y NO dontAsk: dontAsk deniega AskUserQuestion solo,
            # sin emitir el control_request (probado el 2026-08-18). El espiritu de
            # dontAsk lo sostiene el manejador del turno, que deniega todo lo demas.
@@ -1317,6 +1341,8 @@ def _arrancar_viva(cwd, sid, modelo, esfuerzo, modo=""):
         cmd += ["--effort", esfuerzo]
     if sid:
         cmd += ["--resume", sid]
+    elif desde:
+        cmd += ["--resume", desde, "--fork-session"]
     env = dict(os.environ)
     env.pop("SSLKEYLOGFILE", None)          # Avast rompe el SSL de Node
     # Avast inspecciona HTTPS: Node no lee el almacén de certificados de Windows.
@@ -1340,6 +1366,9 @@ def _arrancar_viva(cwd, sid, modelo, esfuerzo, modo=""):
     viva = _Viva(proc, cwd, sid, modelo, esfuerzo, modo,
                  navegador=_firma_navegador(perfil, _sitios), sitios=sitios,
                  perfil=perfil)
+    # Sin la devolucion de mensajes no se puede saber si uno en fila ya se leyo: a un
+    # proceso arrancado sin ella no se le encola nada (ver `encolar`).
+    viva.con_replay = "--replay-user-messages" in cmd
     threading.Thread(target=_lector, args=(viva,), daemon=True).start()
     threading.Thread(target=_drenar_errores, args=(viva,), daemon=True).start()
     # ⚠ El pid se avisa para que la pantalla NO cuente esta sesion como "abierta en la
@@ -1353,7 +1382,7 @@ def _arrancar_viva(cwd, sid, modelo, esfuerzo, modo=""):
     return viva
 
 
-def _conseguir_viva(cwd, sid, modelo, esfuerzo, modo=""):
+def _conseguir_viva(cwd, sid, modelo, esfuerzo, modo="", desde=""):
     """El proceso de esa sesion: el que ya estaba, o uno nuevo.
 
     Se rearranca si cambio el modelo, el esfuerzo, el modo o el NAVEGADOR de la carpeta
@@ -1372,7 +1401,7 @@ def _conseguir_viva(cwd, sid, modelo, esfuerzo, modo=""):
             anterior = VIVAS.get(_clave(cwd, ""))
         if anterior is not None and not anterior.turno.locked():
             _apagar_viva(anterior, "quedo sin estrenar")
-        return _arrancar_viva(cwd, "", modelo, esfuerzo, modo)
+        return _arrancar_viva(cwd, "", modelo, esfuerzo, modo, desde=desde)
     with _CANDADO_VIVAS:
         viva = VIVAS.get(_clave(cwd, sid))
         if viva is not None and viva.viva():
@@ -1419,6 +1448,12 @@ def _remapear(viva, sid_nuevo):
         ent = TAREAS.pop(vieja, None)
         if ent:
             TAREAS[viva.clave()] = ent
+    # Y el borrador del texto en vivo, por lo mismo: si quedara bajo "nueva:<carpeta>",
+    # la PROXIMA charla nueva de esa carpeta lo encontraria como si fuera suyo.
+    with _CANDADO_EN_VIVO:
+        ent = EN_VIVO.pop(vieja, None)
+        if ent:
+            EN_VIVO[viva.clave()] = ent
 
 
 def _interrumpir(viva):
@@ -1860,7 +1895,8 @@ def _paso_de(nombre, entrada):
     if nombre in ("WebSearch", "WebFetch"):
         return f"buscó en la web: {corto(e.get('query') or e.get('url') or '', 60)}"
     if nombre in ("Task", "Agent"):
-        return "lanzó un agente"
+        que = e.get("description") or e.get("subagent_type") or ""
+        return f"lanzó un agente: {corto(que, 50)}" if que else "lanzó un agente"
     if nombre == "AskUserQuestion":
         return ""                      # la pregunta ya se dibuja con sus botones
     if nombre == "Skill":
@@ -1870,6 +1906,197 @@ def _paso_de(nombre, entrada):
     # Lo que no conocemos igual se muestra, pero sin el prefijo tecnico de los MCP: en
     # pantalla un `mcp__lo-que-sea__x` es ruido que no le dice nada a nadie.
     return corto(nombre.split("__")[-1] or nombre, 40)
+
+
+def _uuid_de(linea):
+    try:
+        return json.loads(linea).get("uuid") or ""
+    except Exception:
+        return ""
+
+
+# ⭐⭐ Lo que no se le dejo hacer NO puede verse como hecho (2026-09-27). Cuando una sesion
+# del panel pide una herramienta que no tiene permitida, `_turno` se la niega con
+# `_MSJ_DENEGADO` (o el portero del navegador con su motivo), pero el `tool_use` queda igual
+# en el .jsonl y el rastro decia "corrio: git push" como si hubiera pasado. Ahora cada paso
+# lleva su estado: "ok", "error" (corrio y fallo), "negado" (nunca corrio) o "" (todavia
+# sin resultado, o sea corriendo).
+_NEGADO_PREFIJOS = ("Permission to use", "Esa direccion no esta en la lista")
+
+
+def _texto_resultado(b):
+    """El texto de un `tool_result` (puede venir como cadena o como lista de bloques)."""
+    c = (b or {}).get("content")
+    if isinstance(c, str):
+        return c
+    return "\n".join(x.get("text", "") for x in (c or [])
+                     if isinstance(x, dict) and x.get("type") == "text")
+
+
+def _estado_resultado(b):
+    if not b.get("is_error"):
+        return "ok"
+    t = _texto_resultado(b).lstrip()
+    return "negado" if (t.startswith(_NEGADO_PREFIJOS) or "has been denied" in t[:300]) \
+        else "error"
+
+
+def _juntar_pasos(filas, resultados):
+    """Le pone su estado a cada paso y junta los repetidos seguidos.
+
+    ⭐ Los repetidos seguidos se juntan: "miró la pantalla ×4" en vez de cuatro renglones
+    iguales. Un turno con navegador hace decenas de capturas y clics, y sin esto el hilo es
+    una pared que tapa la conversacion (visto en pantalla el 2026-08-28: quedaba ilegible).
+    ⚠ Solo se juntan los del MISMO estado: si no, "corrió: git push ×3" podia esconder
+    que uno de los tres se lo negaron.
+    """
+    salida = []
+    for f in filas:
+        if f.get("de") != "paso":
+            salida.append(f)
+            continue
+        f["estado"] = resultados.get(f["ids"][0], "")
+        ant = salida[-1] if salida else None
+        if ant and ant.get("de") == "paso" and ant["base"] == f["base"] \
+                and ant["estado"] == f["estado"]:
+            ant["veces"] += 1
+            ant["texto"] = f"{ant['base']} ×{ant['veces']}"
+            ant["us"] += f["us"]
+            ant["ids"] += f["ids"]
+            continue
+        salida.append(f)
+    return salida
+
+
+# --- El detalle de un paso, para desplegarlo (2026-09-27) -----------------------------
+# Pedido de Martin: que el panel muestre lo que muestra Claude Code — el cambio de cada
+# edicion en rojo y verde, y lo que devolvio cada comando. No viaja con el hilo (que se
+# pide cada 3 s): se pide al tocar el renglon, por `GET /movil/paso`.
+# ⭐ El cambio NO se calcula: Claude Code ya lo guarda armado en `toolUseResult`
+# (`structuredPatch`, con numeros de linea), que es exactamente lo que dibuja la terminal.
+TOPE_LINEAS_DIFF = 400
+TOPE_LETRAS_SALIDA = 8000
+TOPE_LINEAS_SALIDA = 200
+
+
+def _recortar_salida(t):
+    lineas = (t or "").splitlines()
+    cortado = len(lineas) > TOPE_LINEAS_SALIDA or len(t or "") > TOPE_LETRAS_SALIDA
+    t = "\n".join(lineas[:TOPE_LINEAS_SALIDA])[:TOPE_LETRAS_SALIDA]
+    return t, cortado
+
+
+def _detalle_uno(uso, res, extra):
+    nombre = uso.get("name") or ""
+    e = uso.get("input") if isinstance(uso.get("input"), dict) else {}
+    out = {"nombre": nombre, "paso": _paso_de(nombre, e) or nombre,
+           "estado": _estado_resultado(res) if res else ""}
+    texto = _texto_resultado(res) if res else ""
+    # Qué intentó va SIEMPRE, también en el negado: el cartel tiene que decir qué fue lo que
+    # no se le dejó hacer, no solo que se le negó algo.
+    if nombre in ("Bash", "PowerShell"):
+        out["comando"] = str(e.get("command") or "")
+    if e.get("file_path"):
+        out["archivo"] = str(e.get("file_path"))
+    if out["estado"] == "negado":
+        out["salida"] = texto[:600]
+        return out
+    if nombre in ("Edit", "MultiEdit", "Write", "NotebookEdit") and isinstance(extra, dict):
+        hunks, total = [], 0
+        for h in extra.get("structuredPatch") or []:
+            lineas = list(h.get("lines") or [])[:max(0, TOPE_LINEAS_DIFF - total)]
+            total += len(lineas)
+            hunks.append({"viejo": h.get("oldStart") or 0, "nuevo": h.get("newStart") or 0,
+                          "lineas": lineas})
+        if not hunks and extra.get("type") == "create":
+            # Archivo nuevo: todo es agregado.
+            lineas = (extra.get("content") or "").splitlines()[:TOPE_LINEAS_DIFF]
+            total = len(lineas)
+            hunks = [{"viejo": 0, "nuevo": 1, "lineas": ["+" + l for l in lineas]}]
+        if hunks:
+            out["hunks"] = hunks
+            out["cortado"] = total >= TOPE_LINEAS_DIFF
+            return out
+    out["salida"], out["cortado"] = _recortar_salida(texto)
+    return out
+
+
+def detalle_pasos(cwd, sid, ids):
+    """El detalle de los pasos con esos ids de herramienta, en el mismo orden."""
+    ids = [i for i in (ids or []) if i][:30]
+    if not ids or not sid or es_codex(sid):
+        return []
+    buscados = set(ids)
+    usos, resultados = {}, {}
+    try:
+        f = open(seguir.carpeta_de(cwd) / f"{sid}.jsonl", "r", encoding="utf-8",
+                 errors="replace")
+    except OSError:
+        return []
+    with f:
+        for linea in f:
+            # El filtro por texto primero: parsear cada linea de una charla larga es caro.
+            if not any(i in linea for i in buscados):
+                continue
+            try:
+                d = json.loads(linea)
+            except Exception:
+                continue
+            c = (d.get("message") or {}).get("content")
+            for b in c if isinstance(c, list) else []:
+                if not isinstance(b, dict):
+                    continue
+                if b.get("type") == "tool_use" and b.get("id") in buscados:
+                    usos[b["id"]] = b
+                elif b.get("type") == "tool_result" and b.get("tool_use_id") in buscados:
+                    resultados[b["tool_use_id"]] = (b, d.get("toolUseResult"))
+    salida = []
+    for i in ids:
+        if i not in usos:
+            continue
+        res, extra = resultados.get(i, (None, None))
+        d = _detalle_uno(usos[i], res, extra)
+        if d["nombre"] in ("Agent", "Task") and isinstance(extra, dict) and extra.get("agentId"):
+            _sumar_subagente(d, seguir.carpeta_de(cwd) / sid / "subagents" /
+                             f"agent-{extra['agentId']}.jsonl", extra)
+        salida.append(d)
+    return salida
+
+
+def _sumar_subagente(d, archivo, extra):
+    """⭐ Lo que hizo un subagente, leido de SU archivo (2026-09-27).
+
+    El renglon "lanzó un agente" se conecta con el archivo del subagente por el `agentId`
+    que Claude Code guarda en el resultado. Sirve igual para uno que trabajo en SEGUNDO
+    PLANO, que el canal en vivo no llega a ver: el turno ya termino cuando el trabaja.
+    Suma los pasos que hizo y, como salida, su informe final (en uno de segundo plano el
+    resultado del renglon es solo "lo lance").
+    """
+    pasos, informe = [], ""
+    try:
+        with open(archivo, "r", encoding="utf-8", errors="replace") as f:
+            for linea in f:
+                try:
+                    x = json.loads(linea)
+                except Exception:
+                    continue
+                if x.get("type") != "assistant":
+                    continue
+                for c in ((x.get("message") or {}).get("content") or []):
+                    if not isinstance(c, dict):
+                        continue
+                    if c.get("type") == "tool_use":
+                        p = _paso_de(c.get("name") or "", c.get("input"))
+                        if p and not (pasos and pasos[-1] == p):
+                            pasos.append(p)
+                    elif c.get("type") == "text" and (c.get("text") or "").strip():
+                        informe = c["text"].strip()
+    except OSError:
+        return
+    d["sub_pasos"] = pasos[:80]
+    d["segundo_plano"] = bool(extra.get("isAsync"))
+    if informe:
+        d["salida"], d["cortado"] = _recortar_salida(informe)
 
 
 def _filas_de(jsonl):
@@ -1882,7 +2109,7 @@ def _filas_de(jsonl):
     guardado = _HILOS.get(clave)
     if guardado is not None:
         return list(guardado)
-    filas = []
+    filas, resultados = [], {}
     with open(jsonl, "r", encoding="utf-8", errors="replace") as f:
         for linea in f:
             if seguir._es_turno_usuario(linea):
@@ -1901,8 +2128,10 @@ def _filas_de(jsonl):
                 continue
             t = seguir._texto_de(linea)
             if t:
+                # ⭐ `u` es el uuid de la linea: con eso la pantalla sabe que un bloque del
+                # texto en vivo (`EN_VIVO`) ya llego al disco y lo puede soltar.
                 filas.append({"de": "claude", "texto": _recortar(t),
-                              "h": _hora_local(linea)})
+                              "h": _hora_local(linea), "u": _uuid_de(linea)})
                 continue
             # ⭐ El rastro: cada herramienta, un renglon. Va DESPUES del texto a
             # proposito — un mensaje del asistente puede traer texto Y herramientas, y
@@ -1912,22 +2141,38 @@ def _filas_de(jsonl):
             except Exception:
                 continue
             c = (d.get("message") or {}).get("content")
+            if d.get("type") == "attachment":
+                # ⭐ Lo que le escribiste MIENTRAS trabajaba (`encolar`, 2026-09-27): Claude
+                # Code NO lo guarda como un mensaje tuyo sino como un adjunto
+                # `queued_command`. Sin esto, lo leia pero en el hilo no aparecia nunca.
+                a = d.get("attachment") or {}
+                if a.get("type") == "queued_command":
+                    p = a.get("prompt")
+                    t = p if isinstance(p, str) else " ".join(
+                        x.get("text", "") for x in (p or []) if isinstance(x, dict))
+                    t = _limpiar(t)
+                    if t:
+                        filas.append({"de": "vos", "texto": _recortar(t),
+                                      "h": _hora_local(linea), "fila": True})
+                continue
+            if d.get("type") == "user":
+                # ⭐ Como le fue a cada herramienta (2026-09-27): llega en una linea
+                # posterior, asi que se anota por id y se aplica al final.
+                for b in c if isinstance(c, list) else []:
+                    if isinstance(b, dict) and b.get("type") == "tool_result":
+                        resultados[b.get("tool_use_id") or ""] = _estado_resultado(b)
+                continue
             for b in c if isinstance(c, list) else []:
                 if isinstance(b, dict) and b.get("type") == "tool_use":
                     paso = _paso_de(b.get("name") or "", b.get("input"))
                     if not paso:
                         continue
-                    # ⭐ Los repetidos seguidos se juntan: "miró la pantalla ×4" en vez de
-                    # cuatro renglones iguales. Un turno con navegador hace decenas de
-                    # capturas y clics, y sin esto el hilo es una pared que tapa la
-                    # conversacion (visto en pantalla el 2026-08-28: quedaba ilegible).
-                    if filas and filas[-1].get("de") == "paso" and \
-                            filas[-1].get("base") == paso:
-                        filas[-1]["veces"] += 1
-                        filas[-1]["texto"] = f"{paso} ×{filas[-1]['veces']}"
-                        continue
+                    # `us`: los uuid de las lineas (para el texto en vivo); `ids`: los de
+                    # las herramientas (para desplegar el detalle con `detalle_pasos`).
                     filas.append({"de": "paso", "texto": paso, "base": paso,
-                                  "veces": 1, "h": _hora_local(linea)})
+                                  "veces": 1, "h": _hora_local(linea),
+                                  "us": [d.get("uuid") or ""], "ids": [b.get("id") or ""]})
+    filas = _juntar_pasos(filas, resultados)
     if len(_HILOS) > 300:
         _HILOS.clear()
     _HILOS[clave] = filas
@@ -2041,9 +2286,14 @@ def _ultimos_mensajes(filas, ultimos):
 # ahi (2026-08-16, pedido de Martin). Es la MISMA lista que usa la Laura del
 # microfono: si le hablas a una sesion tuya desde el celular, puede hacer lo
 # mismo que si estuvieras sentado frente a la maquina.
+# ⭐ Con subagentes (`Agent`/`Task`) desde el 2026-09-27, por decision de Martin. Estaban
+# afuera porque la lista se copio de Laura, que los saco por un bug del CLI (el session_id
+# del subagente pisaba el de la charla y al retomar arrancaba en blanco). Medido con
+# `pruebas/sonda_subagentes.py` en el CLI 2.1.283: ese bug ya no existe. Laura
+# (`claude_voz.py`) sigue SIN ellos.
 TOOLS = ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "TodoWrite",
          "Write", "Edit", "MultiEdit", "NotebookEdit",
-         "Bash", "BashOutput", "KillShell", "SlashCommand", "Skill"]
+         "Bash", "BashOutput", "KillShell", "SlashCommand", "Skill", "Agent", "Task"]
 
 
 # ⭐⭐ Lo ya averiguado, por archivo y por VERSION del archivo. Es lo que hace que la
@@ -2277,6 +2527,222 @@ def tareas_de(cwd, sid):
         # guarda bajo "nueva:<carpeta>" y la pantalla ya pregunta por el id real.
         ent = TAREAS.get(_clave_anotada(cwd, sid, TAREAS))
         return dict(ent) if ent else None
+
+
+# --- ⭐⭐ El texto en vivo, como en Claude Code (2026-09-27) --------------------------
+# Pedido de Martin: "quiero que las respuestas sean casi instantaneas, y que me aparezca
+# el texto tal cual como lo haria Claude Code". Antes la pantalla releia el .jsonl cada
+# 3 s, y Claude Code escribe cada mensaje en el disco recien cuando lo TERMINO: una
+# respuesta de 40 s aparecia entera y de golpe a los 40 s. Con `--include-partial-messages`
+# el proceso manda el texto en pedacitos (`stream_event`) y aca se van juntando en un
+# BORRADOR por charla, que la pantalla recibe por `/movil/envivo` (SSE).
+# ⭐ El disco sigue mandando: el borrador es solo lo que todavia no llego al .jsonl.
+# Cada bloque terminado se queda con el `uuid` de su mensaje completo, que es el MISMO
+# que queda en el .jsonl (medido con `pruebas/sonda_texto_en_vivo.py`), y la pantalla lo
+# esconde apenas el hilo del disco lo trae.
+# ⚠⚠ No borrar un bloque del borrador al cerrarse: el mensaje completo sale por el chorro
+# ANTES de quedar escrito en el disco (medido: 0 de 6 ya estaban al llegar). Borrarlo ahi
+# hacia desaparecer el texto hasta el proximo repintado.
+# ⚠ Con Opus 5.5 y pensamiento, el texto de DESPUES de una herramienta llega de golpe: es
+# el bug #96439 de Anthropic y pasa igual en la terminal. No es de aca: no buscarle causa.
+EN_VIVO = {}                   # _clave(cwd,sid) -> {v, fin, bloques: [...], idx: {}}
+_CANDADO_EN_VIVO = threading.Lock()
+_VERSION_EN_VIVO = [0]
+TOPE_EN_VIVO = 60              # bloques por turno: los viejos ya estan en el disco
+
+
+def _paso_en_curso(nombre):
+    """Lo que se muestra mientras el modelo todavia esta escribiendo la herramienta.
+
+    El detalle (que archivo, que comando) llega recien con el mensaje completo, y ahi
+    el renglon pasa a decir lo mismo que el rastro del disco (`_paso_de`)."""
+    if nombre.startswith(CHROME_PREFIJO):
+        return "usando el navegador…"
+    return {"Bash": "corriendo un comando…", "Read": "leyendo un archivo…",
+            "Edit": "escribiendo…", "MultiEdit": "escribiendo…", "Write": "escribiendo…",
+            "Grep": "buscando…", "Glob": "buscando…", "WebSearch": "buscando en la web…",
+            "WebFetch": "leyendo una página…", "Task": "lanzando un agente…",
+            "Agent": "lanzando un agente…"}.get(
+        nombre, (nombre.split("__")[-1] or nombre)[:40] + "…")
+
+
+def _en_vivo_tocar(ent):
+    _VERSION_EN_VIVO[0] += 1
+    ent["v"] = _VERSION_EN_VIVO[0]
+
+
+def _en_vivo_empezar(clave):
+    """Borrador vacio al arrancar el turno: lo del turno anterior ya esta en el disco."""
+    with _CANDADO_EN_VIVO:
+        if len(EN_VIVO) > 200:
+            for k in [k for k, e in EN_VIVO.items() if e.get("fin")]:
+                EN_VIVO.pop(k, None)
+        ent = {"fin": False, "bloques": [], "idx": {}}
+        _en_vivo_tocar(ent)
+        EN_VIVO[clave] = ent
+
+
+def _en_vivo_terminar(clave):
+    """El turno termino: lo que quedo sin mensaje completo ya no va a llegar nunca."""
+    with _CANDADO_EN_VIVO:
+        ent = EN_VIVO.get(clave)
+        if not ent:
+            return
+        ent["fin"] = True
+        ent["bloques"] = [b for b in ent["bloques"] if b["u"]]
+        ent["idx"] = {}
+        _en_vivo_tocar(ent)
+
+
+def _en_vivo_primero(bloques, tipo):
+    """El primer bloque de ese tipo que todavia no tiene su mensaje completo."""
+    for b in bloques:
+        if b["tipo"] == tipo and not b["u"]:
+            return b
+    return None
+
+
+def _en_vivo_subagente(clave, d):
+    """⭐ Lo que hace un subagente, en vivo (2026-09-27, pedido de Martin al habilitarlos).
+
+    Con `--forward-subagent-text` el CLI manda los mensajes del subagente mientras trabaja
+    (con `parent_tool_use_id`). Cada herramienta que usa entra al borrador como un paso
+    "↳ agente: leyó tal cosa". Su texto NO: el informe final ya se lee desplegando el
+    renglon "lanzó un agente" del hilo. Estos pasos no quedan en el hilo del disco (el
+    subagente tiene su propio archivo): se ven mientras trabaja y un rato despues.
+    """
+    if d.get("type") != "assistant":
+        return
+    pasos = []
+    for c in ((d.get("message") or {}).get("content") or []):
+        if isinstance(c, dict) and c.get("type") == "tool_use":
+            p = _paso_de(c.get("name") or "", c.get("input"))
+            if p:
+                pasos.append(p)
+    if not pasos:
+        return
+    with _CANDADO_EN_VIVO:
+        ent = EN_VIVO.get(clave)
+        if not ent or ent["fin"]:
+            return
+        # Con uuid propio: asi no los confunde con los pasos de la charla que esperan el
+        # suyo, y sobreviven al cierre del turno como cualquier bloque terminado.
+        for p in pasos:
+            ent["bloques"].append({"tipo": "paso", "texto": "↳ agente: " + p,
+                                   "u": d.get("uuid") or "subagente", "abierto": False})
+        if len(ent["bloques"]) > TOPE_EN_VIVO:
+            del ent["bloques"][:len(ent["bloques"]) - TOPE_EN_VIVO]
+        _en_vivo_tocar(ent)
+
+
+def _en_vivo_evento(clave, d):
+    """Aplica al borrador una linea del chorro del CLI (`stream_event`, `assistant` o
+    el aviso de reintento)."""
+    # Los subagentes van por su lado: su TEXTO no es la respuesta de la charla. Lo que
+    # HACEN si se muestra, como pasos (`_en_vivo_subagente`).
+    if d.get("parent_tool_use_id"):
+        _en_vivo_subagente(clave, d)
+        return
+    t = d.get("type")
+    with _CANDADO_EN_VIVO:
+        ent = EN_VIVO.get(clave)
+        if not ent or ent["fin"]:
+            return
+        bloques, idx = ent["bloques"], ent["idx"]
+        if t == "stream_event":
+            ev = d.get("event") or {}
+            et = ev.get("type")
+            if et == "message_start":
+                idx.clear()
+                return
+            if et == "content_block_start":
+                b = ev.get("content_block") or {}
+                bt = b.get("type")
+                if bt == "text":
+                    nuevo = {"tipo": "texto", "texto": b.get("text") or ""}
+                elif bt == "tool_use":
+                    nuevo = {"tipo": "paso", "texto": _paso_en_curso(b.get("name") or "")}
+                elif bt in ("thinking", "redacted_thinking"):
+                    nuevo = {"tipo": "pensando", "texto": ""}
+                else:
+                    return
+                nuevo.update(u="", abierto=True)
+                bloques.append(nuevo)
+                idx[ev.get("index")] = nuevo
+            elif et == "content_block_delta":
+                delta = ev.get("delta") or {}
+                b = idx.get(ev.get("index"))
+                if delta.get("type") != "text_delta" or not b or b["tipo"] != "texto":
+                    return
+                b["texto"] += delta.get("text") or ""
+            elif et == "content_block_stop":
+                b = idx.pop(ev.get("index"), None)
+                if not b:
+                    return
+                b["abierto"] = False
+                if b["tipo"] == "pensando" and b in bloques:
+                    bloques.remove(b)
+            else:
+                return
+        elif t == "assistant":
+            # ⭐ El mensaje completo de UN bloque: le da el texto definitivo y el `uuid`
+            # con el que la pantalla lo va a reconocer en el disco. Si los pedacitos no
+            # llegaron (los issues #17956 y #15055 decian que a veces pasa), el bloque se
+            # agrega igual: aparece entero, pero antes que leyendo el disco.
+            u = d.get("uuid") or "?"
+            for c in ((d.get("message") or {}).get("content") or []):
+                if not isinstance(c, dict):
+                    continue
+                ct = c.get("type")
+                if ct == "text":
+                    b = _en_vivo_primero(bloques, "texto")
+                    if not b:
+                        b = {"tipo": "texto"}
+                        bloques.append(b)
+                    b.update(texto=c.get("text") or "", u=u, abierto=False)
+                elif ct == "tool_use":
+                    paso = _paso_de(c.get("name") or "", c.get("input"))
+                    b = _en_vivo_primero(bloques, "paso")
+                    if not paso:
+                        # TodoWrite y AskUserQuestion tienen su propia tarjeta.
+                        if b:
+                            bloques.remove(b)
+                        continue
+                    if not b:
+                        b = {"tipo": "paso"}
+                        bloques.append(b)
+                    b.update(texto=paso, u=u, abierto=False)
+                elif ct in ("thinking", "redacted_thinking"):
+                    b = _en_vivo_primero(bloques, "pensando")
+                    if b:
+                        bloques.remove(b)
+        elif t == "system" and d.get("subtype") == "api_retry":
+            # El pedido a Anthropic fallo y se reintenta desde cero: lo que venia
+            # escribiendo se tira, o el texto saldria dos veces.
+            ent["bloques"] = [b for b in bloques if b["u"]]
+            idx.clear()
+        else:
+            return
+        if len(ent["bloques"]) > TOPE_EN_VIVO:
+            del ent["bloques"][:len(ent["bloques"]) - TOPE_EN_VIVO]
+        _en_vivo_tocar(ent)
+
+
+def envivo_de(cwd, sid):
+    """El borrador de esa charla: {v, fin, bloques: [{tipo, texto, u, abierto}]}.
+
+    `v` cambia con cada novedad: `/movil/envivo` lo mira para empujar solo cuando hay
+    algo nuevo. Sin borrador, v=0 y ningun bloque."""
+    with _CANDADO_EN_VIVO:
+        # ⚠ Por los DOS nombres, igual que la pregunta y las tareas: en el primer turno
+        # de una charla nueva el borrador vive bajo "nueva:<carpeta>".
+        ent = EN_VIVO.get(_clave_anotada(cwd, sid, EN_VIVO))
+        if not ent:
+            return {"v": 0, "fin": True, "bloques": []}
+        return {"v": ent["v"], "fin": ent["fin"],
+                "bloques": [{"tipo": b["tipo"], "texto": b["texto"], "u": b["u"],
+                             "abierto": b.get("abierto", False)}
+                            for b in ent["bloques"]]}
 
 _MSJ_DENEGADO = ("Permission to use {tool} has been denied because this session runs "
                  "without permission prompts (dontAsk). You *may* attempt to accomplish "
@@ -2603,7 +3069,7 @@ def freno_puesto():
 
 
 def mandar(cwd, sid, texto, modelo="", cerebro="", esfuerzo="", velocidad="",
-           al_nacer=None):
+           al_nacer=None, desde=""):
     """Un turno contra esa sesion. Devuelve (respuesta, sesion_nueva).
 
     `cerebro` solo importa para una sesion NUEVA (sin sid): "codex" la arranca con
@@ -2638,6 +3104,14 @@ def mandar(cwd, sid, texto, modelo="", cerebro="", esfuerzo="", velocidad="",
         raise RuntimeError("Los agentes están frenados: " + motivo)
     texto = _saltos_limpios(texto)
     if (sid and es_codex(sid)) or (not sid and cerebro == "codex"):
+        # Una skill instalada del lado de Claude tiene que estar para Codex sin tocar
+        # nada (pedido del 2026-09-30). Barato: compara dos carpetas. Si falla, el
+        # turno sigue igual — a lo sumo falta una skill, como antes.
+        try:
+            from app.nucleo import skills as _skills
+            _skills.enlazar_en_codex()
+        except Exception:
+            pass
         modelo_codex = modelo if modelo in _codex_modelos() else codex_modelo_de(sid)
         esfuerzo_codex = (esfuerzo if esfuerzo in _codex_esfuerzos(modelo_codex)
                           else codex_esfuerzo_de(sid))
@@ -2660,9 +3134,14 @@ def mandar(cwd, sid, texto, modelo="", cerebro="", esfuerzo="", velocidad="",
         if modo_codex == "plan":
             _anotar_plan_codex(cwd, sid_nuevo or sid, respuesta)
         return respuesta, sid_nuevo
-    modelo = modelo if modelo in MODELOS else modelo_de(sid)
-    esf = esfuerzo_de(sid)
-    viva = _conseguir_viva(cwd, sid, modelo, esf, modo_de(sid))
+    # ⭐ Bifurcar (2026-09-27): una charla nueva que arranca como copia de `desde`. Hereda
+    # su modelo y su esfuerzo; Codex no se bifurca (no tiene `--fork-session`).
+    desde = desde if (desde and not sid) else ""
+    if desde and es_codex(desde):
+        raise RuntimeError("Una charla de Codex todavía no se puede bifurcar.")
+    modelo = modelo if modelo in MODELOS else modelo_de(sid or desde)
+    esf = esfuerzo_de(sid or desde)
+    viva = _conseguir_viva(cwd, sid, modelo, esf, modo_de(sid), desde=desde)
     # ⚠ Un turno por vez sobre el mismo proceso: ahora el proceso se comparte entre
     # mensajes, y dos turnos a la vez mezclarian sus respuestas en la misma cola. La
     # pantalla ya lo evita (la caja se bloquea con la sesion ocupada); esto es el
@@ -2674,6 +3153,52 @@ def mandar(cwd, sid, texto, modelo="", cerebro="", esfuerzo="", velocidad="",
         return _turno(viva, texto, al_nacer=(al_nacer if not sid else None))
     finally:
         viva.turno.release()
+
+
+def _viva_de(cwd, sid):
+    with _CANDADO_VIVAS:
+        return VIVAS.get(_clave_anotada(cwd, sid, VIVAS))
+
+
+def en_turno(cwd, sid):
+    """Si esa charla tiene un turno corriendo AHORA en su proceso vivo."""
+    v = _viva_de(cwd, sid)
+    return bool(v and v.viva() and v.turno.locked())
+
+
+def encolar(cwd, sid, texto):
+    """⭐ Le escribe a una charla MIENTRAS trabaja, como en Claude Code (2026-09-27).
+
+    El mensaje va derecho al stdin del proceso que esta en pleno turno, y el CLI lo toma
+    en la proxima pausa (al terminar la herramienta que esta corriendo) SIN cortar el
+    turno: medido con `pruebas/sonda_mensaje_en_curso.py` — un solo resultado, y la
+    respuesta obedecio al segundo mensaje. Sirve para corregirla sobre la marcha.
+    No es un segundo proceso sobre la misma charla (eso la partiria en dos): es el mismo.
+
+    Devuelve (ok, motivo). No encola si no hay turno corriendo (entonces es un mensaje
+    comun), si la charla te esta preguntando algo con opciones (se contesta arriba), o si
+    el proceso arranco sin `--replay-user-messages` (no se sabria cuando lo tomo).
+    """
+    v = _viva_de(cwd, sid)
+    if not v or not v.viva() or not v.turno.locked() or not v.con_replay:
+        return False, ""
+    with _CANDADO_PREGUNTAS:
+        if PREGUNTAS.get(_clave_anotada(cwd, sid, PREGUNTAS)):
+            return False, ("La sesión te está preguntando algo: contestá la pregunta de arriba "
+                           "y después seguí escribiendo.")
+    msj = {"type": "user", "message": {"role": "user", "content": [
+        {"type": "text", "text": texto}]}}
+    try:
+        with v.candado_stdin:
+            v.encolados.append(texto)
+            v.proc.stdin.write(json.dumps(msj) + "\n")
+            v.proc.stdin.flush()
+    except Exception as e:
+        if texto in v.encolados:
+            v.encolados.remove(texto)
+        return False, f"No pude pasárselo a la sesión ({e})."
+    v.ultimo = time.time()
+    return True, ""
 
 
 def _descartar_restos(viva):
@@ -2718,7 +3243,22 @@ def _turno(viva, texto, al_nacer=None):
     _descartar_restos(viva)
     with _CANDADO_CURSO:
         EN_CURSO[clave] = p
+    # ⚠ La cocina de compactar no se transmite: el hilo esconde el pedido de resumen, el
+    # resumen y la siembra (`_sin_cocina`, pedido de Martin del 2026-08-20), y en vivo
+    # se habria visto el resumen entero escribiendose.
+    if _es_pedido_resumen(texto) or _es_siembra(texto):
+        _en_vivo_terminar(clave)
+    else:
+        _en_vivo_empezar(clave)
     resultado, murio, vencido = None, False, False
+    # ⭐⭐ ¿El CLI ya tomo el mensaje de ESTE turno? (2026-09-27). Con subagentes o comandos
+    # en segundo plano, la charla sigue SOLA cuando terminan (un turno sin mensaje del
+    # usuario). Si le escribis justo mientras hace eso, el primer `result` que llega es el
+    # de esa continuacion, no el tuyo: tomarlo como respuesta dejaba el aviso al celular y
+    # el estado de "trabajando" corridos. Con `--replay-user-messages` el CLI avisa cuando
+    # toma tu mensaje, y recien desde ahi un resultado es de este turno.
+    propio_tomado = not viva.con_replay
+    propio = texto.strip()
     try:
         msj = {"type": "user", "message": {"role": "user", "content": [
             {"type": "text", "text": texto}]}}
@@ -2763,6 +3303,8 @@ def _turno(viva, texto, al_nacer=None):
                         except Exception as e:
                             print("sesiones: no pude avisar el id de la charla nueva:",
                                   e, flush=True)
+                    if t in ("stream_event", "assistant", "system"):
+                        _en_vivo_evento(clave, d)
                     if t == "control_request":
                         req = d.get("request") or {}
                         rid = d.get("request_id")
@@ -2853,8 +3395,29 @@ def _turno(viva, texto, al_nacer=None):
                             ent = PREGUNTAS.get(clave)
                             if ent and ent.get("request_id") == d.get("request_id"):
                                 PREGUNTAS.pop(clave, None)
+                    elif t == "user":
+                        # ⭐ El CLI tomo un mensaje del usuario (`--replay-user-messages`): si
+                        # era uno de los que le escribiste mientras trabajaba, se tacha.
+                        for b in ((d.get("message") or {}).get("content") or []):
+                            tx = (b.get("text") or "").strip() if isinstance(b, dict) else ""
+                            if (tx and not propio_tomado and tx == propio
+                                    and not d.get("parent_tool_use_id")):
+                                propio_tomado = True
+                                continue
+                            for e in list(viva.encolados):
+                                if e.strip() == tx:
+                                    viva.encolados.remove(e)
+                                    break
                     elif t == "result":
                         resultado = d
+                        # ⚠⚠ Si queda un mensaje en fila que el CLI todavia no tomo (llego
+                        # justo cuando el turno cerraba), el CLI arranca OTRO turno con el.
+                        # Se sigue leyendo hasta ese resultado: cortar aca dejaba ese turno
+                        # sin nadie mirandolo, y el siguiente lo descartaba como "tardio".
+                        if not propio_tomado and not viva.interrumpida:
+                            continue          # era de una continuacion sola, no de este turno
+                        if viva.encolados and not viva.interrumpida and not d.get("is_error"):
+                            continue
                         break
             ahora = time.time()
             with _CANDADO_PREGUNTAS:
@@ -2873,10 +3436,20 @@ def _turno(viva, texto, al_nacer=None):
             elif pend is not None:
                 # Esperando a un humano: eso no es estar colgado.
                 latido = ahora
+            # ⚠ Resguardo de la espera por un mensaje en fila: si ya hubo resultado y en 20 s
+            # el CLI no dio ni una señal de arrancar otro turno, el mensaje ya se habia leido
+            # (o no se va a leer): se entrega lo que hay en vez de esperar al corte de 10 min.
+            if (resultado is not None and (viva.encolados or not propio_tomado)
+                    and ahora - latido > 20):
+                break
             if ahora - latido > TIMEOUT:
                 vencido = True
                 break
     finally:
+        _en_vivo_terminar(clave)
+        # Lo que haya quedado en fila despues de un corte (Parar, silencio, proceso muerto)
+        # ya no tiene turno que lo espere: no puede frenar al turno siguiente.
+        viva.encolados = []
         with _CANDADO_PREGUNTAS:
             PREGUNTAS.pop(clave, None)
         with _CANDADO_CURSO:

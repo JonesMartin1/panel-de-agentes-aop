@@ -12,6 +12,8 @@
  *
  *     /sesiones?c=<id de la conversación>      una charla abierta
  *     /sesiones                                la bandeja
+ *     /sesiones?p=<nombre de la carpeta>       la bandeja de UNA carpeta (2026-10-10:
+ *                                              el botón del medio sobre una carpeta)
  *     /movil?c=<id de la conversación>         la misma charla, en el celular
  *     /movil?v=panel|pizarra|hablar|nueva      las pantallas fijas del celular
  *
@@ -38,16 +40,18 @@ window.Direccion = (function () {
   // Lo que dice la barra de direcciones ahora mismo.
   const leer = () => {
     const p = new URLSearchParams(location.search);
-    return {c: (p.get('c') || '').trim(), v: (p.get('v') || '').trim()};
+    return {c: (p.get('c') || '').trim(), v: (p.get('v') || '').trim(),
+            p: (p.get('p') || '').trim()};
   };
 
   // La dirección que le correspondería a un estado, respetando cualquier otro
   // parámetro que ya estuviera puesto (no somos los dueños de la barra).
   function armar(estado) {
     const p = new URLSearchParams(location.search);
-    p.delete('c'); p.delete('v');
+    p.delete('c'); p.delete('v'); p.delete('p');
     if (estado && estado.c) p.set('c', estado.c);
     else if (estado && estado.v) p.set('v', estado.v);
+    else if (estado && estado.p) p.set('p', estado.p);
     const q = p.toString();
     return location.pathname + (q ? '?' + q : '') + location.hash;
   }
@@ -90,5 +94,25 @@ window.Direccion = (function () {
     } catch (e) { return null; }
   }
 
-  return {leer, fijar, alVolver, donde};
+  /* El ícono de la pestaña del navegador (2026-10-10). Pedido de Martín: "me gustaría que
+   * cada ícono de carpeta de sesión sea del proyecto". Con las pestañas de Chrome en
+   * columna se ve SOLO el ícono, y sin uno propio eran todas el mismo globito: no había
+   * forma de saber cuál era cuál. Se dibuja el emoji en un SVG, que Chrome acepta como ícono.
+   */
+  let iconoPuesto = null;
+  function icono(emoji) {
+    const e = String(emoji || '').trim();
+    if (e === iconoPuesto) return;
+    iconoPuesto = e;
+    let l = document.querySelector('link[rel="icon"]');
+    if (!e) { if (l) l.remove(); return; }
+    if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l); }
+    l.type = 'image/svg+xml';
+    l.href = 'data:image/svg+xml,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+      '<text x="50" y="50" font-size="86" text-anchor="middle" dominant-baseline="central">' +
+      e.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</text></svg>');
+  }
+
+  return {leer, fijar, alVolver, donde, icono};
 })();

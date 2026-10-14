@@ -113,7 +113,9 @@ try:
     probar("plan prende --permission-mode plan",
            '"plan" if modo == "plan" else "default"' in fuente)
     probar("el turno atiende ExitPlanMode", '"ExitPlanMode"' in fuente)
-    probar("mandar le pasa el modo al proceso", "modo_de(sid))" in fuente)
+    # Desde el 2026-09-27 la llamada sigue con `desde=desde` (bifurcar): el modo va igual.
+    probar("mandar le pasa el modo al proceso",
+           "modo_de(sid))" in fuente or "modo_de(sid), desde=desde)" in fuente)
     probar("cambiar el modo rearranca el proceso", '"cambio el modo"' in fuente)
 
     print("\n--- Las pantallas y los endpoints ---")

@@ -272,6 +272,21 @@ with sync_playwright() as p:
             False)
     revisar("dice dónde se crean los prompts",
             cel.eval_on_selector(".at-menu", "e => e.textContent.includes('prompts')"), True)
+    # El buscador, en el teléfono (pedido del 2026-09-30).
+    revisar("el menú del celular también trae el buscador",
+            cel.locator(".at-menu .at-buscar input").count(), 1)
+    revisar("pero no abre el teclado solo (taparía medio menú)",
+            cel.evaluate("() => document.activeElement === "
+                         "document.querySelector('.at-menu .at-buscar input')"), False)
+    revisar("con letra de 16 px, o iOS agranda la página al tocarlo",
+            cel.eval_on_selector(".at-menu .at-buscar input",
+                                 "e => parseFloat(getComputedStyle(e).fontSize)"), 16)
+    cel.tap(".at-menu .at-buscar input")
+    cel.fill(".at-menu .at-buscar input", "deploy")
+    revisar("busca también entre los prompts de Codex",
+            cel.evaluate("""() => [...document.querySelectorAll('.at-menu .fila')]
+              .filter(f => f.offsetParent !== null).map(f => f.dataset.id)"""), ["/deploy"])
+    cel.fill(".at-menu .at-buscar input", "")
     cel.keyboard.press("Escape")
 
     print("\n--- 6. Aprobar el plan, desde el teléfono ---")

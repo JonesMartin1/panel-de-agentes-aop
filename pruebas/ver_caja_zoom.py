@@ -37,9 +37,16 @@ SALIDA = RAIZ / "pruebas" / "caja_zoom.png"
 SID = "zoom-7777-7777-777777777777"
 # Ancho útil en píxeles CSS y con qué se corresponde en su pantalla.
 ANCHOS = [(2560, "sin zoom"), (1900, "con zoom"), (1590, "el de la captura"),
-          (1280, "zoom fuerte")]
-# Lo mínimo para que escribir sea escribir y no espiar por una ranura.
-MINIMO = 300
+          (1280, "zoom fuerte"),
+          # ⭐ Desde el 2026-10-10 la barra va en UNA línea a cualquier zoom (pedido de
+          # Martín). Su monitor vertical con Windows al 175 % da ~822 px CSS; los otros dos
+          # son zoom de navegador encima de eso.
+          (1000, "zoom muy fuerte"), (822, "monitor vertical"), (700, "más zoom todavía")]
+# Lo mínimo para que escribir sea escribir y no espiar por una ranura. Con lugar de sobra
+# se exige una caja cómoda; en lo angosto, el piso del CSS (160 px), que es donde la caja
+# deja de crecer para que la fila entre en un renglón.
+def minimo(ancho):
+    return 300 if ancho >= 1280 else 160
 LARGO = ("Necesito que revises el webhook de wasender y me digas por qué se duplican "
          "los mensajes cuando entran dos audios seguidos. ") * 4
 CHARLA = [{"de": "vos", "texto": "hola", "imgs": []},
@@ -104,7 +111,8 @@ MEDIR = """() => {
   const t = document.querySelector('#texto');
   // Los del grupo de iconos se miden de a uno: si uno se sale de la línea, hay que ver
   // cuál es.
-  const nietos = [...(document.querySelector('#grupoTraer')?.children || [])];
+  const nietos = [...(document.querySelector('#grupoTraer')?.children || []),
+                  ...(document.querySelector('#atajosAqui')?.children || [])];
   const hijos = [...caja.children, ...nietos].filter(n => n.offsetParent !== null).map(n => {
     const b = n.getBoundingClientRect();
     return {id: n.id || n.className, izq: Math.round(b.left), der: Math.round(b.right),
@@ -172,7 +180,18 @@ with sync_playwright() as p:
               f"{despues['ancho']:4d}x{despues['alto']:3d} px · quedó escrito {quedo!r}")
 
         revisar("la caja de escribir no queda como una rendija",
-                vacia["ancho"] >= MINIMO, f"{vacia['ancho']} px de ancho")
+                vacia["ancho"] >= minimo(ancho), f"{vacia['ancho']} px de ancho")
+        # ⭐ "con todos los botones del mismo tamaño" (2026-10-10): los de un dibujito,
+        # cuadrados e iguales — el ⚡ lo dibuja otro archivo y quedaba distinto.
+        iconos = [h for h in vacia["hijos"]
+                  if h["id"] in ("subirImagen", "buscarArchivo", "avisarTarea", "btnAtajos")
+                  ]
+        medidas = {(h["ancho"], h["alto"]) for h in iconos}
+        revisar("los botones de un dibujito miden todos lo mismo",
+                len(iconos) >= 4 and len(medidas) == 1, f"{len(iconos)} iconos: {medidas}")
+        altos = {h["alto"] for h in vacia["hijos"] if h["id"] not in ("texto", "atajosAqui")
+                 and "grupo-iconos" not in h["id"]}
+        revisar("todo lo de la fila tiene el mismo alto", len(altos) == 1, f"altos {altos}")
         # ⭐ Lo que pidió Martín al ver la barra partida en dos: *"no me gusta que se
         #    extiendan, sería mejor que se compacten por categoría"*. Con los tres de
         #    traer hechos iconos y las perillas adentro del ⚙, entra en un renglón.

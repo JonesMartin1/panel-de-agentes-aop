@@ -254,8 +254,8 @@ INVARIANTES = [
             "" if "_conseguir_viva(" in cuerpo(t["app/voz/sesiones_movil.py"], "def mandar(")
             else "mandar() ya no usa _conseguir_viva(): la sesion dejo de vivir entre turnos"),
         "mutacion": ("app/voz/sesiones_movil.py",
-                     "    viva = _conseguir_viva(cwd, sid, modelo, esf, modo_de(sid))",
-                     "    viva = _arrancar_viva(cwd, sid, modelo, esf, modo_de(sid))"),
+                     "    viva = _conseguir_viva(cwd, sid, modelo, esf, modo_de(sid), desde=desde)",
+                     "    viva = _arrancar_viva(cwd, sid, modelo, esf, modo_de(sid), desde=desde)"),
     },
     {
         "clave": "no-dormir-con-trabajo-abajo",

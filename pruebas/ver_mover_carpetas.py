@@ -128,16 +128,20 @@ with sync_playwright() as p:
 
     revisar("arranca con las cuatro carpetas", nombres(pag), PROYECTOS)
 
+    def sacar(n):
+        """Sacar una carpeta como lo hace Martín: botón derecho → Sacarla de la lista."""
+        pag.click("#carpetas .carpeta[data-proy='" + n + "']", button="right")
+        pag.wait_for_timeout(250)
+        pag.click("#menuTarjeta [data-hace='sacar']")
+
     # --- ⚠⚠ Se arrastra la FILA ENTERA, no un agarre al costado -------------------
     # Segunda vuelta del pedido: "no me gusta tener que agarrar el costado, tendría
     # que poder seleccionar la carpeta entera y así moverla". Hubo un ⠿ y se sacó.
     revisar("ya no hay agarre al costado",
             pag.evaluate("() => document.querySelectorAll('#carpetas .carpeta .asa').length"), 0)
-    revisar("cada carpeta tiene su botón de sacar",
-            pag.evaluate("() => document.querySelectorAll('#carpetas [data-sacar]').length"), 4)
-    revisar("la ✕ quieta no se ve",
-            pag.evaluate("""() => getComputedStyle(
-              document.querySelector('#carpetas [data-sacar]')).opacity"""), "0")
+    # Sacar va solo por el botón derecho desde el 2026-10-10 (la ✕ se apretaba sin querer).
+    revisar("ya no hay ✕ en la fila",
+            pag.evaluate("() => document.querySelectorAll('#carpetas [data-sacar], #carpetas .sacar').length"), 0)
 
     # --- ⭐⭐ Un clic sin mover ENTRA al proyecto; recién moviendo, arrastra --------
     # Es lo que hace que el mismo renglón sirva para las dos cosas.
@@ -192,8 +196,7 @@ with sync_playwright() as p:
     revisar("arrastrar no entró a esa carpeta", pag.evaluate("() => proy"), TODAS_TXT)
 
     # --- Sacar una de la lista ------------------------------------------------------
-    pag.hover("#carpetas .carpeta[data-proy='beta']")
-    pag.click("#carpetas [data-sacar='beta']")
+    sacar("beta")
     pag.wait_for_timeout(700)
     revisar("beta salió de la lista", "beta" in nombres(pag), False)
     revisar("y el servidor se enteró", guardado["ocultas"], ["beta"])
@@ -220,8 +223,7 @@ with sync_playwright() as p:
 
     # --- Buscando por nombre se ven también las escondidas -------------------------
     # Si escribís el nombre de una que sacaste y no aparece, parece que se borró.
-    pag.hover("#carpetas .carpeta[data-proy='delta']")
-    pag.click("#carpetas [data-sacar='delta']")
+    sacar("delta")
     pag.wait_for_timeout(700)
     pag.fill("#buscar", "delta")
     pag.wait_for_timeout(300)

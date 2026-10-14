@@ -241,6 +241,55 @@ def main():
         revisar("tocar afuera lo cierra",
                 pag.evaluate("() => document.querySelector('.at-menu')"), None)
 
+        # --- El buscador (pedido del 2026-09-30) -----------------------------------
+        visibles = """() => [...document.querySelectorAll('.at-menu .fila')]
+          .filter(f => f.offsetParent !== null).map(f => f.dataset.id)"""
+        pag.evaluate("() => { document.querySelector('#texto').value = ''; }")
+        pag.click("#btnAtajos")
+        pag.wait_for_selector(".at-menu .fila.skill", timeout=5000)
+        revisar("el menú trae un buscador arriba",
+                pag.locator(".at-menu .at-buscar input").count(), 1)
+        revisar("en la compu el cursor ya queda en el buscador",
+                pag.evaluate("() => document.activeElement === "
+                             "document.querySelector('.at-menu .at-buscar input')"), True)
+        pag.keyboard.type("grafo")
+        revisar("filtra también por la descripción ('grafo' → graphify)",
+                pag.evaluate(visibles), ["/graphify"])
+        revisar("una sección sin resultados esconde su título",
+                pag.evaluate("""() => [...document.querySelectorAll('.at-menu .seccion')]
+                  .filter(s => s.offsetParent !== null).length"""), 1)
+        pag.fill(".at-menu .at-buscar input", "")
+        pag.keyboard.type("timbre martin")
+        revisar("sin tildes y con varias palabras ('martin' → Martín)",
+                pag.evaluate(visibles), ["/avisar"])
+        pag.fill(".at-menu .at-buscar input", "cuaderno")
+        pag.keyboard.press("Enter")
+        pag.wait_for_timeout(200)
+        revisar("Enter elige la primera que coincide",
+                pag.evaluate("() => document.querySelector('#texto').value"), "/notas ")
+        revisar("y cierra el menú",
+                pag.evaluate("() => document.querySelector('.at-menu')"), None)
+        pag.evaluate("() => { document.querySelector('#texto').value = ''; }")
+        pag.click("#btnAtajos")
+        pag.wait_for_selector(".at-menu .fila.skill", timeout=5000)
+        pag.keyboard.type("zzqq")
+        revisar("si no hay nada, lo dice",
+                pag.evaluate("() => (document.querySelector('.at-menu .at-nada') || {})"
+                             ".textContent"), "Nada coincide con «zzqq».")
+        revisar("escribir en el buscador no dispara los atajos de la pantalla",
+                pag.evaluate("() => document.querySelector('#texto').value"), "")
+        pag.keyboard.press("Escape")
+        revisar("el primer Escape borra lo escrito",
+                pag.evaluate("() => document.querySelector('.at-menu .at-buscar input').value"),
+                "")
+        revisar("y vuelven todas",
+                len(pag.evaluate(visibles)),
+                len(SKILLS["skills"]) + len(SKILLS["rotas"]) + 6 + len(SKILLS["comandos"]))
+        pag.keyboard.press("Escape")
+        pag.wait_for_timeout(200)
+        revisar("el segundo Escape cierra el menú",
+                pag.evaluate("() => document.querySelector('.at-menu')"), None)
+
         # --- El menú de comandos --------------------------------------------------
         pag.evaluate("() => { document.querySelector('#texto').value = ''; }")
         pag.click("#btnAtajos")

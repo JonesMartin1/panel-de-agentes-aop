@@ -42,8 +42,8 @@ from app.rutas import (PESTANAS_MOVIL, PAUSA_ESCUCHA, SEGUIR_LECTURA, ESCRIBIR_E
                        RAIZ, WINDOWS_FONDOS,
                        SESIONES_ARCHIVADAS,
                        ESTUDIO, ESTUDIO_ENTRANTES, ESTUDIO_MINIATURAS, MARCAS_CHAT, ASPECTO,
-                       COMPACTAR_LAURA, BORRADORES_SESIONES,
-                       PERFILES_CHROME, PERFIL_CHROME_PERSONAL)
+                       COLORES_CHARLAS, FONDOS_CHARLAS, COMPACTAR_LAURA, BORRADORES_SESIONES,
+                       PERFILES_CHROME, PERFIL_CHROME_PERSONAL, MIS_MENSAJES)
 from app.voz import seguir               # listar proyectos/sesiones de Claude Code
 # Los audios que entran por WhatsApp/Telegram, para el Estudio. ⚠ Este modulo NO
 # importa `core`: si arrastrara Whisper, el panel cargaria la GPU al arrancar.
@@ -370,6 +370,30 @@ def mic_permitido():
             _MIC_CACHE["permitido"] = r
         _MIC_CACHE["vence"] = time.time() + _MIC_CACHE_SEG
     return _MIC_CACHE["permitido"]
+
+
+def mic_estado():
+    """Si Laura puede usar el microfono, mirando las DOS trabas que existen.
+
+    ⚠⚠ `mic_permitido` NO es solo Windows (2026-09-27). El bloqueo tiene dos capas: el
+    mute de Windows y la bandera `MIC_BLOQUEADO`, que es la que mira la voz — con la
+    bandera puesta, su watchdog espera callado y NO abre el microfono aunque Windows lo
+    permita. Antes el panel miraba solo a Windows: si los microfonos se destrababan por
+    otro camino (Windows, otro programa, un reinicio), el interruptor se ponia en verde con
+    la bandera todavia puesta, y Laura quedo sorda del 06/09 al 25/09 sin que nada lo
+    mostrara. Encima, tocar el interruptor en verde la volvia a BLOQUEAR.
+    Ahora `mic_permitido` es la verdad para Laura: Windows lo permite Y no hay bandera.
+    `mic_bandera_sola` marca el caso traicionero, para decirlo con todas las letras.
+    """
+    windows = mic_permitido()
+    try:
+        desde = MIC_BLOQUEADO.stat().st_mtime
+    except OSError:
+        desde = None
+    return {"mic_permitido": windows and desde is None,
+            "mic_windows": windows,
+            "mic_bandera_sola": windows and desde is not None,
+            "mic_bloqueado_desde": desde}
 
 
 def _maestro_llamar(estado):
@@ -1009,10 +1033,17 @@ async function refrescar(){
     document.getElementById('svcsSrv').innerHTML = SRV.map(k=>fila(j.servicios[k])).join('');
     chip('chipSrv', up===SRV.length?'on':(up>0?'warn':'off'));
     const v=j.servicios.voz;
+    // ⭐ `mic_permitido` ya junta las DOS trabas (Windows y la bandera de la voz). La
+    // bandera sola es el caso traicionero: Windows deja, pero Laura no escucha. Del 06/09
+    // al 25/09 quedo asi con el interruptor en verde. Se dice con todas las letras.
+    const soloBandera = !!j.mic_bandera_sola;
+    const desdeMic = j.mic_bloqueado_desde ? ' desde el ' + new Date(j.mic_bloqueado_desde*1000)
+      .toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
     const ev=document.getElementById('estadoVoz');
     ev.className='estado '+(v.vivo? ((j.pausado||!j.mic_permitido)?'':'on') :'off');
     document.getElementById('txtVoz').textContent =
-      v.vivo ? (!j.mic_permitido ? 'Encendido, microfono bloqueado'
+      v.vivo ? (soloBandera ? 'Encendido, pero NO te escucha (bloqueo del panel)'
+              : !j.mic_permitido ? 'Encendido, microfono bloqueado'
               : j.pausado ? 'Encendido, escucha pausada' : 'Encendido') : 'Apagado';
     ev.style.color = (v.vivo && !j.mic_permitido) ? 'var(--mal-txt)'
                    : (v.vivo && j.pausado) ? 'var(--aviso)' : '';
@@ -1027,7 +1058,8 @@ async function refrescar(){
     sw.className='sw '+(j.mic_permitido?'on':'');
     mf.className='fila-sw '+(j.mic_permitido?'':'bloq');
     mt.textContent=j.mic_permitido?'Los microfonos andan normal'
-                                  :'SILENCIADOS a nivel de Windows: nada te escucha';
+      : soloBandera ? 'Laura NO te escucha: quedo puesto el bloqueo del panel'+desdeMic+'. Toca para destrabar'
+      : 'SILENCIADOS a nivel de Windows: nada te escucha'+desdeMic;
     mt.style.color=j.mic_permitido?'':'var(--mal-txt)';
     // El tablero de arriba: lo mismo que ya se calculo, pero de un vistazo
     const md=document.getElementById('mando');
@@ -1038,6 +1070,7 @@ async function refrescar(){
     document.getElementById('mandoSub').textContent =
       aire==='on' ? 'deci Laura y te escucha'
       : !v.vivo ? 'la voz esta apagada'
+      : soloBandera ? 'sin microfono: bloqueo del panel'+desdeMic
       : !j.mic_permitido ? 'microfono bloqueado en Windows' : 'no te esta escuchando';
     document.getElementById('cifServ').innerHTML = up + '<span>/' + SRV.length + '</span>';
     try{
@@ -1757,7 +1790,7 @@ def status():
     esta = {n: len(foto.get(n, [])) > 0 for n in SERVICIOS}
     servicios = {n: {"label": SERVICIOS[n]["label"], "vivo": esta[n]} for n in SERVICIOS}
     return {"servicios": servicios, "encendido": all(esta[n] for n in SERVIDOR),
-            "pausado": PAUSA_ESCUCHA.exists(), "mic_permitido": mic_permitido(),
+            "pausado": PAUSA_ESCUCHA.exists(), **mic_estado(),
             "leer": leer_en_voz(), "pensando": PENSANDO.exists()}
 
 
@@ -3834,6 +3867,7 @@ function seleccionarHerramienta(btn){
 // Al terminar de dibujar algo, la herramienta vuelve sola a "mover" y lo nuevo
 // queda seleccionado (comportamiento default de Excalidraw): dibujar dos figuras
 // seguidas requiere elegir la herramienta de nuevo, nada de figuras sin querer.
+// Excepcion: el LAPIZ no pasa por aca y queda armado (2026-10-02, ver su `soltar`).
 function volverAMover(){
   herramienta='mover';
   document.querySelectorAll('.herr-btn').forEach(b=>b.classList.toggle('armado', b.dataset.tool==='mover'));
@@ -3842,6 +3876,17 @@ function volverAMover(){
 }
 
 let ultimoEstadoCrudo='';
+// Trazos de lapiz ya dibujados aca que el ultimo estado leido del servidor todavia
+// no tiene. Si lo proximo que llega es ESO y nada mas, no hace falta redibujar.
+let trazosLocales=[];
+function soloSumaLosLocales(crudo){
+  if(!trazosLocales.length || !ultimoEstadoCrudo) return false;
+  try{
+    const esperado=JSON.parse(ultimoEstadoCrudo);
+    esperado.items.push(...trazosLocales);
+    return JSON.stringify(esperado)===JSON.stringify(JSON.parse(crudo));
+  }catch(e){ return false; }
+}
 
 // Reconstruye el dibujo entero desde `estado` (sin ir al servidor). La camara
 // llama esto directo en cada zoom/paneo.
@@ -4083,6 +4128,11 @@ async function refrescar(){
   // Si nada cambio, no reconstruir el DOM: el rearmado cada 2s hacia parpadear
   // los hovers y se sentia tosco aunque no hubiera ninguna novedad.
   if(crudo===ultimoEstadoCrudo)return;
+  // ⭐ Lo unico nuevo son los trazos que ya dibujo el lapiz: se anota y listo. Sin
+  // esto, cada trazo costaba un redibujado entero (medio segundo congelado) igual,
+  // solo que un rato despues, en plena palabra.
+  if(soloSumaLosLocales(crudo)){ ultimoEstadoCrudo=crudo; trazosLocales=[]; return; }
+  trazosLocales=[];
   ultimoEstadoCrudo=crudo;
   estado=JSON.parse(crudo);
   ajustarImagenes();
@@ -5415,8 +5465,13 @@ tablero.addEventListener('pointerdown', e=>{
   bloquear=true;
   const ns='http://www.w3.org/2000/svg';
   const previa=document.createElementNS(ns,'polyline');
-  previa.setAttribute('fill','none'); previa.setAttribute('stroke','#e8eaed'); previa.setAttribute('stroke-width','2');
-  previa.setAttribute('stroke-linecap','round'); previa.setAttribute('stroke-linejoin','round');
+  // La previa se pinta con el MISMO color, grosor y punta que va a tener el trazo
+  // guardado: antes era siempre blanca de 2 px y al soltar "cambiaba" de golpe.
+  const est=estiloPara('lapiz'), cfgP=PUNTAS[est.punta||'fibra']||PUNTAS.fibra;
+  previa.setAttribute('fill','none'); previa.setAttribute('stroke', est.color||'#e8eaed');
+  previa.setAttribute('stroke-width', (est.grosor||2)*cfgP.factor*camara.zoom);
+  previa.setAttribute('stroke-linecap', cfgP.cap); previa.setAttribute('stroke-linejoin','round');
+  previa.style.opacity=((est.opacidad!=null?est.opacidad:100)/100)*cfgP.alfa;
   capa.appendChild(previa);
   const puntos=[xyDesdeEvento(e)];
   const actualizar=()=>previa.setAttribute('points', puntos.map(p=>PX(p.x)+','+PY(p.y)).join(' '));
@@ -5431,14 +5486,32 @@ tablero.addEventListener('pointerdown', e=>{
     document.removeEventListener('pointermove', mover);
     document.removeEventListener('pointerup', soltar);
     bloquear=false;
-    previa.remove();
-    if(puntos.length<2)return;  // clic sin arrastrar: no crear nada
+    if(puntos.length<2){ previa.remove(); return; }  // clic sin arrastrar: no crear nada
     ignorarProximoClick=true;
     guardarSnapshot();
-    const creado=await (await fetch('/pizarra/agregar',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(Object.assign({tipo:'lapiz',puntos}, estiloPara('lapiz')))})).json();
-    if(creado && creado.id) seleccion=new Set([creado.id]);
-    volverAMover();
+    // ⭐ La previa se queda en pantalla hasta que el trazo definitivo esta dibujado.
+    // Antes se borraba al soltar y el trazo recien volvia despues de ir al servidor
+    // y REDIBUJAR LA PIZARRA ENTERA: con 85 objetos eso era medio segundo con la
+    // pantalla congelada y el trazo desaparecido (medido, Martin 2026-10-04: "no me
+    // gusta que tarde en generarse el trazo"). Ahora se dibuja solo el trazo nuevo.
+    let creado=null;
+    try{
+      creado=await (await fetch('/pizarra/agregar',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(Object.assign({tipo:'lapiz',puntos}, estiloPara('lapiz')))})).json();
+    }catch(err){}
+    if(creado && creado.id && !estado.items.some(i=>i.id===creado.id)){
+      estado.items.push(creado);
+      trazosLocales.push(creado);
+      crearTrazo(creado);
+      capa.appendChild(guiaV); capa.appendChild(guiaH);   // las guias siempre al final
+      document.getElementById('contador').textContent=estado.items.length+' elemento(s)';
+    }
+    previa.remove();
+    // ⭐ El lapiz NO vuelve a "mover": se escribe de a varios trazos (una palabra son
+    // cinco o seis), y tener que tocar el lapiz entre trazo y trazo era lo que molestaba
+    // (Martin, 2026-10-02). Asi lo hace tambien Excalidraw con su lapiz. Tampoco se
+    // selecciona el trazo: con el lapiz armado, el proximo toque es para dibujar.
+    // Se suelta con Escape o tocando el lapiz otra vez.
     refrescar();
   };
   document.addEventListener('pointermove', mover);
@@ -6961,14 +7034,27 @@ def micacceso():
     desmutear, y recien ahi se levanta la bandera para que voz rearme solo.
     Tarda unos segundos por la Configuracion. Ojo: un microfono enchufado con
     el bloqueo puesto entra sin mute (el maestro apagado lo frena igual).
+
+    ⚠⚠ Se decide con las DOS trabas (`mic_estado`), no solo con Windows: si queda la
+    bandera sola, tocar el interruptor DESTRABA. Antes miraba solo a Windows, lo veia
+    permitido y volvia a bloquear — o sea que para destrabar a Laura habia que tocarlo
+    dos veces sin saberlo (2026-09-27).
     """
-    if mic_permitido():
-        MIC_BLOQUEADO.write_text("bloqueado desde el panel\n", encoding="utf-8")
+    est = mic_estado()
+    if est["mic_permitido"]:
+        MIC_BLOQUEADO.write_text("bloqueado desde el panel el "
+                                 + time.strftime("%Y-%m-%d %H:%M") + "\n", encoding="utf-8")
         r = _mic_llamar("silenciar")
         if not _maestro_llamar("off"):
             print("micacceso: no pude apagar el maestro de Windows; "
                   "el mute ya corta igual", flush=True)
         permitido = bool(r) if r is not None else False
+    elif est["mic_bandera_sola"]:
+        # Windows ya deja: lo unico que traba a Laura es la bandera. Se saca y listo, sin
+        # abrir la Configuracion de Windows (que ademas podria fallar y decir "sigo
+        # bloqueado" cuando no lo esta).
+        MIC_BLOQUEADO.unlink(missing_ok=True)
+        permitido = True
     else:
         if not _maestro_llamar("on"):
             return {"error": "no pude prender el interruptor de Windows, sigo bloqueado",
@@ -6980,7 +7066,7 @@ def micacceso():
         MIC_BLOQUEADO.unlink(missing_ok=True)
         permitido = r
     _MIC_CACHE.update(permitido=permitido, vence=time.time() + _MIC_CACHE_SEG)
-    return {"permitido": permitido}
+    return {"permitido": mic_estado()["mic_permitido"]}
 
 
 # --- La misma consola, pero para el celular ----------------------------------
@@ -7015,9 +7101,19 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
 <!-- El markdown de Claude, dibujado (negritas, titulos, viñetas, codigo). Trae sus
      propios estilos: son los mismos que usa la pagina de sesiones de la compu. -->
 <script src="/estaticos/marcado.js"></script>
+<!-- El texto en vivo: la respuesta se ve escribirse, como en Claude Code (2026-09-27).
+     El MISMO archivo que usa la pagina de sesiones de la compu. -->
+<script src="/estaticos/envivo.js"></script>
+<!-- El rastro con pasos desplegables (2026-09-27), el MISMO archivo de la compu. -->
+<script src="/estaticos/pasos.js"></script>
+<!-- El @ de la caja: nombrar un archivo del proyecto, el mismo de la compu. -->
+<script src="/estaticos/arroba.js"></script>
 <!-- Lo que Martin pinta o subraya en la compu se ve tambien aca: las marcas viven en el
      servidor, no en el navegador. Desde el telefono todavia no se pinta. -->
 <script src="/estaticos/marcas.js"></script>
+<!-- El color propio de cada charla (2026-10-10): el mismo archivo de la compu, y se
+     elige tambien desde aca (boton 🎨 de los ajustes de la sesion). -->
+<script src="/estaticos/colorcharla.js"></script>
 <!-- ⭐ La direccion web de cada conversacion (`/movil?c=<id>`), la MISMA pieza que usa la
      pagina de sesiones de la compu: la barra de direcciones sigue a lo que estas mirando y
      entrando por ahi la app abre parada en esa charla (pedido de Martin, 2026-08-18). -->
@@ -7171,10 +7267,15 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
  /* ⭐ Estilo WhatsApp (pedido de Martín, 2026-08-20): lo tuyo en verde a la derecha,
     lo de la sesión en gris pizarra a la izquierda, la horita chiquita abajo. Los
     colores van FIJOS a propósito — acá no manda el tema, manda parecerse a WhatsApp. */
- .vos{background:var(--c005c4b,#005c4b);color:var(--ce7f3ee,#e7f3ee);margin-left:auto;
+ /* ⭐ La única excepción (2026-10-10): una charla con color PROPIO (colorcharla.js) trae
+    `--charla-*` en #cuerpo y ese pisa al de WhatsApp. Sin elegir nada la variable no
+    existe y el `var()` cae en el verde y el gris de siempre. */
+ .vos{background:var(--charla-vos,var(--c005c4b,#005c4b));
+      color:var(--charla-vos-txt,var(--ce7f3ee,#e7f3ee));margin-left:auto;
       border-bottom-right-radius:4px}
- .ia,.claude{background:var(--c202c33,#202c33);color:var(--ce9edef,#e9edef);margin-right:auto;
+ .ia,.claude{background:var(--charla-ia,var(--c202c33,#202c33));color:var(--ce9edef,#e9edef);margin-right:auto;
              border-top-left-radius:4px}
+ #cuerpo.con-color-ia .claude{border-left:3px solid var(--charla-ia-borde)}
  .info{color:var(--c7c8797,#7c8797);font-size:13px;text-align:center;background:none;padding:2px}
  /* El modelo de la charla y el boton de compactarla, abajo del titulo. Apagados: son
     la herramienta, no lo que uno viene a hacer. El boton se enciende solo cuando la
@@ -7411,6 +7512,15 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
        overflow-wrap:anywhere}
  .paso + .paso::before{content:' · ';color:var(--c6b7488,#6b7488)}
  .pasos + .msg{margin-top:10px}
+ /* ⭐ El texto en vivo (2026-09-27, /estaticos/envivo.js): el bloque que se está
+    escribiendo lleva un cursor que late, y el paso que todavía corre, el mismo latido. */
+ .msg.envivo.escribiendo::after{content:'▍';margin-left:1px;color:var(--burbuja-ia-borde);
+       animation:envivoLate 1s infinite ease-in-out}
+ .paso.corriendo{animation:envivoLate 1.2s infinite ease-in-out}
+ @keyframes envivoLate{0%,100%{opacity:.28} 50%{opacity:1}}
+ /* Un mensaje tuyo en fila (2026-09-27): mandado mientras trabajaba, todavia sin tomar. */
+ .msg.vos.enfila{opacity:.62;outline:1px dashed rgba(142,203,255,.45);outline-offset:-1px}
+ .msg.vos.enfila .filaNota{display:block;font-size:11px;opacity:.85;margin-top:4px}
  /* La pregunta de compactar, adentro del hilo (ámbar de aviso, no rojo). */
  .pideComp{background:var(--aviso-bg);color:var(--aviso-txt);padding:12px 15px;border-radius:12px;
            font-size:13.5px;margin:10px 0;line-height:1.5}
@@ -7810,6 +7920,12 @@ async function pintar(){
   // salir de la pestaña suelta el micrófono: nadie quiere que el teléfono siga
   // escuchando porque se fue a mirar otra cosa
   if (activa !== 'hablar' && charla) cortarCharla('');
+  // El color propio de la charla (colorcharla.js, el mismo de la compu): solo adentro de
+  // una charla; el inicio, la pizarra y la lista vuelven al 🎨 general.
+  if (window.ColorCharla){
+    if (FIJAS.includes(activa)) ColorCharla.limpiar($('#cuerpo'));
+    else ColorCharla.aplicar($('#cuerpo'), activa, (pestanas.find(x => x.sid === activa) || {}).cwd);
+  }
   if (activa === 'panel')   return pintarPanel();
   if (activa === 'pizarra') return pintarPizarra();
   if (activa === 'hablar')  return pintarHablar();
@@ -9035,6 +9151,25 @@ setInterval(() => {
                            : Math.floor(seg / 60) + ' min ' + (seg % 60) + ' s';
 }, 1000);
 let pintadoNro = 0, firmaChat = {};
+// ⭐ El texto en vivo (2026-09-27): lo mecánico vive en /estaticos/envivo.js, el mismo
+// de la página de sesiones de la compu.
+EnVivo.iniciar({activa: () => activa, repintar: () => pintarSesion()});
+// El rastro desplegable (/estaticos/pasos.js), el mismo de la compu: tocar un paso
+// muestra su cambio o su salida, y los negados dicen que no se los dejaron.
+// ⚠ Con respaldo: si el archivo no cargo, el rastro se dibuja como antes.
+const filaPaso = (ms, i) => window.Pasos ? Pasos.fila(ms, i)
+  : ((ms[i-1]||{}).de==='paso' ? '' : '<div class="pasos">') +
+    `<div class="paso" data-msg="${i}">${esc(ms[i].texto)}</div>` +
+    ((ms[i+1]||{}).de==='paso' ? '' : '</div>');
+// El @ de la caja (/estaticos/arroba.js): en una charla sugiere archivos de su carpeta; en
+// el chat con Laura no hay carpeta, asi que no aparece.
+if (window.Arroba)
+  Arroba.enganchar($('#texto'), () => (pestanas.find(x => x.sid === activa) || {}).cwd || '');
+if (window.Pasos) Pasos.iniciar({
+  ubicacion: () => { const p = pestanas.find(x => x.sid === activa);
+                     return p && !esNueva(p.sid) ? {cwd: p.cwd, sid: p.sid} : null; },
+  repintar: () => { firmaChat[activa] = ''; pintarSesion(); },
+});
 
 // De qué proyecto es una pestaña: la última parte de la carpeta del disco
 // ("D:\\IA\\wpp-transcriptor" -> "wpp-transcriptor"), que es como se lo nombra hablando.
@@ -9050,6 +9185,8 @@ function dibujarSesion(p, mensajes){
   // compu, se perdía y la sesión parecía muerta estando a full (2026-08-17).
   const ses = sesiones.find(x => x.id === p.sid);
   const pensa = !!(ev || (ses && estadoSes(ses) === 'trabajando'));
+  // ⭐ El texto en vivo (2026-09-27): mientras piensa, el canal abierto; si no, cerrado.
+  EnVivo.seguir(p.sid, p.cwd, esNueva(p.sid) ? '' : p.sid, pensa);
   // La estás mirando: no puede quedar marcada como que te espera.
   if (ses && ses.ts) visto[p.sid] = ses.ts;
   // ¿Tu mensaje ya entró al hilo de verdad? Se CUENTA, no se ubica: llegó cuando tu
@@ -9072,11 +9209,17 @@ function dibujarSesion(p, mensajes){
   // ⭐ Y mientras la sesión está contestando, la caja se bloquea Y LO DICE — igual que en
   // la compu (2026-08-23, Martín desde el celular: escribió mientras Codex trabajaba, le
   // saltó "esa sesión está contestando algo" y el texto ya se había borrado).
-  const ocupadaAhora = !!cacheOcupada[p.sid] || !!ev || !!preguntaComp;
+  // ⭐ Trabajando ya no bloquea la caja en una charla de Claude (2026-09-27): lo que
+  // mandes queda en fila. Codex y las charlas sin estrenar, si (ver `sinFilaMovil`).
+  const trabajandoAhora = !!cacheOcupada[p.sid] || !!ev;
+  const ocupadaAhora = !!preguntaComp || (trabajandoAhora && sinFilaMovil(p));
   $('#texto').disabled = ocupadaAhora;
   $('#mandar').disabled = ocupadaAhora;
   $('#texto').placeholder = preguntaComp ? 'Elegí si querés compactar antes de seguir'
-    : ocupadaAhora ? 'Está contestando: esperá a que termine' : 'Escribí…';
+    : ocupadaAhora ? 'Está contestando: esperá a que termine'
+    : trabajandoAhora ? 'Trabajando: lo lee en la próxima pausa' : 'Escribí…';
+  // Los mensajes en fila que el hilo ya trae (Claude los tomo) dejan de mostrarse aparte.
+  enFila[p.sid] = (enFila[p.sid] || []).filter(x => cuentaTuya(mensajes, x.texto) <= x.base);
   const html =
     // ⭐ El PROYECTO al lado del nombre: adentro de una charla no había forma de saber
     // de qué carpeta era (en la compu se ve marcada a la izquierda, acá no hay nada) y
@@ -9117,10 +9260,10 @@ function dibujarSesion(p, mensajes){
       // NO se puede mostrar: Claude Code lo tapa en el archivo y en el chorro en vivo.
       // ⚠ Los pasos seguidos van en UN bloque con fondo: sueltos sobre el fondo de la
       // pantalla no se leen. La apertura y el cierre miran al vecino de arriba y de abajo.
+      // ⭐ Desde el 2026-09-27 cada paso dice si se lo negaron o si falló, y al tocarlo
+      // se despliega el cambio o la salida: lo arma `Pasos.fila` (/estaticos/pasos.js).
       : m.de==='paso'
-      ? ((mensajes[iM-1]||{}).de==='paso' ? '' : '<div class="pasos">') +
-        `<div class="paso" data-msg="${iM}">${esc(m.texto)}</div>` +
-        ((mensajes[iM+1]||{}).de==='paso' ? '' : '</div>')
+      ? filaPaso(mensajes, iM)
       : `<div class="msg ${m.de==='vos'?'vos':'claude'}" data-msg="${iM}">` +
       (m.imgs || []).map(u => `<img class="foto" src="${u}" onclick="verFoto('${u}')">`).join('') +
       // Lo tuyo va tal cual lo escribiste; lo de Claude, dibujado. La horita abajo
@@ -9137,6 +9280,10 @@ function dibujarSesion(p, mensajes){
     (ev && !yaLlego ? `<div class="msg vos">` +
        (ev.urls||[]).map(u => `<img class="foto" src="${u}">`).join('') +
        `${esc(ev.texto)}<span class="hora">${(new Date).toTimeString().slice(0,5)}</span></div>` : '') +
+    // El borrador del texto en vivo: lo llena `EnVivo.pintar`, fuera de la firma.
+    '<div id="envivo"></div>' +
+    enFila[p.sid].map(x => `<div class="msg vos enfila">${esc(x.texto)}` +
+      `<span class="filaNota">en fila: lo lee en la próxima pausa</span></div>`).join('') +
     (tar ? htmlTareas(tar) : '') +
     // ⭐ Si la sesión frenó a preguntarte algo con opciones, en lugar de "pensando"
     // van los BOTONES para tocar (lo está: te está esperando a vos). Mismo selector
@@ -9158,7 +9305,13 @@ function dibujarSesion(p, mensajes){
   if (!ev) arranque[p.sid] = (ses && ses.ts ? ses.ts * 1000 : Date.now());
   // Si no cambió nada, no se toca el DOM: repintar igual te tira el scroll.
   const caja1 = $('#cuerpo');
-  if (firmaChat[p.sid] === html && caja1.dataset.vista === 'ses:'+p.sid && !recienAbierta) return;
+  // ⚠ Antes del atajo de "no cambió nada": una charla recién nacida pasa de `nueva-…` a
+  // su id real sin volver a entrar por la pestaña, y el color tiene que seguirla.
+  if (window.ColorCharla) ColorCharla.aplicar(caja1, p.sid, p.cwd);
+  if (firmaChat[p.sid] === html && caja1.dataset.vista === 'ses:'+p.sid && !recienAbierta){
+    EnVivo.pintar();
+    return;
+  }
   firmaChat[p.sid] = html;
   caja1.dataset.vista = 'ses:'+p.sid;
   const caja = $('#cuerpo');
@@ -9167,6 +9320,8 @@ function dibujarSesion(p, mensajes){
   // repintado: se captura antes de rearmar el hilo y se devuelve después.
   const pregEstado = guardarPregunta(caja);
   caja.innerHTML = html;
+  // Antes de bajar el scroll: el borrador también ocupa alto.
+  EnVivo.pintar();
   restaurarPregunta(caja, pregEstado);
   // ⭐ Lo que Martín pintó o subrayó en la compu se dibuja también acá: las marcas viven
   // en el servidor y se vuelven a aplicar después de cada repintado (`marcas.js`). Desde
@@ -9194,6 +9349,8 @@ let cargasChat = {};
 
 function guardarChat(p, d){
   cacheChat[p.sid] = d.mensajes;
+  // Lo que ya trae el disco se suelta del borrador del texto en vivo.
+  EnVivo.hilo(p.sid, d.mensajes);
   // ⭐ Si esa charla tiene un turno corriendo, el servidor no acepta otro: lo dice acá
   // (2026-08-23). Con esto la caja se bloquea sola, como en la compu, en vez de dejarte
   // escribir para después rebotarte con un cartel y perder lo que habías escrito.
@@ -9550,7 +9707,7 @@ function dibujarAjustes(p){
       onclick="revisarCodigoSes('${p.sid}')"
       title="Pedirle que revise los cambios que todavía no commiteaste">⌕ Revisar</button><button
       onclick="mudarCerebroSes('${p.sid}')"
-      title="Resumir esta charla y seguirla en una nueva de Claude">→ Claude</button>${chipCtx(p.sid)}</div>`;
+      title="Resumir esta charla y seguirla en una nueva de Claude">→ Claude</button>${botonColorSes(p.sid)}${chipCtx(p.sid)}</div>`;
   }
   if (!modelosMovil.length) return '';
   const puesto = modeloSes[p.sid] || modelosMovil[0].id;
@@ -9584,7 +9741,18 @@ function dibujarAjustes(p){
             title="Pedirle que revise los cambios que todavía no commiteaste">⌕ Revisar</button>
     <button onclick="mudarCerebroSes('${p.sid}')"
             title="Resumir esta charla y seguirla en una nueva de Codex">→ Codex</button>
-    ${chip}</div>`;
+    ${botonColorSes(p.sid)}${chip}</div>`;
+}
+
+// 🎨 Los colores propios de esta charla o de toda su carpeta (2026-10-10): el mismo
+// cuadrito que en la compu (colorcharla.js), y lo que se elige acá se ve allá. Pintado si
+// la charla ya tiene alguno, propio o heredado de la carpeta.
+function botonColorSes(sid){
+  if (!window.ColorCharla) return '';
+  const c = ColorCharla.efectivos(sid, (pestanas.find(x => x.sid === sid) || {}).cwd);
+  return `<button onclick="ColorCharla.editor('${sid}', this, (pestanas.find(x => x.sid === '${sid}') || {}).cwd)"
+            class="${c.vos || c.ia || c.tinte ? 'puesto' : ''}"
+            title="Elegir los colores de las burbujas y del fondo de esta charla">🎨</button>`;
 }
 
 // ⭐ Con qué cerebro ARRANCA esta charla (pedido de Martín, 2026-08-19): solo en una
@@ -9985,16 +10153,45 @@ function devolverLoEscrito(sid, texto, fotosGuardadas){
 // `forzado` es un mensaje que manda la pantalla sola, sin pasar por la caja de
 // escribir: hoy lo usa la decisión del plan de Codex. Se comprueba que sea texto y no
 // un evento, porque a `mandar` también la llaman desde el botón Enviar.
+// --- ⭐⭐ Mensajes en fila: escribirle mientras trabaja (2026-09-27) -----------------
+// El mismo mecanismo que la pagina de sesiones de la compu: el servidor se lo pasa al
+// proceso que esta en pleno turno y el CLI lo toma en la proxima pausa. Hasta que aparece
+// en el hilo, se ve una burbuja tuya "en fila".
+let enFila = {};                 // sid -> [{texto, base}]
+const sinFilaMovil = p => !!p.virgen || esNueva(p.sid) ||
+  (p.cerebro || cerebroSes[p.sid]) === 'codex';
+
+async function encolarMovil(p, t){
+  $('#texto').value=''; ajustarCaja($('#texto'));
+  anotarBorrador(p.sid, ''); soltarBorrador();
+  (enFila[p.sid] = enFila[p.sid] || []).push({texto: t, base: cuentaTuya(cacheChat[p.sid], t)});
+  firmaChat[p.sid] = ''; dibujarSesion(p, cacheChat[p.sid] || []);
+  const f = new FormData();
+  f.append('cwd', p.cwd); f.append('sid', p.sid); f.append('texto', t);
+  let r = null;
+  try { r = await (await fetch('/movil/mandar', {method:'POST', body:f})).json(); } catch(e){}
+  if (!r || !r.ok){
+    enFila[p.sid] = (enFila[p.sid] || []).filter(x => x.texto !== t);
+    if (!$('#texto').value.trim()){ $('#texto').value = t; ajustarCaja($('#texto')); }
+    alert((r && r.error) || 'No le pude pasar el mensaje: probá de nuevo.');
+  }
+  firmaChat[p.sid] = ''; dibujarSesion(p, cacheChat[p.sid] || []);
+}
+
 async function mandar(forzado){
   if (activa === 'panel') return mandarALaura();
   const impuesto = (typeof forzado === 'string' && forzado.trim()) ? forzado.trim() : '';
   const p = pestanas.find(x => x.sid === activa);
   const t = impuesto || $('#texto').value.trim();
-  if (!p || (!t && !fotos.length) || enVuelo[p.sid]) return;
-  // La caja ya se bloquea sola cuando la sesión está contestando; esto es el cinturón por
-  // si el estado llegó viejo. Se corta ANTES de borrar nada de lo que escribiste.
-  if (cacheOcupada[p.sid]){
-    alert('Esa sesión está contestando algo. Te dejo lo que escribiste para cuando termine.');
+  if (!p || (!t && !fotos.length)) return;
+  // ⭐⭐ Escribirle MIENTRAS trabaja, como en Claude Code (2026-09-27): queda en fila y lo
+  // lee en la proxima pausa. Codex no (cada turno suyo es un proceso aparte) ni una charla
+  // sin estrenar (todavia no tiene id): ahi sigue el cinturon de siempre, que corta ANTES
+  // de borrar nada de lo que escribiste.
+  if (enVuelo[p.sid] || cacheOcupada[p.sid]){
+    if (!impuesto && t && !sinFilaMovil(p)) return encolarMovil(p, t);
+    if (cacheOcupada[p.sid])
+      alert('Esa sesión está contestando algo. Te dejo lo que escribiste para cuando termine.');
     return;
   }
   let clave = p.sid;                       // la pestaña donde estás parado AHORA
@@ -11195,6 +11392,128 @@ async def marcas_quitar(request: Request):
     return {"ok": True, "marcas": todas.get(sid, [])}
 
 
+# ── Color propio de cada charla (2026-10-10, pedido de Martin) ──
+# Tres colores opcionales por conversacion: su burbuja (`vos`), la de la sesion (`ia`) y un
+# tinte del fondo (`tinte`). Vacio = usa el aspecto general (🎨). Va en el SERVIDOR por lo
+# mismo que las marcas: se elige en la compu y se tiene que ver igual en el celular.
+# Lo que no es un `#rrggbb` se descarta: el valor termina adentro de un `style`.
+COLOR_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+CAMPOS_COLOR_CHARLA = ("vos", "ia", "tinte")
+
+
+def _colores_charlas():
+    try:
+        d = json.loads(COLORES_CHARLAS.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+@app.get("/charlas/colores")
+def charlas_colores():
+    """Los colores de todas las charlas que tienen alguno (son pocos y chicos)."""
+    return {"colores": _colores_charlas()}
+
+
+@app.post("/charlas/color")
+async def charlas_color(request: Request):
+    """Poner o sacar los colores de una charla, o de una carpeta entera si el `sid` es
+    `carpeta:<ruta>` (lo heredan todas sus charlas; ver colorcharla.js). Un campo vacio
+    vuelve al color de abajo; si quedan los tres vacios, la llave desaparece del archivo."""
+    d = await request.json()
+    sid = (d.get("sid") or "").strip()[:600]
+    if not sid or sid.startswith("nueva-"):
+        return {"ok": False, "error": "la charla todavía no existe"}
+    todas = _colores_charlas()
+    actual = dict(todas.get(sid) or {})
+    for campo in CAMPOS_COLOR_CHARLA:
+        if campo not in d:
+            continue
+        valor = (d.get(campo) or "").strip()
+        if not valor:
+            actual.pop(campo, None)
+        elif COLOR_HEX.match(valor):
+            actual[campo] = valor.lower()
+        else:
+            return {"ok": False, "error": f"color inválido: {campo}"}
+    # La foto se pone por `/charlas/foto`; por aca solo se saca (`foto: ""`).
+    vieja = ""
+    if "foto" in d and not (d.get("foto") or "").strip():
+        vieja = actual.pop("foto", "")
+    if actual:
+        todas[sid] = actual
+    else:
+        todas.pop(sid, None)
+    COLORES_CHARLAS.write_text(json.dumps(todas, ensure_ascii=False, indent=1), encoding="utf-8")
+    _borrar_fondo_suelto(vieja, todas)
+    return {"ok": True, "colores": actual}
+
+
+# ── Foto de fondo propia de una charla o de una carpeta (2026-10-10, pedido de Martin) ──
+# Viaja en la misma entrada que los colores (`foto`), pero el archivo va aparte, en
+# `resultados/fondos_charlas/`: una foto adentro del JSON lo haria pesado de leer en cada
+# pantalla. El nombre es la huella del contenido, asi una foto nueva cambia de direccion
+# y el navegador no muestra la vieja guardada.
+FONDO_NOMBRE = re.compile(r"^[0-9a-f]{20}\.(jpg|png|webp)$")
+FONDO_TIPOS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+FONDO_MAX = 8 * 1024 * 1024
+
+
+def _borrar_fondo_suelto(url, todas):
+    """Borra el archivo de una foto que ya nadie usa (la misma foto puede estar en la
+    charla y en su carpeta: en ese caso se queda)."""
+    nombre = (url or "").rsplit("/", 1)[-1]
+    if not FONDO_NOMBRE.match(nombre):
+        return
+    if any((v or {}).get("foto") == url for v in todas.values() if isinstance(v, dict)):
+        return
+    try:
+        (FONDOS_CHARLAS / nombre).unlink()
+    except OSError:
+        pass
+
+
+@app.post("/charlas/foto")
+async def charlas_foto(request: Request):
+    """Poner la foto de fondo de una charla o de una carpeta (`sid` = `carpeta:<ruta>`).
+    Llega ya achicada por el navegador, como `data:image/...;base64,...`."""
+    import hashlib
+    d = await request.json()
+    sid = (d.get("sid") or "").strip()[:600]
+    if not sid or sid.startswith("nueva-"):
+        return {"ok": False, "error": "la charla todavía no existe"}
+    m = re.match(r"^data:(image/[a-z]+);base64,(.+)$", d.get("img") or "", re.S)
+    if not m or m.group(1) not in FONDO_TIPOS:
+        return {"ok": False, "error": "no es una imagen"}
+    try:
+        crudo = base64.b64decode(m.group(2), validate=False)
+    except Exception:
+        return {"ok": False, "error": "imagen rota"}
+    if not crudo or len(crudo) > FONDO_MAX:
+        return {"ok": False, "error": "la imagen es demasiado grande"}
+    nombre = hashlib.sha1(crudo).hexdigest()[:20] + "." + FONDO_TIPOS[m.group(1)]
+    FONDOS_CHARLAS.mkdir(parents=True, exist_ok=True)
+    (FONDOS_CHARLAS / nombre).write_bytes(crudo)
+    todas = _colores_charlas()
+    actual = dict(todas.get(sid) or {})
+    vieja = actual.get("foto", "")
+    actual["foto"] = "/charlas/fondo/" + nombre
+    todas[sid] = actual
+    COLORES_CHARLAS.write_text(json.dumps(todas, ensure_ascii=False, indent=1), encoding="utf-8")
+    if vieja != actual["foto"]:
+        _borrar_fondo_suelto(vieja, todas)
+    return {"ok": True, "colores": actual}
+
+
+@app.get("/charlas/fondo/{nombre}")
+def charlas_fondo(nombre: str):
+    # ⚠ Solo nombres hechos por `/charlas/foto`: nada de `..` ni rutas de otro lado.
+    if not FONDO_NOMBRE.match(nombre) or not (FONDOS_CHARLAS / nombre).is_file():
+        return Response(status_code=404)
+    return FileResponse(FONDOS_CHARLAS / nombre,
+                        headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
 def _script_powershell(cmd):
     """El scriptcito que se le da a la ventana: PRIMERO muestra el comando, despues lo corre.
 
@@ -11341,6 +11660,54 @@ def movil_chat(cwd: str, sid: str, ultimos: int = 40):
             "tareas": sesiones_movil.tareas_de(cwd, sid)}
 
 
+@app.get("/movil/paso")
+def movil_paso(cwd: str, sid: str, ids: str = ""):
+    """El detalle de uno o varios pasos del rastro (2026-09-27): el cambio de una edicion
+    en rojo y verde, o lo que devolvio un comando, como en Claude Code. Se pide al tocar el
+    renglon, no con el hilo: el hilo se pide cada 3 s y esto puede pesar."""
+    from app.voz import sesiones_movil
+    return {"pasos": sesiones_movil.detalle_pasos(cwd, sid, ids.split(","))}
+
+
+@app.get("/movil/envivo")
+async def movil_envivo(request: Request, cwd: str, sid: str = ""):
+    """⭐ El texto en vivo de una charla, empujado a medida que se escribe (2026-09-27).
+
+    Es un canal SSE: la pantalla lo abre UNA vez mientras la charla trabaja y el servidor
+    le manda el borrador entero (`sesiones_movil.envivo_de`) cada vez que cambia. Pedido
+    de Martin: que el texto aparezca como en Claude Code, no de golpe al terminar.
+    ⚠ Una sola conexion por pagina (la de la charla que estas mirando): el navegador
+    aguanta 6 abiertas por sitio y con una por pestaña la septima trababa todo.
+    ⚠ Un comentario de latido cada 15 s: si no, el tunel del celular corta la conexion
+    cuando el modelo se queda callado pensando.
+    """
+    from starlette.responses import StreamingResponse
+    from app.voz import sesiones_movil
+
+    async def chorro():
+        v, latido, mirar = None, time.time(), 0
+        # Se le dice al navegador que reintente rapido si se corta.
+        yield "retry: 1000\n\n"
+        while True:
+            mirar += 1
+            if mirar % 20 == 0 and await request.is_disconnected():
+                return
+            d = sesiones_movil.envivo_de(cwd, sid)
+            if d["v"] != v:
+                v = d["v"]
+                latido = time.time()
+                yield "data: " + json.dumps(d, ensure_ascii=False) + "\n\n"
+            elif time.time() - latido > 15:
+                latido = time.time()
+                yield ": latido\n\n"
+            # 50 ms: mas rapido no se lee, y el borrador vive en memoria (no es un disco).
+            await asyncio.sleep(0.05)
+
+    return StreamingResponse(chorro(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store",
+                                      "X-Accel-Buffering": "no"})
+
+
 @app.get("/movil/donde")
 def movil_donde(sid: str = ""):
     """En que carpeta vive una conversacion, sabiendo solo su id.
@@ -11401,7 +11768,7 @@ def _trabajo_publico(t):
 
 
 def _ejecutar_turno_movil(cwd, sid, texto, cerebro="", esfuerzo="", modelo="",
-                           velocidad="", al_nacer=None):
+                           velocidad="", al_nacer=None, desde=""):
     """Parte bloqueante comun al envio normal y al trabajo en segundo plano.
 
     ⭐ `al_nacer` se llama con el id de una charla NUEVA apenas el CLI lo anuncia, sin
@@ -11437,9 +11804,11 @@ def _ejecutar_turno_movil(cwd, sid, texto, cerebro="", esfuerzo="", modelo="",
             cerebro_usar, esfuerzo_usar, motivo = sesiones_movil.ruteo_automatico(texto)
             ruteo = "%s · esfuerzo %s (%s)" % (
                 "Codex" if cerebro_usar == "codex" else "Claude", esfuerzo_usar, motivo)
+        # `desde` solo viaja cuando de verdad se bifurca: asi todo el que llame a
+        # `mandar` como siempre (y las pruebas que lo imitan) no se entera.
         respuesta, sid_nuevo = sesiones_movil.mandar(
             cwd, sid_usar, texto, modelo, cerebro_usar, esfuerzo_usar, velocidad,
-            al_nacer=_nacio)
+            al_nacer=_nacio, **({"desde": desde} if desde else {}))
         # ⭐ El tope ya no compacta solo (2026-08-20): se mide DESPUES del turno, que es
         # cuando el contexto acaba de crecer, y la pantalla le PREGUNTA a Martin.
         pide = sesiones_movil.pide_compactar(cwd, sid_nuevo or sid_usar)
@@ -11491,7 +11860,7 @@ def _aviso_tarea(cwd, resultado, estado):
 
 
 def _correr_trabajo_movil(trabajo_id, cwd, sid, texto, cerebro, esfuerzo,
-                           modelo="", velocidad=""):
+                           modelo="", velocidad="", desde=""):
     """Corre un turno en segundo plano y, si le pediste aviso, te lo manda al terminar.
 
     ⭐ El "quiero que me avises" se lee de la FICHA al terminar, no de un argumento
@@ -11510,7 +11879,8 @@ def _correr_trabajo_movil(trabajo_id, cwd, sid, texto, cerebro, esfuerzo,
                 t["sid_nuevo"] = sid_real
 
     resultado = _ejecutar_turno_movil(
-        cwd, sid, texto, cerebro, esfuerzo, modelo, velocidad, al_nacer=_nacio)
+        cwd, sid, texto, cerebro, esfuerzo, modelo, velocidad, al_nacer=_nacio,
+        desde=desde)
     with _TRABAJOS_CANDADO:
         t = _TRABAJOS_MOVIL.get(trabajo_id)
         if not t:
@@ -11555,13 +11925,75 @@ async def _guardar_imagenes(imagenes, origen):
             f"abrilas TODAS con la herramienta Read antes de contestar.] "), None
 
 
+_MIS_MENSAJES_CANDADO = threading.Lock()
+
+
+def _anotar_mensaje(cwd, sid, texto):
+    """Agrega tu mensaje a `MIS_MENSAJES`, una linea JSON por mensaje.
+
+    ⭐ Pedido de Martin (2026-09-27): "no perder los prompts que yo mando". El hilo de
+    la charla lo guarda Claude Code, pero recien cuando el turno arranca de verdad: un
+    mensaje rechazado ("esa sesion esta contestando"), uno que se cae con el panel o uno
+    que el CLI no llega a leer no quedaba en NINGUN lado. Este archivo solo crece.
+    ⚠ Nunca puede voltear el envio: si no se puede escribir, se avisa en el log y el
+    mensaje sigue su camino igual.
+    """
+    try:
+        linea = json.dumps({"hora": time.strftime("%Y-%m-%d %H:%M:%S"), "cwd": cwd,
+                            "sid": sid, "texto": texto}, ensure_ascii=False)
+        with _MIS_MENSAJES_CANDADO:
+            MIS_MENSAJES.parent.mkdir(parents=True, exist_ok=True)
+            with open(MIS_MENSAJES, "a", encoding="utf-8") as f:
+                f.write(linea + "\n")
+    except Exception as e:
+        print("no pude guardar el mensaje en mis_mensajes:", e, flush=True)
+
+
+@app.get("/movil/mis-mensajes")
+def movil_mis_mensajes(cwd: str = "", n: int = 100):
+    """Tus ultimos mensajes (de esa carpeta, si se la pasas), del mas viejo al mas nuevo.
+
+    Es lo que usa la flecha ↑ de la caja de escribir para devolverte uno anterior, como
+    en Claude Code: sale del servidor, asi que ves tambien lo que mandaste desde el
+    celular. Se lee solo la cola del archivo, que puede crecer mucho.
+    """
+    n = max(1, min(n, 500))
+    try:
+        with open(MIS_MENSAJES, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 2_000_000))
+            crudo = f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return {"mensajes": []}
+    # La misma carpeta puede llegar como `D:\IA\x` o `d:/IA/x/` segun la pantalla.
+    igual = lambda c: (c or "").replace("\\", "/").rstrip("/").lower()
+    salida = []
+    for linea in crudo.splitlines():
+        try:
+            d = json.loads(linea)
+        except Exception:
+            continue                     # la primera puede venir cortada por el seek
+        if cwd and igual(d.get("cwd")) != igual(cwd):
+            continue
+        # La marca interna de una foto ("[Te paso una imagen...]") es para Claude: a la
+        # caja vuelve solo lo que escribiste vos.
+        texto, _ = _partir_imagen(d.get("texto") or "")
+        if texto.strip():
+            salida.append({"texto": texto.strip(), "hora": d.get("hora") or ""})
+    return {"mensajes": salida[-n:]}
+
+
 @app.post("/movil/mandar")
 async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = Form(""),
                        cerebro: str = Form(""), modelo: str = Form(""),
                        esfuerzo: str = Form(""), velocidad: str = Form(""),
                        segundo_plano: str = Form(""), avisar: str = Form(""),
+                       desde: str = Form(""),
                        imagenes: list[UploadFile] = File(None)):
-    """Un turno contra esa sesion. Puede tardar: el CLI piensa de verdad."""
+    """Un turno contra esa sesion. Puede tardar: el CLI piensa de verdad.
+
+    Con `desde` y sin `sid`, la charla nueva nace como COPIA de esa (bifurcar, 2026-09-27).
+    """
     from app.voz import sesiones_movil
     marca, error = await _guardar_imagenes(imagenes, "el celular")
     if error:
@@ -11569,6 +12001,9 @@ async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = F
     texto = (marca + (texto or "").strip()).strip()
     if not texto:
         return {"ok": False, "error": "Escribí algo o mandá una foto."}
+    # ⭐ Lo primero que se hace con tu mensaje es guardarlo (2026-09-27): antes de
+    # cualquier rechazo, de lanzar el turno o de que algo se caiga.
+    _anotar_mensaje(cwd, sid, texto)
     if sid and sid == _sesion_de_laura():
         return {"ok": False, "error": "Esa es la sesión de Laura: hablale por la pestaña "
                                       "Hablar o por el chat, no por acá."}
@@ -11576,6 +12011,17 @@ async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = F
     # sesion la parten al medio: cada proceso escribe su version de la charla. Con el
     # celular en la mano es facil mandar dos seguidos, o mandar desde el telefono
     # mientras contesta en la compu (2026-08-16).
+    # ⭐⭐ Escribirle MIENTRAS trabaja, como en Claude Code (2026-09-27): si la charla de
+    # Claude esta en pleno turno, el mensaje va al MISMO proceso y lo toma en la proxima
+    # pausa, sin cortar lo que esta haciendo (`sesiones_movil.encolar`). No es un segundo
+    # turno en paralelo —eso si partiria la charla—, asi que la regla de abajo sigue.
+    if sid and not sesiones_movil.es_codex(sid) and sesiones_movil.en_turno(cwd, sid):
+        ok_fila, motivo = sesiones_movil.encolar(cwd, sid, texto)
+        if ok_fila:
+            _guardar_borrador(sid, "")
+            return {"ok": True, "encolado": True}
+        if motivo:
+            return {"ok": False, "error": motivo}
     activo_codex = _codex_turno_realmente_activo(sid)
     with _TURNOS_CANDADO:
         if sid and (sid in _TURNOS_ABIERTOS or activo_codex):
@@ -11599,11 +12045,12 @@ async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = F
             _TRABAJOS_MOVIL[trabajo_id] = trabajo
         threading.Thread(target=_correr_trabajo_movil,
                          args=(trabajo_id, cwd, sid, texto, cerebro, esfuerzo, modelo,
-                               velocidad),
+                               velocidad, desde if not sid else ""),
                          daemon=True, name="trabajo-movil-" + trabajo_id[:8]).start()
         return {"ok": True, "segundo_plano": True, "trabajo": trabajo_id}
     return await asyncio.to_thread(_ejecutar_turno_movil, cwd, sid, texto, cerebro,
-                                   esfuerzo, modelo, velocidad)
+                                   esfuerzo, modelo, velocidad, None,
+                                   desde if not sid else "")
 
 
 @app.get("/movil/trabajo/{trabajo_id}")
@@ -12300,6 +12747,85 @@ def _arbol_dentro(raiz: Path, sub: str):
     return destino
 
 
+# --- ⭐ El @ de la caja de escribir: nombrar un archivo del proyecto (2026-09-27) --------
+# Como en Claude Code: escribis `@pan` y te sugiere `panel.py`. Misma llave que el
+# explorador (`_arbol_raiz`): solo busca adentro de una carpeta que el panel ya conoce.
+# El indice de nombres se arma una vez y se guarda 60 s: escribir letra por letra no
+# puede recorrer el disco en cada tecla.
+_ARROBA_CACHE = {}          # raiz -> (hora, [rutas relativas con /])
+ARROBA_TOPE_ARCHIVOS = 30000
+
+
+def _arroba_indice(raiz: Path):
+    ahora = time.time()
+    guardado = _ARROBA_CACHE.get(str(raiz))
+    if guardado and ahora - guardado[0] < 60:
+        return guardado[1]
+    rutas = []
+    # ⭐ En un repo de git, la lista la da git y respeta el `.gitignore`, como Claude Code:
+    # si no, `@pan` sugeria logs/panel.log y capturas de pruebas antes que lo que uno busca.
+    try:
+        r = subprocess.run(["git", "-C", str(raiz), "ls-files", "--cached", "--others",
+                            "--exclude-standard"], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=8,
+                           creationflags=CREATE_NO_WINDOW)
+        if r.returncode == 0 and r.stdout.strip():
+            rutas = [l for l in r.stdout.splitlines() if l][:ARROBA_TOPE_ARCHIVOS]
+    except Exception:
+        rutas = []
+    if rutas:
+        _ARROBA_CACHE[str(raiz)] = (ahora, rutas)
+        return rutas
+    for base, dirs, archivos in os.walk(raiz):
+        dirs[:] = sorted(d for d in dirs if d not in ARBOL_ESCONDIDO and not d.startswith("."))
+        rel = os.path.relpath(base, raiz).replace("\\", "/")
+        pre = "" if rel == "." else rel + "/"
+        for a in archivos:
+            if not a.startswith("~$"):
+                rutas.append(pre + a)
+        if len(rutas) >= ARROBA_TOPE_ARCHIVOS:
+            break
+    if len(_ARROBA_CACHE) > 30:
+        _ARROBA_CACHE.clear()
+    _ARROBA_CACHE[str(raiz)] = (ahora, rutas)
+    return rutas
+
+
+def _arroba_puntaje(ruta: str, q: str):
+    """Mas chico es mejor; None si no coincide. Primero el nombre, despues la ruta."""
+    r = ruta.lower()
+    nombre = r.rsplit("/", 1)[-1]
+    if not q:
+        return (3, len(r))
+    if nombre.startswith(q):
+        return (0, len(r))
+    if q in nombre:
+        return (1, len(r))
+    if q in r:
+        return (2, len(r))
+    # Las letras en orden, salteando: "svm" encuentra "sesiones_movil".
+    i = 0
+    for ch in r:
+        if i < len(q) and ch == q[i]:
+            i += 1
+    return (4, len(r)) if i == len(q) else None
+
+
+@app.get("/archivos/buscar")
+def archivos_buscar(cwd: str, q: str = "", n: int = 12):
+    raiz = _arbol_raiz(cwd)
+    if not raiz:
+        return {"ok": False, "archivos": []}
+    q = (q or "").strip().lower().replace("\\", "/")
+    puntuadas = []
+    for ruta in _arroba_indice(raiz):
+        p = _arroba_puntaje(ruta, q)
+        if p is not None:
+            puntuadas.append((p, ruta))
+    puntuadas.sort()
+    return {"ok": True, "archivos": [r for _, r in puntuadas[:max(1, min(n, 30))]]}
+
+
 @app.get("/archivos/lista")
 def archivos_lista(cwd: str, sub: str = ""):
     """Lo que hay adentro de una carpeta del proyecto: las carpetas primero.
@@ -12492,6 +13018,42 @@ def estatico_marcas():
     pintado). Una sola manera de dibujar una marca para las dos.
     """
     return FileResponse(ESTATICOS / "marcas.js", media_type="application/javascript")
+
+
+@app.get("/estaticos/arroba.js")
+def estatico_arroba():
+    """El @ de la caja de escribir (2026-09-27): sugiere archivos del proyecto mientras
+    escribis, como Claude Code. Lo comparten `/sesiones` y el celular."""
+    return FileResponse(ESTATICOS / "arroba.js", media_type="application/javascript",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/estaticos/pasos.js")
+def estatico_pasos():
+    """El rastro de la charla con sus pasos desplegables (2026-09-27), compartido por
+    `/sesiones` y el celular: dibuja cada renglon con su estado y, al tocarlo, el cambio o
+    la salida que pide a `/movil/paso`. Trae sus propios estilos."""
+    return FileResponse(ESTATICOS / "pasos.js", media_type="application/javascript",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/estaticos/colorcharla.js")
+def estatico_colorcharla():
+    """El color propio de cada charla (2026-10-10): pinta las burbujas y el tinte del fondo
+    de la conversacion abierta y trae el cuadrito para elegirlos. Compu y celular."""
+    return FileResponse(ESTATICOS / "colorcharla.js", media_type="application/javascript",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/estaticos/envivo.js")
+def estatico_envivo():
+    """El texto en vivo de una charla (2026-09-27), compartido por `/sesiones` y el
+    celular: abre el canal `/movil/envivo` y dibuja el borrador debajo del hilo.
+
+    Sin cache, igual que `direccion.js`: un cambio tiene que verse con F5.
+    """
+    return FileResponse(ESTATICOS / "envivo.js", media_type="application/javascript",
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/estaticos/direccion.js")

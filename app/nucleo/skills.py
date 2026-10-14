@@ -30,6 +30,7 @@ se abre el boton, no cada 3 segundos.
 """
 
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -283,6 +284,52 @@ def _raices_skills_codex(cwd):
     return raices
 
 
+def _enlazar(enlace, destino):
+    """Un enlace de carpeta `enlace` -> `destino`. En Windows, junction: no pide
+    permisos de administrador ni el modo desarrollador, que un symlink si."""
+    if os.name == "nt":
+        import _winapi
+        _winapi.CreateJunction(str(destino), str(enlace))
+    else:
+        os.symlink(destino, enlace, target_is_directory=True)
+
+
+def enlazar_en_codex():
+    """Enlaza en `~/.codex/skills` toda skill de `~/.claude/skills` que Codex no vea.
+
+    Pedido de Martin (2026-09-30): "cuando yo instalo una skill tiene que aparecer
+    automaticamente". Del lado de Claude ya era asi (el menu lee la carpeta en vivo),
+    pero Codex busca en SU carpeta y los enlaces se hacian a mano: `procedural-film`
+    se instalo el 26/09 y en una charla de Codex no aparecia. Se llama al abrir el
+    menu de una charla de Codex y al arrancarle un turno, asi que la skill nueva esta
+    antes de que Codex la necesite.
+
+    Solo AGREGA: nunca borra ni pisa nada. Se saltea lo que Codex ya ve por nombre de
+    carpeta en cualquiera de sus dos raices (`prompt-master` vive en `~/.agents/skills`
+    y enlazarla de nuevo la duplicaria), las carpetas con punto y las que no tienen
+    SKILL.md (una skill a medio copiar no se enlaza rota). Enlace por skill, nunca la
+    carpeta entera: eso rompe a Claude Code (ver arriba). Devuelve los nombres nuevos.
+    """
+    if not CARPETA_SKILLS.is_dir() or not CARPETA_SKILLS_CODEX.is_dir():
+        return []
+    nuevas = []
+    for md in sorted(CARPETA_SKILLS.glob("*/SKILL.md")):
+        nombre = md.parent.name
+        if nombre.startswith("."):
+            continue
+        if any(os.path.lexists(r / nombre)
+               for r in (CARPETA_SKILLS_CODEX, CARPETA_SKILLS_AGENTS)):
+            continue
+        try:
+            # El destino real, no el de `~/.claude/skills`: si ese ya es un enlace
+            # (`3d`, `procedural-film`), una cadena de dos saltos es una trampa mas.
+            _enlazar(CARPETA_SKILLS_CODEX / nombre, md.parent.resolve())
+            nuevas.append(nombre)
+        except OSError:
+            pass
+    return nuevas
+
+
 def catalogo_codex(cwd=""):
     """Las skills que puede invocar una charla de CODEX, con `$nombre`.
 
@@ -291,6 +338,7 @@ def catalogo_codex(cwd=""):
     criterio que del lado de Claude, donde el menu tampoco lista los comandos que ya
     vienen con el CLI: esta lista es la de las skills TUYAS.
     """
+    enlazar_en_codex()
     salida, vistos = [], set()
     for base in _raices_skills_codex(cwd):
         if not base.is_dir():

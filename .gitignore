@@ -51,6 +51,7 @@ avisos.json
 ajustes_sesiones.json
 borradores_sesiones.json
 marcas_chat.json
+colores_charlas.json
 orden_carpetas.json
 # La identidad de cada carpeta (icono, color, apodo) y, desde el 2026-08-28, CON QUE
 # perfil de Chrome trabaja ese proyecto. Es estado del panel como sus hermanos de

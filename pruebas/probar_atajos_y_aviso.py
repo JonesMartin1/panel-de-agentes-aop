@@ -39,6 +39,10 @@ def probar(nombre, cond, detalle=""):
 def main():
     tmp = Path(tempfile.mkdtemp(prefix="atajos_aviso_"))
     sm._CODEX_SIDS[SID_CDX] = {"ruta": str(tmp / "no-existe.jsonl")}
+    # ⚠ Abrir el menu de una charla de Codex ENLAZA las skills de Claude que le falten
+    # (`enlazar_en_codex`). Sin esta linea la prueba enlazaba las skills reales de
+    # Martin adentro de su carpeta temporal y despues la borraba con ellas colgando.
+    skills.CARPETA_SKILLS = tmp / "claude_skills_vacia"
 
     print("--- Sin ningun prompt creado, el menu no miente ---")
     vacia = tmp / "prompts_que_no_existen"

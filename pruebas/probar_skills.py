@@ -8,6 +8,7 @@ Se corre con: python -m pruebas.probar_skills
 """
 
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -185,6 +186,33 @@ with tempfile.TemporaryDirectory() as tmp:
     cod2 = {s["nombre"]: s["descripcion"] for s in skills.catalogo_codex("")}
     chequear("una descripcion entre comillas simples sale sin la comilla",
              cod2.get("notas") == "Deja al dia el cuaderno: bugs y decisiones.")
+
+    # --- una skill instalada del lado de Claude aparece sola en Codex --------------
+    # Pedido del 2026-09-30: `procedural-film` se instalo en `~/.claude/skills` y en
+    # una charla de Codex no aparecia, porque el enlace a `~/.codex/skills` era a mano.
+    (skills.CARPETA_SKILLS / "nueva").mkdir()
+    (skills.CARPETA_SKILLS / "nueva" / "SKILL.md").write_text(
+        "---\nname: nueva\ndescription: Recien instalada.\n---\n", encoding="utf-8")
+    # Misma carpeta en los dos lados: la de Codex es real y NO se pisa.
+    (skills.CARPETA_SKILLS / "pizarra").mkdir()
+    (skills.CARPETA_SKILLS / "pizarra" / "SKILL.md").write_text(
+        "---\nname: pizarra\ndescription: La version de Claude.\n---\n", encoding="utf-8")
+    # Ya la ve Codex por `~/.agents/skills`: enlazarla la duplicaria.
+    (skills.CARPETA_SKILLS / "prompt-master").mkdir()
+    (skills.CARPETA_SKILLS / "prompt-master" / "SKILL.md").write_text(
+        "---\nname: prompt-master\ndescription: Prompts.\n---\n", encoding="utf-8")
+    cod3 = {s["nombre"]: s["descripcion"] for s in skills.catalogo_codex("")}
+    chequear("una skill recien instalada en Claude aparece sola en Codex",
+             cod3.get("nueva") == "Recien instalada.")
+    chequear("y queda enlazada en la carpeta de Codex (Codex la carga, no solo el menu)",
+             (skills.CARPETA_SKILLS_CODEX / "nueva" / "SKILL.md").is_file())
+    chequear("una carpeta que Codex ya tenia no se pisa",
+             cod3.get("pizarra") == "Escribir en el pizarron visual.")
+    chequear("la que Codex ya ve por ~/.agents/skills no se enlaza de nuevo",
+             not os.path.lexists(skills.CARPETA_SKILLS_CODEX / "prompt-master"))
+    chequear("una carpeta sin SKILL.md no se enlaza rota",
+             not os.path.lexists(skills.CARPETA_SKILLS_CODEX / "tresde"))
+    chequear("una segunda vuelta no enlaza nada mas", skills.enlazar_en_codex() == [])
 
     # --- las usadas, leidas del .jsonl ------------------------------------------
     seguir_antes = seguir.CLAUDE_PROYECTOS

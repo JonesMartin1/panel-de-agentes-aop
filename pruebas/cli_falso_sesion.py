@@ -19,6 +19,78 @@ import time
 import psutil
 
 
+def _chorro_en_vivo(sid, reintento):
+    def ev(evento):
+        print(json.dumps({"type": "stream_event", "event": evento, "session_id": sid,
+                          "parent_tool_use_id": None}), flush=True)
+
+    def completo(uuid, bloque):
+        print(json.dumps({"type": "assistant", "uuid": uuid, "session_id": sid,
+                          "parent_tool_use_id": None,
+                          "message": {"role": "assistant", "content": [bloque]}}),
+              flush=True)
+
+    if "--include-partial-messages" not in sys.argv:
+        # Sin la bandera el CLI de verdad no manda pedacitos: solo los completos.
+        completo("u-texto-1", {"type": "text", "text": "Hola que tal."})
+        completo("u-texto-2", {"type": "text", "text": "Listo."})
+        return
+    ev({"type": "message_start", "message": {"id": "msg_1"}})
+    ev({"type": "content_block_start", "index": 0,
+        "content_block": {"type": "thinking", "thinking": ""}})
+    time.sleep(0.3)
+    completo("u-pienso", {"type": "thinking", "thinking": ""})
+    ev({"type": "content_block_stop", "index": 0})
+    ev({"type": "content_block_start", "index": 1,
+        "content_block": {"type": "text", "text": ""}})
+    for trozo in ("Hola ", "que ", "tal."):
+        ev({"type": "content_block_delta", "index": 1,
+            "delta": {"type": "text_delta", "text": trozo}})
+        time.sleep(0.4)
+    completo("u-texto-1", {"type": "text", "text": "Hola que tal."})
+    ev({"type": "content_block_stop", "index": 1})
+    ev({"type": "content_block_start", "index": 2,
+        "content_block": {"type": "tool_use", "name": "Read", "input": {}}})
+    ev({"type": "content_block_delta", "index": 2,
+        "delta": {"type": "input_json_delta", "partial_json": '{"file_path": "C:/x/READ'}})
+    time.sleep(0.4)
+    completo("u-paso-1", {"type": "tool_use", "name": "Read",
+                          "input": {"file_path": "C:/x/README.md"}})
+    ev({"type": "content_block_stop", "index": 2})
+    # La lista de tareas tiene su tarjeta: no tiene que aparecer como paso.
+    ev({"type": "content_block_start", "index": 3,
+        "content_block": {"type": "tool_use", "name": "TodoWrite", "input": {}}})
+    completo("u-todo", {"type": "tool_use", "name": "TodoWrite", "input": {"todos": []}})
+    ev({"type": "content_block_stop", "index": 3})
+    ev({"type": "message_stop"})
+    # Un subagente habla por su lado: su texto NO es la respuesta de la charla.
+    print(json.dumps({"type": "assistant", "uuid": "u-sub", "session_id": sid,
+                      "parent_tool_use_id": "toolu_x",
+                      "message": {"role": "assistant", "content": [
+                          {"type": "tool_use", "name": "Read",
+                           "input": {"file_path": "C:/x/SUB.md"}},
+                          {"type": "text", "text": "SUBAGENTE"}]}}),
+          flush=True)
+    ev({"type": "message_start", "message": {"id": "msg_2"}})
+    if reintento:
+        ev({"type": "content_block_start", "index": 0,
+            "content_block": {"type": "text", "text": ""}})
+        ev({"type": "content_block_delta", "index": 0,
+            "delta": {"type": "text_delta", "text": "BASURA"}})
+        time.sleep(0.3)
+        print(json.dumps({"type": "system", "subtype": "api_retry", "attempt": 1,
+                          "session_id": sid}), flush=True)
+        ev({"type": "message_start", "message": {"id": "msg_2b"}})
+    ev({"type": "content_block_start", "index": 0,
+        "content_block": {"type": "text", "text": ""}})
+    ev({"type": "content_block_delta", "index": 0,
+        "delta": {"type": "text_delta", "text": "Listo."}})
+    time.sleep(0.3)
+    completo("u-texto-2", {"type": "text", "text": "Listo."})
+    ev({"type": "content_block_stop", "index": 0})
+    ev({"type": "message_stop"})
+
+
 def main():
     argv = sys.argv[1:]
     sid = ""
@@ -26,6 +98,10 @@ def main():
         i = argv.index("--resume")
         if i + 1 < len(argv):
             sid = argv[i + 1]
+    # Como el CLI de verdad: `--resume X --fork-session` sigue X con un id NUEVO
+    # (lo usa `probar_bifurcar.py`).
+    if sid and "--fork-session" in argv:
+        sid = "copia-de-" + sid
     if not sid:
         sid = "ses-nacida-%d" % os.getpid()
     turno = 0
@@ -52,6 +128,11 @@ def main():
             continue
         if d.get("type") != "user":
             continue
+        # Como el CLI de verdad con `--replay-user-messages`: devuelve cada mensaje en el
+        # momento en que lo TOMA (lo usa `probar_mensaje_en_fila.py`).
+        if "--replay-user-messages" in argv:
+            print(json.dumps({"type": "user", "message": d.get("message") or {},
+                              "session_id": sid}), flush=True)
         turno += 1
         # El CLI de verdad abre cada turno con un `system`/`init` que ya trae el
         # session_id: es de ahi de donde la pantalla se entera del id de una charla
@@ -82,6 +163,12 @@ def main():
         elif texto == "lento":
             time.sleep(2)
             resp = "listo"
+        elif texto in ("envivo", "reintento"):
+            # ⭐ El texto en pedacitos de `--include-partial-messages` (2026-09-27), con
+            # la misma forma que el CLI de verdad: el mensaje completo de cada bloque sale
+            # ANTES de su `content_block_stop`. Lo usa `probar_texto_en_vivo.py`.
+            _chorro_en_vivo(sid, texto == "reintento")
+            resp = "Hola que tal. Listo."
         else:
             resp = "turno %d pid %d texto %s" % (turno, os.getpid(), texto[:40])
         print(json.dumps({"type": "assistant", "message": {"role": "assistant",
@@ -89,6 +176,14 @@ def main():
         print(json.dumps({"type": "result", "subtype": "success", "is_error": False,
                           "result": resp, "session_id": sid,
                           "turno": turno}), flush=True)
+        if texto == "autonomo":
+            # Como cuando termina un subagente en segundo plano: la charla sigue SOLA, con un
+            # turno que no arranco ningun mensaje del usuario (lo usa `probar_mensaje_en_fila`).
+            time.sleep(1.2)
+            print(json.dumps({"type": "system", "subtype": "init", "session_id": sid}),
+                  flush=True)
+            print(json.dumps({"type": "result", "subtype": "success", "is_error": False,
+                              "result": "continuacion sola", "session_id": sid}), flush=True)
 
 
 if __name__ == "__main__":

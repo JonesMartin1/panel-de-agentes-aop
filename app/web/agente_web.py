@@ -29,7 +29,7 @@ load_dotenv(ENV)
 from browser_use import Agent, ChatGoogle, Browser
 
 CDP = "http://localhost:9222"
-MODELO = "gemini-2.5-flash"
+MODELO = "gemini-3.8-flash"   # el 2.5-flash lo dio de baja Google en octubre de 2026
 _API_KEY = os.environ.get("GEMINI_API_KEY")
 
 

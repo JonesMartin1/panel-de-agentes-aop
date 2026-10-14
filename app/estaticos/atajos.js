@@ -69,6 +69,18 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
 .at-menu .pie{padding:7px 10px 3px;font-size:11px;color:#616977;border-top:1px solid #222a36;
   margin-top:5px;line-height:1.4}
 .at-menu .aviso{padding:10px;color:#7d8592}
+/* El buscador: pegado arriba mientras la lista corre por debajo. El fondo tapa las
+   filas que pasan por atras, y el margen negativo lo estira sobre el padding del menu. */
+.at-menu .at-buscar{position:sticky;top:-7px;z-index:1;margin:-7px -7px 4px;padding:7px;
+  background:#151a24;border-bottom:1px solid #222a36}
+.at-menu .at-buscar input{width:100%;box-sizing:border-box;height:34px;padding:0 10px;
+  border-radius:9px;border:1px solid #2a3444;background:#0f141c;color:#dbe3ee;
+  font-size:13px;outline:none}
+.at-menu .at-buscar input:focus{border-color:#2c4a6b}
+/* ⚠ En el celular, un input con letra de menos de 16 px hace que iOS agrande la
+   pagina entera al tocarlo, y no la vuelve a achicar. */
+@media (pointer:coarse){.at-menu .at-buscar input{font-size:16px;height:40px}}
+.at-menu .fila.primera{background:#1a2433}
 `;
 
   /* Los comandos que se ofrecen. `accion` = en esta pantalla son un boton que ya
@@ -135,6 +147,61 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
   /* La descripción de un comando según el cerebro de la charla. */
   const descDe = (c, cerebro) => (cerebro === 'codex' && c.descCodex) || c.desc;
 
+  /* Cada seccion (Skills, Comandos, Prompts) va envuelta: asi el buscador puede
+     esconder el titulo de una seccion que se quedo sin nada que mostrar. */
+  const seccion = (titulo, html) =>
+    '<div class="seccion"><div class="titulo">' + titulo + '</div>' + html + '</div>';
+
+  /* Sin tildes y en minuscula: "compactacion" tiene que encontrar "compactación". */
+  const normal = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  /* El buscador (pedido de Martin, 2026-09-30: "un buscador de skills en el mismo
+     desplegable, tanto para la pc como para el celu"). Filtra por nombre Y por
+     descripcion, y cada palabra tiene que aparecer en algun lado: "video film" encuentra
+     procedural-film aunque "video" este solo en la descripcion. No va al servidor:
+     filtra lo que el menu ya tiene dibujado, asi que responde al instante. */
+  function filtrar(lista, q) {
+    const palabras = normal(q).split(/\s+/).filter(Boolean);
+    const buscando = palabras.length > 0;
+    let primera = null;
+    lista.querySelectorAll('.seccion').forEach(sec => {
+      let alguna = false;
+      sec.querySelectorAll('.fila').forEach(f => {
+        const texto = normal((f.querySelector('.nombre') || {}).textContent + ' ' +
+                             (f.querySelector('.desc') || {}).textContent);
+        const ve = palabras.every(p => texto.includes(p));
+        f.style.display = ve ? '' : 'none';
+        f.classList.remove('primera');
+        if (ve) {
+          alguna = true;
+          if (buscando && !primera && !f.classList.contains('rota')) primera = f;
+        }
+      });
+      // Los carteles tipo "no tenés ningún prompt" no son resultados de nada.
+      // "Leyendo…" (`.cargando`) si se queda: todavia no hay nada que filtrar.
+      sec.querySelectorAll('.aviso:not(.cargando)').forEach(a => {
+        a.style.display = buscando ? 'none' : '';
+      });
+      sec.style.display = alguna || !buscando || sec.querySelector('.cargando') ? '' : 'none';
+    });
+    const cargando = !!lista.querySelector('.cargando');
+    // La que se elige con Enter queda marcada, para que Enter no sea una sorpresa.
+    if (primera) primera.classList.add('primera');
+    const pie = lista.querySelector('.pie');
+    if (pie) pie.style.display = buscando ? 'none' : '';
+    let nada = lista.querySelector('.at-nada');
+    if (buscando && !primera && !cargando) {
+      if (!nada) {
+        nada = document.createElement('div');
+        nada.className = 'aviso at-nada';
+        lista.appendChild(nada);
+      }
+      nada.textContent = 'Nada coincide con «' + q.trim() + '».';
+    } else if (nada) {
+      nada.remove();
+    }
+  }
+
   function filaHtml(nombre, desc, chapa, tipo) {
     return '<div class="fila ' + (tipo || '') + '" data-id="' + esc(nombre) + '">' +
       '<span class="nombre">' + esc(nombre) + '</span>' +
@@ -181,7 +248,7 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
      una creencia equivocada: Martín lo abría, veía el cartel vacío y concluía que
      Codex estaba pelado. Si volvés a tocar esto, comprobalo antes con
      `codex debug prompt-input "hola"`, que lista lo que Codex realmente tiene. */
-  function pintarCodex(r, menu, acomodar, op, acciones) {
+  function pintarCodex(r, menu, listo, op, acciones) {
     /* `$nombre`, no `/nombre`: la barrita es de Claude. Verificado el 2026-08-28 con
        un `codex exec` real — con `$pizarra` contestó el comando exacto que está en el
        CUERPO del SKILL.md, o sea que lo abrió y no adivinó por la descripción. */
@@ -195,12 +262,12 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
     const comandos = COMANDOS.filter(c => c.accion && acciones[c.accion]);
     const comandosHtml = comandos.map(c => filaHtml(c.id, descDe(c, 'codex'),
       '<span class="chapa">se hace aca</span>', 'comando')).join('');
-    menu.innerHTML = '<div class="titulo">Skills</div>' +
-      (skillsHtml || '<div class="aviso">No pude leer las skills de Codex ' +
+    menu.innerHTML = seccion('Skills',
+      skillsHtml || '<div class="aviso">No pude leer las skills de Codex ' +
        '(¿el panel viejo? reinicialo).</div>') +
-      '<div class="titulo">Prompts de Codex</div>' +
-      (promptsHtml || '<div class="aviso">Todavía no tenés ningún prompt de Codex.</div>') +
-      '<div class="titulo">Comandos</div>' + comandosHtml +
+      seccion('Prompts de Codex',
+        promptsHtml || '<div class="aviso">Todavía no tenés ningún prompt de Codex.</div>') +
+      seccion('Comandos', comandosHtml) +
       '<div class="pie">Las skills son las mismas que las de Claude (están enlazadas en ' +
       '<b>' + esc(r.carpeta_skills || '~/.codex/skills') + '</b>), pero acá se llaman con ' +
       '<b>$nombre</b>.<br>Un prompt es otra cosa: un archivo <b>' +
@@ -213,7 +280,7 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
       const c = COMANDOS.find(x => x.id === f.dataset.id);
       f.onclick = () => { cerrar(); if (c && acciones[c.accion]) acciones[c.accion](); };
     });
-    acomodar();
+    listo();
   }
 
   function montar(op) {
@@ -237,13 +304,44 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
 
     boton.onclick = () => abrir(boton, async (menu, acomodar) => {
       const acciones = op.acciones || {};
+      /* El campo se arma UNA vez y la lista se repinta abajo: si se rearmara con la
+         lista, lo que escribiste mientras decia "Leyendo…" se borraba al llegar. */
+      menu.innerHTML = '<div class="at-buscar"><input type="search" ' +
+        'placeholder="Buscar skill o comando…" autocomplete="off" autocapitalize="off" ' +
+        'spellcheck="false" aria-label="Buscar skill o comando"></div>' +
+        '<div class="at-lista"></div>';
+      const campo = menu.querySelector('.at-buscar input');
+      const lista = menu.querySelector('.at-lista');
+      // Al filtrar cambia el alto del menu: se reubica para no irse de la pantalla.
+      const listo = () => { filtrar(lista, campo.value); acomodar(); };
+      campo.oninput = listo;
+      /* ⚠ El campo corta el teclado (la leccion del menu de carpetas en INTERFAZ.md):
+         si no, los atajos de una tecla de la pantalla se disparan mientras escribis.
+         Por eso Escape se atiende aca: primero borra lo escrito, despues cierra. */
+      const corta = e => e.stopPropagation();
+      campo.onkeyup = corta;
+      campo.onkeypress = corta;
+      campo.onkeydown = e => {
+        e.stopPropagation();
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          if (campo.value) { campo.value = ''; listo(); } else cerrar();
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const f = lista.querySelector('.fila.primera');
+          if (f) f.click();
+        }
+      };
+      /* En la compu el cursor ya queda en el buscador. En el celular NO: abrir el
+         teclado solo tapa medio menu y la mayoria de las veces se elige tocando. */
+      if (!matchMedia('(pointer:coarse)').matches) campo.focus();
       const pintar = r => {
         const ok = !!(r && r.ok);
         /* ⭐ Una charla de Codex no tiene skills de Claude: tiene sus propios prompts
            (decisión de Martín, 2026-08-23). Y si todavía no creó ninguno, el menú lo
            dice y explica dónde se crean, en vez de salir en blanco — que se lee como
            "esta pantalla está rota" y no como "no tenés ninguno todavía". */
-        if (ok && r.cerebro === 'codex') return pintarCodex(r, menu, acomodar, op, acciones);
+        if (ok && r.cerebro === 'codex') return pintarCodex(r, lista, listo, op, acciones);
         const skillsHtml = ok ? (r.skills || []).map(s =>
           filaHtml('/' + s.nombre, s.descripcion, chapaDe(s.nombre, r), 'skill')).join('') : '';
         /* ⭐ Las carpetas de skills sin SKILL.md adentro (2026-08-23). Van al final de
@@ -260,19 +358,19 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
         const comandosHtml = COMANDOS.map(c => filaHtml(c.id, c.desc,
           c.accion && acciones[c.accion] ? '<span class="chapa">se hace aca</span>' : '',
           'comando')).join('') + propiosHtml;
-        menu.innerHTML = '<div class="titulo">Skills</div>' +
-          (r === null ? '<div class="aviso">Leyendo…</div>' :
+        lista.innerHTML = seccion('Skills',
+          r === null ? '<div class="aviso cargando">Leyendo…</div>' :
            ok ? ((skillsHtml + rotasHtml) || '<div class="aviso">No hay skills instaladas.</div>') :
            '<div class="aviso">No pude leer las skills (¿el panel viejo? reinicialo).</div>') +
-          '<div class="titulo">Comandos</div>' + comandosHtml +
+          seccion('Comandos', comandosHtml) +
           '<div class="pie">Las skills se escriben en la caja. Los comandos con equivalente ' +
           'en esta pantalla ejecutan ese control.<br>Una skill nueva va en ' +
           '<b>~/.claude/skills/&lt;nombre&gt;/SKILL.md</b> y aparece acá al abrir el menú, ' +
           'sin reiniciar nada.</div>';
-        menu.querySelectorAll('.fila.skill').forEach(f => {
+        lista.querySelectorAll('.fila.skill').forEach(f => {
           f.onclick = () => { op.insertar(f.dataset.id + ' '); cerrar(); };
         });
-        menu.querySelectorAll('.fila.comando').forEach(f => {
+        lista.querySelectorAll('.fila.comando').forEach(f => {
           const c = COMANDOS.find(x => x.id === f.dataset.id);
           f.onclick = () => {
             cerrar();
@@ -280,7 +378,7 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
             else op.insertar(f.dataset.id + ' ');
           };
         });
-        acomodar();
+        listo();
       };
       pintar(null);
       const ses = op.sesion() || {};

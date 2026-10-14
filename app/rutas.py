@@ -131,6 +131,15 @@ ASPECTO = RAIZ / "aspecto.json"
 # pantalla la otra la mostraba sin pintar. Cada marca dice en que mensaje va, desde y
 # hasta que letra, de que color y de que forma. NO toca los archivos de Claude Code.
 MARCAS_CHAT = RAIZ / "marcas_chat.json"
+# El color propio de cada conversacion (2026-10-10, pedido de Martin): su burbuja, la de
+# la sesion y un tinte del fondo. Una entrada por id de charla; lo que no tiene entrada
+# usa el aspecto general. En el SERVIDOR por lo mismo que las marcas: se elige en la
+# compu y tiene que verse igual en el celular. Ver `app/estaticos/colorcharla.js`.
+COLORES_CHARLAS = RAIZ / "colores_charlas.json"
+# Las fotos de fondo propias de una charla o una carpeta (2026-10-10). En `resultados/`
+# porque son fotos personales y esa carpeta no se versiona; el archivo de arriba solo
+# guarda la direccion (`foto: "/charlas/fondo/<nombre>"`).
+FONDOS_CHARLAS = RAIZ / "resultados" / "fondos_charlas"
 # Lo que Martin empezo a escribirle a una conversacion y todavia no mando: el BORRADOR.
 # Una entrada por sesion (la llave es el id de la conversacion) con el texto y cuando se
 # guardo. Vive en el SERVIDOR y no en el navegador a proposito, por lo mismo que las
@@ -222,6 +231,12 @@ ADVERSARIAL = RESULTADOS / "adversarial"
 # guarda aca lo que pegas con Ctrl+V, y el contraste adversarial cuelga aca las capturas
 # que saco el revisor que miro la pantalla.
 PIZARRA_IMAGENES = RESULTADOS / "pizarra_imagenes"
+# ⭐ Todo lo que Martin le manda a una sesion desde el panel (compu o celular), una linea
+# por mensaje, escrita APENAS llega y antes de cualquier otra cosa: si despues el turno
+# falla, lo rechazan o se cae el panel, el mensaje ya quedo guardado (pedido del
+# 2026-09-27: "no perder los prompts que yo mando"). Solo se agrega, nunca se reescribe.
+# Adentro de resultados/ porque lleva nombres de clientes y datos de los proyectos.
+MIS_MENSAJES = RESULTADOS / "mis_mensajes.jsonl"
 # Archivos estaticos que el panel sirve tal cual (hoy: rough.js, la libreria
 # que dibuja "a mano alzada" en la pizarra — local para no depender de un CDN).
 ESTATICOS   = RAIZ / "app" / "estaticos"

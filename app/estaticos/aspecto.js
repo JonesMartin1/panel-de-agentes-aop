@@ -656,6 +656,32 @@
     return Math.min(TOPE_UI[1], Math.max(TOPE_UI[0], f));
   }
 
+  // ⭐ La foto de fondo de UNA charla o de una carpeta (2026-10-10, colorcharla.js). Si hay,
+  // tapa a la general mientras estás ahí; con '' vuelve la general. Lleva el mismo velo que
+  // la general, así el texto se lee igual. ⚠ No dispara `aspecto-aplicado`: colorcharla.js
+  // llama esto desde su repintado, que a su vez escucha ese evento — sería un bucle.
+  let fotoPropia = '', temaClaro = false;
+  function ponerFoto(){
+    const general = aspecto.img === FOTO_WINDOWS && versionFondo
+      ? FOTO_WINDOWS + '?v=' + encodeURIComponent(versionFondo) : aspecto.img;
+    const url = fotoPropia || general;
+    const velo = (VELOS[aspecto.velo] || VELOS.media)[1];
+    // ⚠ Con el tema claro el velo va BLANCO: uno negro apagaría la foto y encima dejaría
+    // el texto —que ahora es oscuro— sobre un fondo oscuro, o sea ilegible.
+    const tela = temaClaro ? '250,250,252' : '6,8,12';
+    document.documentElement.style.setProperty('--fondo-img', url
+      ? 'linear-gradient(rgba(' + tela + ',' + velo + '),rgba(' + tela + ',' + velo +
+        ')),url("' + url + '")'
+      : 'none');
+    document.documentElement.classList.toggle('con-foto', !!url);
+  }
+  window.aspectoFoto = url => {
+    url = url || '';
+    if (url === fotoPropia) return;
+    fotoPropia = url;
+    ponerFoto();
+  };
+
   function aplicar(){
     const r = document.documentElement.style;
     r.setProperty('--tipo', familiaDe(aspecto.tipo));
@@ -866,18 +892,31 @@
     // El velo oscuro encima de la foto es lo que deja que el texto se siga leyendo.
     // A la foto de Windows se le pega la firma de la que está puesta AHORA: así el
     // navegador la vuelve a pedir cuando Windows la cambia, y no antes.
-    const url = aspecto.img === FOTO_WINDOWS && versionFondo
-      ? FOTO_WINDOWS + '?v=' + encodeURIComponent(versionFondo) : aspecto.img;
-    const velo = (VELOS[aspecto.velo] || VELOS.media)[1];
-    // ⚠ Con el tema claro el velo va BLANCO: uno negro apagaría la foto y encima dejaría
-    // el texto —que ahora es oscuro— sobre un fondo oscuro, o sea ilegible.
-    const tela = claro ? '250,250,252' : '6,8,12';
-    r.setProperty('--fondo-img', url
-      ? 'linear-gradient(rgba(' + tela + ',' + velo + '),rgba(' + tela + ',' + velo +
-        ')),url("' + url + '")'
-      : 'none');
-    document.documentElement.classList.toggle('con-foto', !!aspecto.img);
+    temaClaro = claro;
+    ponerFoto();
+    // El color propio de cada charla (colorcharla.js) se arma CON este tema: si cambia el
+    // fondo o el acento, tiene que rehacer su cuenta. Se avisa en vez de llamarlo, así este
+    // archivo no depende de que el otro esté cargado.
+    window.dispatchEvent(new Event('aspecto-aplicado'));
   }
+
+  // ⭐ Las burbujas de UNA charla con color propio (2026-10-10). Misma receta que las
+  // generales de `aplicar()` —la tuya con el color tal cual, la de la sesión apenas teñida
+  // sobre la superficie y el color entero en el borde—, pero devuelve los valores en vez de
+  // ponerlos en la página: los usa colorcharla.js sobre el chat abierto nomás. Un color
+  // vacío devuelve `null` en su par, y ahí manda el general.
+  // ⚠ La letra de tu burbuja se elige por la luz del color y no por el tema: un amarillo
+  // en el tema oscuro con letra blanca no se lee.
+  window.aspectoBurbujas = function (vos, ia){
+    const f = fondoDe();
+    const r = {vos: null, vosTxt: null, ia: null, iaBorde: null};
+    if (esLibre(vos)) {
+      r.vos = vos;
+      r.vosTxt = luzDe(canal(vos, 1), canal(vos, 3), canal(vos, 5)) > .55 ? '#14161c' : '#ffffff';
+    }
+    if (esLibre(ia)) { r.ia = mezcla(ia, f[2], .07); r.iaBorde = ia; }
+    return r;
+  };
 
   function guardar(){
     try { localStorage.setItem('aspecto', JSON.stringify(aspecto)); }
