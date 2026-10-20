@@ -267,8 +267,18 @@
  /* ⚠ Va UNA sola pista, no `0 1fr`: con la columna en `display:none` deja de ser un
     hijo de la grilla, y la conversación se acomodaba sola en la primera pista — la de
     ancho CERO. O sea, escondías la lateral y quedaba la pantalla en blanco. */
- body.lateral-oculto main{grid-template-columns:1fr}
+ body.lateral-oculto main{grid-template-columns:1fr var(--der,0px)}
  body.lateral-oculto aside{display:none}
+ /* ⭐ La columna de la DERECHA (2026-10-20), como la del Claude Desktop: Entorno (máquina,
+    carpeta y control remoto), Contexto, Conectores y lo último que vio en el navegador.
+    ⚠ Cerrada sigue siendo un hijo de la grilla con ancho cero, NO `display:none`: por lo
+    mismo que la de la izquierda, sacarla de la grilla corre la conversación de pista. */
+ main{grid-template-columns:var(--lat,272px) 1fr var(--der,0px)}
+ body.derecha-abierta{--der:300px}
+ #derecha{overflow:hidden;background:var(--c0f1320,#0f1320);min-width:0;visibility:hidden}
+ body.derecha-abierta #derecha{visibility:visible;overflow-y:auto;
+   border-left:1px solid var(--c1b2130,#1b2130);padding:12px 12px 20px}
+ #derecha .notaDer{font-size:12px;color:#7a8396}
  /* ⭐ Los interruptores de las barras, todos juntos a la izquierda: la columna, el menú
     de pantallas, la fila de conversaciones y las dos de una. Apagado, el botón queda
     tenue pero SIGUE ESTANDO — es con lo que se vuelve. */
@@ -910,6 +920,7 @@
     <div id="btnMenu" class="botBarra" title="Esconder esta barra (Esc para volver)">▭</div>
     <div id="btnTabs" class="botBarra" title="Esconder la fila de conversaciones">⧉</div>
     <div id="btnPleno" class="botBarra" title="Esconder las dos barras (Esc para volver)">⤢</div>
+    <div id="btnDerecha" class="botBarra" title="Mostrar la columna de la derecha: entorno, contexto, conectores (Ctrl+.)">◨</div>
   </div>
   <nav id="menuPantallas"></nav>
 </div>
@@ -924,6 +935,7 @@
 <script src="/estaticos/menu.js"></script>
 <script src="/estaticos/aspecto.js"></script>
 <script src="/estaticos/atajos.js"></script>
+<script src="/estaticos/entorno.js"></script>
 <main>
   <aside>
     <div id="paneProy">
@@ -944,6 +956,7 @@
     <div id="tirador" title="Arrastrá para ensanchar"></div>
   </aside>
   <section id="cuerpo"><div class="vacio">Cargando…</div></section>
+  <div id="derecha" class="entornoCaja"></div>
 </main>
 <div id="chapas"></div>
 <div class="caja" id="caja" style="display:none">
@@ -1093,8 +1106,10 @@ function llegoEco(mensajes, texto, conFoto, textosAntes, fotosAntes){
     ? cuentaFotos(mensajes) > (fotosAntes ?? 0)
     : cuentaTuya(mensajes, texto) > (textosAntes ?? 0);
 }
+// ⭐ La foto que mandaste se abre en el visor flotante de pasos.js, no en otra pestaña
+// (pedido de Martín, 2026-10-20). Si pasos.js no cargó, queda la pestaña de antes.
 const fotosHtml = urls => (urls||[]).map(u =>
-  '<img src="' + u + '" onclick="window.open(this.src)">').join('');
+  '<img src="' + u + '"' + (window.Pasos ? ' data-visor' : ' onclick="window.open(this.src)"') + '>').join('');
 function soltarFotosVuelo(sid){
   (fotosVuelo[sid]||[]).forEach(u => URL.revokeObjectURL(u));
   delete fotosVuelo[sid]; delete vecesFotosVuelo[sid];
@@ -5113,6 +5128,52 @@ function verLateral(oculto){
 }
 verLateral(lateralOculto());
 $('#btnLateral').onclick = () => verLateral(!lateralOculto());
+
+// ⭐ La columna de la DERECHA (2026-10-20), la del Claude Desktop: Entorno, Contexto,
+// Conectores y el Navegador. Se pide entera a `/movil/entorno` y solo mientras está
+// abierta: cerrada no cuesta nada. Lo abierto/cerrado de cada tarjeta queda guardado.
+const derAbierta = () => document.body.classList.contains('derecha-abierta');
+let derClave = '', derHora = 0, derPidiendo = false;
+function verDerecha(abierta){
+  document.body.classList.toggle('derecha-abierta', abierta);
+  localStorage.setItem('sesDerecha', abierta ? '1' : '0');
+  $('#btnDerecha').classList.toggle('off', !abierta);
+  $('#btnDerecha').title = (abierta ? 'Esconder' : 'Mostrar') +
+    ' la columna de la derecha: entorno, contexto, conectores (Ctrl+.)';
+  if (abierta) refrescarDerecha(true);
+}
+verDerecha(localStorage.getItem('sesDerecha') === '1');
+$('#btnDerecha').onclick = () => verDerecha(!derAbierta());
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === '.') {
+    e.preventDefault(); verDerecha(!derAbierta());
+  }
+});
+
+function ubicDerecha(){
+  const t = abiertas.find(x => x.sid === activa);
+  if (!t) return null;
+  return {cwd: t.cwd || '', sid: t.sid.startsWith('nueva-') ? '' : t.sid, nombre: t.nombre || ''};
+}
+if (window.Entorno) Entorno.iniciar({ubicacion: ubicDerecha, alCambiar: () => refrescarDerecha(true)});
+
+async function refrescarDerecha(ya){
+  if (!window.Entorno || !derAbierta() || derPidiendo || document.visibilityState === 'hidden') return;
+  const u = ubicDerecha();
+  if (!u){ $('#derecha').innerHTML = '<div class="notaDer">Abrí una charla para ver su entorno.</div>';
+           $('#derecha').dataset.html = ''; return; }
+  const clave = u.cwd + '|' + u.sid;
+  // Mientras trabaja se refresca seguido (la foto del navegador cambia); quieta, cada tanto.
+  const cada = (u.sid && (ocupadaSes[u.sid] || enVuelo[u.sid])) ? 3000 : 10000;
+  if (!ya && clave === derClave && Date.now() - derHora < cada) return;
+  derPidiendo = true;
+  try {
+    const r = await Entorno.pedir(u);
+    derClave = clave; derHora = Date.now();
+    Entorno.pintar($('#derecha'), r, u);
+  } catch(e){} finally { derPidiendo = false; }
+}
+setInterval(() => refrescarDerecha(false), 1500);
 
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;

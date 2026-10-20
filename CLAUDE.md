@@ -150,6 +150,12 @@ Si agregás una regla acá, agregale su invariante allá.
     **no** sirve para esto: reinicia panel y servicios y no toca ni un proceso de sesión.
   - Su regla en el chequeo de acá arriba se llama `no-dormir-con-trabajo-abajo`; corrélo
     con `--mutar`, que es la que prueba que el guardián no sea un adorno.
+- ⭐⭐ **Con el control remoto prendido, el CLI arranca turnos solo** (le escriben desde
+  claude.ai). Los atiende `_vigia_remoto` (`app/voz/sesiones_movil.py`, 2026-10-20), que
+  agarra el candado del turno SOLO mientras hay algo que leer, y contesta los permisos por
+  `_atender_pedido`, el mismo portero de `_turno` (ahí vive `_asegurar_chrome`). Sin el
+  vigía, el primer permiso deja la charla colgada para siempre. Una charla publicada no se
+  duerme (`_dormible`). Se prueba con `python -m pruebas.probar_entorno_remoto --mutar`.
 - ⭐⭐ **`_cambiar_stream()` abre el nuevo micrófono ANTES de cerrar el viejo.** No invertir ese orden nunca. Antes cerraba primero y el 2026-08-11, tras suspender la máquina y reenchufar el dongle, el nuevo no abrió (`AUDCLNT_E_DEVICE_INVALIDATED`) y quedó **sin ningún micrófono**: proceso vivo, panel en verde, sordo y sin avisar a nadie. Si el nuevo falla se queda con el que andaba, y como último recurso `_asegurar_algun_stream()` abre cualquiera que funcione. **La regla es que nunca puede quedar sin micrófono.**
 - El watchdog detecta que la máquina **volvió de suspenderse** por el salto del reloj (>60 s entre vueltas del bucle de 5 s) y rearma el micrófono solo, refrescando la lista de PortAudio con `sd._terminate()+sd._initialize()` — al suspender, Windows desarma las conexiones de audio y al despertar arma otras con el mismo nombre.
 - ⭐ El micrófono se abre por **WASAPI con `auto_convert=True`**, no por DirectSound (`_candidatos_micro()` en `app/voz/voz.py`). DirectSound se queda entregando ceros sin error cuando el dispositivo se va y vuelve, y eso era la causa real del "se muere el micrófono a cada rato". WASAPI en modo compartido exige la frecuencia nativa, así que **sin `auto_convert` no abre a 16 kHz** (`PaErrorCode -9997`). WDM-KS no sirve: `sounddevice` no soporta su API bloqueante. El predeterminado de Windows va **último** en la cadena, porque puede ser otro micrófono.

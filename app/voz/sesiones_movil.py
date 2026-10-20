@@ -13,6 +13,7 @@ DOS CAMINOS DISTINTOS, y la diferencia importa:
   procesos sobre ella la bifurcan: por eso `listar()` marca cuales estan vivas y la
   pantalla lo avisa antes de dejar escribir.
 """
+import base64
 import json
 import os
 import queue
@@ -22,6 +23,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 
 import psutil
@@ -30,7 +32,7 @@ from app.rutas import (CLAUDE_PROYECTOS, CARPETAS_SESIONES, AJUSTES_SESIONES,
                        CLAUDE_SESION, CODEX_SESION, CODEX_SESIONES,
                        NOMBRES_SESIONES, FRENO_AGENTES,
                        PROYECTOS_CONFIABLES, CERT_NODE_CODEX, CERT_BUNDLE_CODEX,
-                       ASPECTO_CARPETAS, CHROME_EXE, CHROME_EXE_X86)
+                       ASPECTO_CARPETAS, CHROME_EXE, CHROME_EXE_X86, FOTOS_PASOS)
 from app.voz import seguir
 from app.voz.prompt_master_auto import INSTRUCCION as PROMPT_MASTER_AUTO, argumento_codex
 
@@ -994,6 +996,15 @@ class _Viva:
         # `encolar`). Se tacha cuando el CLI lo devuelve por `--replay-user-messages`.
         self.encolados = []
         self.con_replay = False
+        # ⭐ Lo que el CLI dice de si mismo al arrancar cada turno (`system`/`init`): de
+        # ahi salen los conectores de la columna derecha. Lo anota `_lector`.
+        self.init = {}
+        # ⭐ El control remoto (2026-10-20): {"url": ..., "estado": ...} mientras esta
+        # charla esta publicada en claude.ai/code. Ver `remoto()`.
+        self.remoto = None
+        # Pedidos de control que hizo el PANEL y esperan su respuesta (request_id ->
+        # [Event, respuesta]). `_lector` los ataja antes de que lleguen a la cola.
+        self.respuestas = {}
 
     def clave(self):
         return _clave(self.cwd, self.sid)
@@ -1006,10 +1017,68 @@ def _lector(viva):
     """Vuelca el stdout del CLI en la cola de esa sesion. Un hilo por proceso."""
     try:
         for linea in viva.proc.stdout:
+            if _atajar(viva, linea):
+                continue
             viva.cola.put(linea)
     except Exception:
         pass
+    viva.remoto = None
     viva.cola.put(None)               # el proceso se murio
+
+
+def _atajar(viva, linea):
+    """Mira las lineas que importan ESTE o NO un turno corriendo. True = no va a la cola.
+
+    ⭐ Es el unico lugar que ve todo lo que escribe el CLI: entre turnos nadie lee la cola
+    (y el turno siguiente la vacia sin mirar, `_descartar_restos`). Por eso aca se anotan
+    los conectores (`system`/`init`), el estado del control remoto y las respuestas a los
+    pedidos de control que hizo el panel — esas ultimas no siguen a la cola, porque no
+    son de ningun turno.
+    """
+    cabeza = linea[:80]
+    if '"control_response"' in cabeza and viva.respuestas:
+        try:
+            r = json.loads(linea).get("response") or {}
+        except Exception:
+            return False
+        espera = viva.respuestas.get(r.get("request_id"))
+        if espera:
+            espera[1] = r
+            espera[0].set()
+            return True
+        return False
+    if '"system"' not in cabeza:
+        return False
+    try:
+        d = json.loads(linea)
+    except Exception:
+        return False
+    st = d.get("subtype")
+    if st == "init":
+        viva.init = {"conectores": [{"nombre": s.get("name") or "",
+                                     "estado": s.get("status") or ""}
+                                    for s in d.get("mcp_servers") or []
+                                    if isinstance(s, dict)],
+                     "herramientas": len(d.get("tools") or []),
+                     "version": d.get("claude_code_version") or ""}
+    elif st == "bridge_state" and viva.remoto is not None:
+        viva.remoto["estado"] = str(d.get("state") or d.get("status") or "")
+    return False
+
+
+def _pedir_control(viva, req, espera=40):
+    """Le pide algo al CLI por el canal de control y espera la respuesta (o None)."""
+    rid = "panel-" + uuid.uuid4().hex[:12]
+    ent = viva.respuestas[rid] = [threading.Event(), None]
+    try:
+        with viva.candado_stdin:
+            viva.proc.stdin.write(json.dumps({"type": "control_request",
+                                              "request_id": rid, "request": req}) + "\n")
+            viva.proc.stdin.flush()
+        ent[0].wait(espera)
+        return ent[1]
+    finally:
+        viva.respuestas.pop(rid, None)
 
 
 def _drenar_errores(viva):
@@ -1196,8 +1265,11 @@ def _dormible(viva, ahora, piso=None):
     """
     if piso is None:
         piso = PISO_QUIETA_SEG
+    # ⭐ Una charla publicada por control remoto no se duerme nunca (2026-10-20): dormirla
+    # corta el puente con claude.ai y el celular queda hablandole a la nada.
     return (viva.viva()
             and not viva.turno.locked()
+            and viva.remoto is None
             and ahora - viva.ultimo >= piso
             and not _tiene_trabajo_abajo(viva))
 
@@ -1415,6 +1487,11 @@ def _conseguir_viva(cwd, sid, modelo, esfuerzo, modo="", desde=""):
         else:
             motivo = ""
     if viva is not None:
+        # ⭐ Si estaba publicada por control remoto, la nueva se vuelve a publicar sola:
+        # cambiarle el modelo no puede cortarte la charla en el celular sin avisar.
+        if viva.remoto is not None:
+            threading.Thread(target=lambda: (time.sleep(3), remoto(cwd, sid, True)),
+                             daemon=True).start()
         _apagar_viva(viva, motivo)
     elif sid:
         # ⚠⚠ No la tenemos anotada, pero eso NO quiere decir que no haya nadie
@@ -1968,6 +2045,158 @@ def _juntar_pasos(filas, resultados):
     return salida
 
 
+# --- ⭐ Lo que vio en el navegador, a la vista (2026-10-20) ----------------------------
+# Pedido de Martin con una captura del Claude Desktop: *"como puedo hacer que este panel
+# pueda contestarme asi"*. Desktop junta los pasos del navegador en un renglon plegable
+# ("Interacted with page") y abajo muestra la ultima foto que saco. Aca pasaba al reves:
+# la foto se tiraba (el hilo leia solo el texto de cada resultado) y quedaba una pila de
+# "hizo clic", "miró la pantalla ×3" sin que se viera nada de lo que miro.
+# ⭐ La foto NO viaja con el hilo: una captura pesa 300-900 KB en base64 y el hilo se pide
+# cada 3 s. El hilo dice QUE paso la tiene; la pantalla la pide por `/movil/foto`.
+_FOTO_TIPOS = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp",
+               "image/gif": "gif"}
+
+
+def _imagen_de(b):
+    """El primer bloque de imagen de un `tool_result`, o None."""
+    c = (b or {}).get("content")
+    for x in c if isinstance(c, list) else []:
+        if isinstance(x, dict) and x.get("type") == "image" and \
+                isinstance(x.get("source"), dict) and x["source"].get("data"):
+            return x["source"]
+    return None
+
+
+def _fotos_que_mando(dicho, leidas):
+    """Los Read que abrieron una foto que MANDO Martin: esas no se repiten en el hilo.
+
+    ⚠⚠ Pedido suyo (2026-10-20): *"cuando Claude entra por navegador o hace capturas para
+    ver cosas tambien lo quiero ver, lo que no quiero ver es cuando se mete a ver la foto
+    que le acabo de mandar"*. La sesion abre con Read lo que le mandas, y ese Read devuelve
+    la imagen: mostrarla te devolvia tu propia foto abajo de "leyó …png". Se reconoce porque
+    la ruta va escrita en tu mensaje ("[Te paso una imagen…; está guardada en <ruta>]"),
+    venga del panel, del celular o de donde sea.
+    """
+    def norm(s):
+        return (s or "").replace("\\", "/").lower()
+    todo = norm(" ".join(dicho))
+    return {i for i, ruta in leidas.items() if ruta and norm(ruta) in todo}
+
+
+def _host(url):
+    m = re.match(r"^[a-z]+://([^/?#]+)", url or "", re.I)
+    return re.sub(r"^www\.", "", m.group(1)) if m else ""
+
+
+def _agrupar_navegador(filas, fotos):
+    """Junta cada tanda seguida de pasos del navegador en UN renglon, como Desktop.
+
+    El renglon dice donde anduvo y cuantos pasos hizo; adentro (`grupo`) van los pasos de
+    a uno, cada cual con su foto si la saco, y `foto` es la ultima de la tanda: la que la
+    pantalla muestra abajo sin que haga falta tocar nada.
+    ⚠ Un paso negado o fallado NO se esconde adentro del grupo: el renglon lo cuenta
+    ("1 sin dejar"), porque lo que no se le dejo hacer no puede leerse como hecho.
+    ⚠ Una tanda de UN solo paso queda como estaba: agrupar uno solo es ruido.
+    """
+    salida, tanda = [], []
+
+    def cerrar():
+        if len(tanda) == 1:
+            t = tanda[0]
+            ids_foto = [i for i in t["ids"] if i in fotos]
+            if ids_foto:
+                t["foto"] = ids_foto[-1]
+            salida.append(t)
+        elif tanda:
+            grupo, ids, us, foto, sitio = [], [], [], "", ""
+            negados = fallados = 0
+            for t in tanda:
+                f_ = ([i for i in t["ids"] if i in fotos] or [""])[-1]
+                grupo.append({"t": t["texto"], "e": t.get("estado", ""), "f": f_,
+                              "ids": t["ids"]})
+                ids += t["ids"]
+                us += t["us"]
+                foto = f_ or foto
+                sitio = _host(t.get("url")) or sitio
+                negados += t.get("estado") == "negado"
+                fallados += t.get("estado") == "error"
+            n = sum(t.get("veces", 1) for t in tanda)
+            texto = "usó el navegador" + (f" en {sitio}" if sitio else "") + f" · {n} pasos"
+            if negados:
+                texto += f" · {negados} sin dejar"
+            if fallados:
+                texto += f" · {fallados} " + ("falló" if fallados == 1 else "fallaron")
+            salida.append({"de": "paso", "texto": texto, "base": texto, "veces": 1,
+                           "h": tanda[0].get("h"), "us": us, "ids": ids, "nav": True,
+                           "grupo": grupo, "foto": foto,
+                           "estado": "" if any(t.get("estado") == "" for t in tanda)
+                           else "ok"})
+        tanda.clear()
+
+    for f in filas:
+        if f.get("de") == "paso" and f.get("nav"):
+            tanda.append(f)
+            continue
+        cerrar()
+        # Una foto de algo que no es el navegador tambien se muestra: una captura que la
+        # sesion saco para mirar algo (un Read de su .png, un render). Las fotos que mando
+        # Martin ya vienen sacadas de `fotos` (`_fotos_que_mando`).
+        if f.get("de") == "paso":
+            ids_foto = [i for i in f.get("ids") or [] if i in fotos]
+            if ids_foto:
+                f["foto"] = ids_foto[-1]
+        salida.append(f)
+    cerrar()
+    return salida
+
+
+def foto_paso(cwd, sid, tool_id):
+    """La foto que devolvio esa herramienta: (ruta del archivo, tipo) o (None, "").
+
+    Se saca de la charla UNA vez y queda en `FOTOS_PASOS`; las siguientes se sirven del
+    disco. ⚠ El id llega de la pantalla: se valida con una regla estricta antes de armar
+    ninguna ruta con el.
+    """
+    if not (sid and tool_id and re.fullmatch(r"[A-Za-z0-9_\-]{6,80}", tool_id)
+            and re.fullmatch(r"[A-Za-z0-9\-]{8,80}", sid)) or es_codex(sid):
+        return None, ""
+    carpeta = FOTOS_PASOS / sid
+    for ext_tipo, ext in _FOTO_TIPOS.items():
+        r = carpeta / f"{tool_id}.{ext}"
+        if r.exists():
+            return r, ext_tipo
+    try:
+        f = open(seguir.carpeta_de(cwd) / f"{sid}.jsonl", "r", encoding="utf-8",
+                 errors="replace")
+    except OSError:
+        return None, ""
+    with f:
+        for linea in f:
+            if tool_id not in linea or '"tool_result"' not in linea:
+                continue
+            try:
+                d = json.loads(linea)
+            except Exception:
+                continue
+            c = (d.get("message") or {}).get("content")
+            for b in c if isinstance(c, list) else []:
+                if isinstance(b, dict) and b.get("type") == "tool_result" \
+                        and b.get("tool_use_id") == tool_id:
+                    src = _imagen_de(b)
+                    tipo = (src or {}).get("media_type") or "image/png"
+                    if not src or tipo not in _FOTO_TIPOS:
+                        return None, ""
+                    try:
+                        crudo = base64.b64decode(src["data"])
+                    except Exception:
+                        return None, ""
+                    carpeta.mkdir(parents=True, exist_ok=True)
+                    r = carpeta / f"{tool_id}.{_FOTO_TIPOS[tipo]}"
+                    r.write_bytes(crudo)
+                    return r, tipo
+    return None, ""
+
+
 # --- El detalle de un paso, para desplegarlo (2026-09-27) -----------------------------
 # Pedido de Martin: que el panel muestre lo que muestra Claude Code — el cambio de cada
 # edicion en rojo y verde, y lo que devolvio cada comando. No viaja con el hilo (que se
@@ -2109,7 +2338,10 @@ def _filas_de(jsonl):
     guardado = _HILOS.get(clave)
     if guardado is not None:
         return list(guardado)
-    filas, resultados = [], {}
+    filas, resultados, fotos = [], {}, set()
+    # Lo que dijo Martin tal cual (con la marca "[Te paso una imagen… guardada en …]") y
+    # que archivo abrio cada Read: con eso se sabe que foto es la que el mismo mando.
+    dicho, leidas = [], {}
     with open(jsonl, "r", encoding="utf-8", errors="replace") as f:
         for linea in f:
             if seguir._es_turno_usuario(linea):
@@ -2120,6 +2352,7 @@ def _filas_de(jsonl):
                         b.get("text", "") for b in (c or []) if isinstance(b, dict))
                 except Exception:
                     t = ""
+                dicho.append(t)
                 t = _limpiar(t)
                 # los avisos que el sistema le mete al prompt no son cosas que dijo Martin
                 if t and not t.startswith("<") and "system-reminder" not in t[:120]:
@@ -2150,6 +2383,7 @@ def _filas_de(jsonl):
                     p = a.get("prompt")
                     t = p if isinstance(p, str) else " ".join(
                         x.get("text", "") for x in (p or []) if isinstance(x, dict))
+                    dicho.append(t)
                     t = _limpiar(t)
                     if t:
                         filas.append({"de": "vos", "texto": _recortar(t),
@@ -2161,6 +2395,10 @@ def _filas_de(jsonl):
                 for b in c if isinstance(c, list) else []:
                     if isinstance(b, dict) and b.get("type") == "tool_result":
                         resultados[b.get("tool_use_id") or ""] = _estado_resultado(b)
+                        # Y si devolvio una foto (2026-10-20): solo se anota QUE la tiene;
+                        # la foto viaja aparte por `/movil/foto`, no adentro del hilo.
+                        if _imagen_de(b):
+                            fotos.add(b.get("tool_use_id") or "")
                 continue
             for b in c if isinstance(c, list) else []:
                 if isinstance(b, dict) and b.get("type") == "tool_use":
@@ -2169,10 +2407,19 @@ def _filas_de(jsonl):
                         continue
                     # `us`: los uuid de las lineas (para el texto en vivo); `ids`: los de
                     # las herramientas (para desplegar el detalle con `detalle_pasos`).
-                    filas.append({"de": "paso", "texto": paso, "base": paso,
-                                  "veces": 1, "h": _hora_local(linea),
-                                  "us": [d.get("uuid") or ""], "ids": [b.get("id") or ""]})
-    filas = _juntar_pasos(filas, resultados)
+                    f = {"de": "paso", "texto": paso, "base": paso,
+                         "veces": 1, "h": _hora_local(linea),
+                         "us": [d.get("uuid") or ""], "ids": [b.get("id") or ""]}
+                    if str(b.get("name") or "").startswith(CHROME_PREFIJO):
+                        f["nav"] = True
+                        if b.get("name") == CHROME_PREFIJO + "navigate":
+                            f["url"] = str((b.get("input") or {}).get("url") or "")
+                    elif b.get("name") == "Read":
+                        leidas[b.get("id") or ""] = str(
+                            (b.get("input") or {}).get("file_path") or "")
+                    filas.append(f)
+    fotos -= _fotos_que_mando(dicho, leidas)
+    filas = _agrupar_navegador(_juntar_pasos(filas, resultados), fotos)
     if len(_HILOS) > 300:
         _HILOS.clear()
     _HILOS[clave] = filas
@@ -3201,6 +3448,329 @@ def encolar(cwd, sid, texto):
     return True, ""
 
 
+# --- El control remoto, como en Claude Desktop (2026-10-20) ---------------------------
+# Pedido de Martin: el interruptor "Remote Control" del Desktop, que publica la charla en
+# claude.ai/code y deja seguirla desde el celular. Medido con
+# `pruebas/sonda_remote_control.py` (CLI 2.1.296): es un `control_request` con
+# `subtype: "remote_control"` y anda con el proceso en `-p` stream-json — o sea, con las
+# sesiones del panel tal como estan. Contesta con la `session_url`.
+# ⚠⚠ Lo nuevo es que el CLI arranca turnos SOLO, cuando le escriben desde alla. Esos
+# turnos piden permisos como cualquiera y aca nadie los leia: entre turnos la cola no la
+# mira nadie. Para eso esta `_vigia_remoto`, que existe SOLO mientras el control remoto
+# esta prendido: una charla sin control remoto se porta exactamente igual que antes.
+INIT_VISTO = {}        # sid -> lo ultimo que dijo el CLI de si mismo, para la que se durmio
+
+
+def remoto(cwd, sid, prender, nombre=""):
+    """Prende o apaga el control remoto de esa charla. Devuelve el estado para la pantalla."""
+    if not sid or es_codex(sid):
+        return {"ok": False, "error": "El control remoto es de las charlas de Claude ya "
+                                      "empezadas: mandale un mensaje primero."}
+    v = _viva_de(cwd, sid)
+    if prender:
+        if v is None or not v.viva():
+            v = _conseguir_viva(cwd, sid, modelo_de(sid), esfuerzo_de(sid), modo_de(sid))
+        if v.remoto is None:
+            r = _pedir_control(v, {"subtype": "remote_control", "enabled": True,
+                                   "name": (nombre or Path(cwd).name)[:60]})
+            if not r or r.get("subtype") != "success":
+                return {"ok": False, "error": "Claude Code no lo prendió" + (
+                    ": " + str(r.get("error"))[:200] if r and r.get("error") else
+                    " (no contestó a tiempo).")}
+            resp = r.get("response") or {}
+            v.remoto = {"url": resp.get("session_url") or resp.get("connect_url") or "",
+                        "estado": "conectado", "desde": time.time()}
+            threading.Thread(target=_vigia_remoto, args=(v,), daemon=True).start()
+            print("sesiones: control remoto prendido en %s" % sid[:8], flush=True)
+    elif v is not None and v.remoto is not None:
+        try:
+            _pedir_control(v, {"subtype": "remote_control", "enabled": False}, espera=15)
+        finally:
+            v.remoto = None
+        print("sesiones: control remoto apagado en %s" % sid[:8], flush=True)
+    return {"ok": True, "remoto": _estado_remoto(v)}
+
+
+def _estado_remoto(v):
+    if v is None or v.remoto is None or not v.viva():
+        return {"prendido": False}
+    return {"prendido": True, "url": v.remoto.get("url") or "",
+            "estado": v.remoto.get("estado") or ""}
+
+
+def _vigia_remoto(viva):
+    """Atiende los turnos que el CLI arranca solo porque le escribieron desde claude.ai.
+
+    ⭐ Toma el MISMO candado que un turno del panel, y solo mientras hay algo que leer:
+    quieta no lo tiene agarrado, asi que escribirle desde el panel anda igual que siempre.
+    Con un turno remoto corriendo, el panel la ve trabajando (EN_CURSO), la muestra en vivo
+    y se puede Parar; los permisos y las preguntas pasan por `_atender_pedido`, igual que
+    en un turno propio.
+    """
+    while viva.remoto is not None and viva.viva():
+        if viva.cola.empty() or viva.turno.locked():
+            time.sleep(0.4)
+            continue
+        if not viva.turno.acquire(blocking=False):
+            continue
+        clave, p, arranco = viva.clave(), viva.proc, False
+        try:
+            quieto = time.time()
+            while True:
+                try:
+                    linea = viva.cola.get(timeout=0.5)
+                except queue.Empty:
+                    with _CANDADO_PREGUNTAS:
+                        esperando = clave in PREGUNTAS
+                    ahora = time.time()
+                    if esperando:
+                        quieto = ahora
+                    # Sin turno arrancado, una linea suelta no retiene el candado; con uno,
+                    # se espera su resultado (o 10 minutos de silencio, como `_turno`).
+                    if ahora - quieto > (TIMEOUT if arranco else 0.6):
+                        break
+                    continue
+                if linea is None:
+                    viva.cola.put(None)
+                    return
+                quieto = time.time()
+                try:
+                    d = json.loads(linea)
+                except Exception:
+                    continue
+                t = d.get("type")
+                if not arranco and t in ("stream_event", "assistant", "user",
+                                         "control_request"):
+                    arranco = True
+                    with _CANDADO_CURSO:
+                        EN_CURSO[clave] = p
+                    _en_vivo_empezar(clave)
+                if t in ("stream_event", "assistant", "system"):
+                    _en_vivo_evento(clave, d)
+                if t == "control_request":
+                    _atender_pedido(viva, d, clave)
+                elif t == "assistant":
+                    for b in ((d.get("message") or {}).get("content") or []):
+                        if (isinstance(b, dict) and b.get("type") == "tool_use"
+                                and b.get("name") == "TodoWrite"):
+                            _guardar_tareas(clave, (b.get("input") or {}).get("todos"))
+                elif t == "user":
+                    for b in ((d.get("message") or {}).get("content") or []):
+                        tx = (b.get("text") or "").strip() if isinstance(b, dict) else ""
+                        for e in list(viva.encolados):
+                            if e.strip() == tx:
+                                viva.encolados.remove(e)
+                                break
+                elif t == "result":
+                    if viva.encolados and not d.get("is_error"):
+                        continue
+                    break
+        except Exception as e:
+            print("sesiones: el vigia del control remoto tropezo:", e, flush=True)
+        finally:
+            if arranco:
+                _en_vivo_terminar(clave)
+                viva.encolados = []
+                with _CANDADO_PREGUNTAS:
+                    PREGUNTAS.pop(clave, None)
+                with _CANDADO_CURSO:
+                    if EN_CURSO.get(clave) is p:
+                        EN_CURSO.pop(clave, None)
+                viva.ultimo = time.time()
+            viva.turno.release()
+
+
+# --- La columna derecha de /sesiones: Entorno, Contexto, Conectores, Navegador --------
+# (2026-10-20, pedido de Martin con una captura del Desktop al lado)
+
+_NAV_VISTO = {}
+
+
+def _ultimo_navegador(cwd, sid, cola=4_000_000):
+    """La ultima foto y la ultima direccion del navegador en esa charla, o {}.
+
+    Lee solo la cola del archivo (las fotos pesan: cada una son ~100 KB en base64) y
+    queda guardado hasta que el archivo cambie.
+    """
+    try:
+        jsonl = seguir.carpeta_de(cwd) / f"{sid}.jsonl"
+        est = jsonl.stat()
+    except OSError:
+        return {}
+    clave = (str(jsonl), est.st_mtime, est.st_size)
+    if clave in _NAV_VISTO:
+        return _NAV_VISTO[clave]
+    nav_ids, res = set(), {"foto": "", "url": "", "hora": ""}
+    try:
+        with open(jsonl, "rb") as f:
+            if est.st_size > cola:
+                f.seek(est.st_size - cola)
+                f.readline()
+            crudo = f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return {}
+    for linea in crudo.splitlines():
+        if CHROME_PREFIJO not in linea and '"tool_result"' not in linea:
+            continue
+        try:
+            d = json.loads(linea)
+        except Exception:
+            continue
+        c = (d.get("message") or {}).get("content")
+        for b in c if isinstance(c, list) else []:
+            if not isinstance(b, dict):
+                continue
+            if b.get("type") == "tool_use" and str(b.get("name") or "").startswith(
+                    CHROME_PREFIJO):
+                nav_ids.add(b.get("id") or "")
+                url = (b.get("input") or {}).get("url")
+                if url:
+                    res["url"] = str(url)[:300]
+                res["hora"] = d.get("timestamp") or res["hora"]
+            elif (b.get("type") == "tool_result" and b.get("tool_use_id") in nav_ids
+                  and _imagen_de(b)):
+                res["foto"] = b.get("tool_use_id")
+    if len(_NAV_VISTO) > 200:
+        _NAV_VISTO.clear()
+    _NAV_VISTO[clave] = res
+    return res
+
+
+def entorno(cwd, sid):
+    """Todo lo de la columna derecha de una charla, en un solo pedido."""
+    import socket
+    v = _viva_de(cwd, sid) if sid else None
+    init = (v.init if v is not None and v.viva() else {}) or {}
+    if init and sid:
+        INIT_VISTO[sid] = init
+    de = "ahora" if init else ""
+    if not init and sid in INIT_VISTO:
+        init, de = INIT_VISTO[sid], "la última vez que estuvo prendida"
+    if not init and cwd:
+        init, de = {"conectores": _conectores_configurados(cwd)}, "configurados"
+    perfil, _ = navegador_de(cwd) if cwd else ("", "")
+    codex = bool(sid) and es_codex(sid)
+    return {
+        "ok": True,
+        "maquina": socket.gethostname(),
+        "carpeta": str(cwd or ""),
+        "nombre": Path(cwd).name if cwd else "",
+        "cerebro": "codex" if codex else "claude",
+        "contexto": contexto(cwd, sid) if sid else None,
+        "conectores": init.get("conectores") or [],
+        "conectores_de": de,
+        "version": init.get("version") or "",
+        "remoto": _estado_remoto(v),
+        "remoto_posible": bool(sid) and not codex,
+        "navegador": ({"perfil": _partes_chrome(perfil)[1] or "Default",
+                       **(_ultimo_navegador(cwd, sid) if sid else {})}
+                      if perfil else None),
+    }
+
+
+def _conectores_configurados(cwd):
+    """Los servidores MCP anotados para esa carpeta, cuando todavia no hay un proceso que
+    diga como estan. Solo nombres: el estado de verdad lo da el CLI al arrancar."""
+    nombres = []
+    try:
+        cfg = json.loads((Path.home() / ".claude.json").read_text(encoding="utf-8"))
+    except Exception:
+        cfg = {}
+    proy = (cfg.get("projects") or {})
+    propio = proy.get(str(cwd)) or proy.get(str(cwd).replace("\\", "/")) or {}
+    for fuente in (cfg.get("mcpServers") or {}, propio.get("mcpServers") or {}):
+        nombres += list(fuente)
+    try:
+        nombres += list((json.loads((Path(cwd) / ".mcp.json").read_text(encoding="utf-8"))
+                         .get("mcpServers") or {}))
+    except Exception:
+        pass
+    return [{"nombre": n, "estado": ""} for n in dict.fromkeys(nombres)]
+
+
+def _atender_pedido(viva, d, clave):
+    """Contesta un `control_request` del CLI (permisos, preguntas, el plan).
+
+    Sacado de `_turno` el 2026-10-20 para que lo use tambien el vigia del control
+    remoto (`_vigia_remoto`): un turno que llega desde claude.ai pide permisos igual,
+    y sin nadie que los conteste el CLI se queda parado esperando para siempre.
+    """
+    p = viva.proc
+    req = d.get("request") or {}
+    rid = d.get("request_id")
+    if req.get("subtype") == "can_use_tool":
+        if req.get("tool_name") == "AskUserQuestion":
+            # La pregunta queda pendiente: la pantalla la ve por
+            # pregunta_de() y la contesta responder_pregunta().
+            # Aca NO se bloquea nada: se sigue leyendo la cola.
+            with _CANDADO_PREGUNTAS:
+                PREGUNTAS[clave] = {
+                    "request_id": rid,
+                    "input": req.get("input") or {},
+                    "hora": time.time(), "proc": p,
+                    "candado": viva.candado_stdin}
+            # Y si no la contestas en un rato, te suena el
+            # telefono: la sesion esta parada esperandote.
+            _avisar_espera(clave, viva.cwd, viva.sid, rid)
+        elif req.get("tool_name") == "ExitPlanMode":
+            # ⭐ El plan de una sesion en plan mode (2026-08-20):
+            # queda pendiente igual que la pregunta con opciones,
+            # y lo decide responder_plan() desde la pantalla. La
+            # viva viaja adentro para poder sacarla de plan mode
+            # al aprobar (el CLI ya salio solo; esto empareja lo
+            # guardado con lo que el proceso ya es).
+            with _CANDADO_PREGUNTAS:
+                PREGUNTAS[clave] = {
+                    "request_id": rid, "tipo": "plan",
+                    "input": req.get("input") or {},
+                    "hora": time.time(), "proc": p,
+                    "candado": viva.candado_stdin,
+                    "viva": viva}
+            _avisar_espera(clave, viva.cwd, viva.sid, rid)
+        elif (viva.perfil
+              and str(req.get("tool_name") or "").startswith(
+                  CHROME_PREFIJO)):
+            # ⭐ El portero del navegador (2026-08-28). Por aca pasan
+            # TODAS las herramientas de Chrome, no solo `navigate`,
+            # porque `browser_batch` puede llevar una navegacion
+            # adentro. Se mira cualquier URL que traiga el pedido,
+            # venga de donde venga.
+            # ⭐ Desde el 2026-08-29 corre SIEMPRE, tenga la carpeta
+            # lista de sitios o no: es el unico lugar donde se sabe
+            # que esta sesion de verdad va a usar el navegador, y por
+            # eso es aca donde se abre la ventana. Sin lista de
+            # sitios `_permiso_navegador` concede todo, asi que el
+            # portero no cambia lo que se puede hacer: solo agrega el
+            # momento.
+            # ⚠ El orden importa: primero el dominio, despues abrir.
+            # Un pedido de ir afuera de la lista no tiene por que
+            # dejar una ventana abierta en la pantalla.
+            permiso, motivo = _permiso_navegador(
+                req.get("input") or {}, viva.sitios)
+            if permiso:
+                _asegurar_chrome(viva)
+            _mandar_control(p, viva.candado_stdin, rid, (
+                {"behavior": "allow",
+                 "updatedInput": req.get("input") or {}}
+                if permiso else
+                {"behavior": "deny", "message": motivo}))
+        else:
+            # Todo lo demas: denegado en el acto, como dontAsk.
+            _mandar_control(p, viva.candado_stdin, rid, {
+                "behavior": "deny",
+                "message": _MSJ_DENEGADO.format(
+                    tool=req.get("tool_name") or "that tool")})
+    else:
+        # Un pedido que no atendemos: se contesta con error para
+        # que el CLI no espere una respuesta que no va a llegar.
+        with viva.candado_stdin:
+            p.stdin.write(json.dumps({
+                "type": "control_response", "response": {
+                    "subtype": "error", "request_id": rid,
+                    "error": "request no soportado"}}) + "\n")
+            p.stdin.flush()
+
+
 def _descartar_restos(viva):
     """Vacia la cola ANTES de mandar el turno: lo que haya ahi es de un turno viejo.
 
@@ -3306,79 +3876,7 @@ def _turno(viva, texto, al_nacer=None):
                     if t in ("stream_event", "assistant", "system"):
                         _en_vivo_evento(clave, d)
                     if t == "control_request":
-                        req = d.get("request") or {}
-                        rid = d.get("request_id")
-                        if req.get("subtype") == "can_use_tool":
-                            if req.get("tool_name") == "AskUserQuestion":
-                                # La pregunta queda pendiente: la pantalla la ve por
-                                # pregunta_de() y la contesta responder_pregunta().
-                                # Aca NO se bloquea nada: se sigue leyendo la cola.
-                                with _CANDADO_PREGUNTAS:
-                                    PREGUNTAS[clave] = {
-                                        "request_id": rid,
-                                        "input": req.get("input") or {},
-                                        "hora": time.time(), "proc": p,
-                                        "candado": viva.candado_stdin}
-                                # Y si no la contestas en un rato, te suena el
-                                # telefono: la sesion esta parada esperandote.
-                                _avisar_espera(clave, viva.cwd, viva.sid, rid)
-                            elif req.get("tool_name") == "ExitPlanMode":
-                                # ⭐ El plan de una sesion en plan mode (2026-08-20):
-                                # queda pendiente igual que la pregunta con opciones,
-                                # y lo decide responder_plan() desde la pantalla. La
-                                # viva viaja adentro para poder sacarla de plan mode
-                                # al aprobar (el CLI ya salio solo; esto empareja lo
-                                # guardado con lo que el proceso ya es).
-                                with _CANDADO_PREGUNTAS:
-                                    PREGUNTAS[clave] = {
-                                        "request_id": rid, "tipo": "plan",
-                                        "input": req.get("input") or {},
-                                        "hora": time.time(), "proc": p,
-                                        "candado": viva.candado_stdin,
-                                        "viva": viva}
-                                _avisar_espera(clave, viva.cwd, viva.sid, rid)
-                            elif (viva.perfil
-                                  and str(req.get("tool_name") or "").startswith(
-                                      CHROME_PREFIJO)):
-                                # ⭐ El portero del navegador (2026-08-28). Por aca pasan
-                                # TODAS las herramientas de Chrome, no solo `navigate`,
-                                # porque `browser_batch` puede llevar una navegacion
-                                # adentro. Se mira cualquier URL que traiga el pedido,
-                                # venga de donde venga.
-                                # ⭐ Desde el 2026-08-29 corre SIEMPRE, tenga la carpeta
-                                # lista de sitios o no: es el unico lugar donde se sabe
-                                # que esta sesion de verdad va a usar el navegador, y por
-                                # eso es aca donde se abre la ventana. Sin lista de
-                                # sitios `_permiso_navegador` concede todo, asi que el
-                                # portero no cambia lo que se puede hacer: solo agrega el
-                                # momento.
-                                # ⚠ El orden importa: primero el dominio, despues abrir.
-                                # Un pedido de ir afuera de la lista no tiene por que
-                                # dejar una ventana abierta en la pantalla.
-                                permiso, motivo = _permiso_navegador(
-                                    req.get("input") or {}, viva.sitios)
-                                if permiso:
-                                    _asegurar_chrome(viva)
-                                _mandar_control(p, viva.candado_stdin, rid, (
-                                    {"behavior": "allow",
-                                     "updatedInput": req.get("input") or {}}
-                                    if permiso else
-                                    {"behavior": "deny", "message": motivo}))
-                            else:
-                                # Todo lo demas: denegado en el acto, como dontAsk.
-                                _mandar_control(p, viva.candado_stdin, rid, {
-                                    "behavior": "deny",
-                                    "message": _MSJ_DENEGADO.format(
-                                        tool=req.get("tool_name") or "that tool")})
-                        else:
-                            # Un pedido que no atendemos: se contesta con error para
-                            # que el CLI no espere una respuesta que no va a llegar.
-                            with viva.candado_stdin:
-                                p.stdin.write(json.dumps({
-                                    "type": "control_response", "response": {
-                                        "subtype": "error", "request_id": rid,
-                                        "error": "request no soportado"}}) + "\n")
-                                p.stdin.flush()
+                        _atender_pedido(viva, d, clave)
                     elif t == "assistant":
                         # ⭐ La lista de tareas (TodoWrite) que la sesion va armando
                         # y tildando: cada foto nueva pisa la anterior y la pantalla

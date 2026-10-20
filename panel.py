@@ -30,7 +30,7 @@ import psutil
 import truststore
 truststore.inject_into_ssl()
 import requests
-from fastapi import FastAPI, Request, UploadFile, File, Form
+from fastapi import FastAPI, Request, UploadFile, File, Form, Body
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 import uvicorn
 
@@ -7106,6 +7106,9 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
 <script src="/estaticos/envivo.js"></script>
 <!-- El rastro con pasos desplegables (2026-09-27), el MISMO archivo de la compu. -->
 <script src="/estaticos/pasos.js"></script>
+<!-- Entorno, contexto, conectores y navegador: la columna derecha del Desktop, aca en
+     una hoja que se abre con la (i) de la cabecera (2026-10-20). -->
+<script src="/estaticos/entorno.js"></script>
 <!-- El @ de la caja: nombrar un archivo del proyecto, el mismo de la compu. -->
 <script src="/estaticos/arroba.js"></script>
 <!-- Lo que Martin pinta o subraya en la compu se ve tambien aca: las marcas viven en el
@@ -7721,6 +7724,12 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
  #abajo .dest.sel{color:var(--acento)}
  #abajo .dest.sel i{filter:drop-shadow(0 0 7px color-mix(in srgb,var(--acento) 45%,transparent))}
  .tab.sel{background:var(--acento-bg);color:var(--acento);border-color:var(--acento-bg)}
+ /* La hoja de Entorno (2026-10-20): sube desde abajo, como el cajon de proyectos. */
+ #hojaEntorno{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:28;
+              align-items:flex-end}
+ #hojaEntorno.abierta{display:flex}
+ #hojaEntorno .entornoCaja{background:#121722;width:100%;box-shadow:0 -8px 30px rgba(0,0,0,.5);max-height:82vh;overflow-y:auto;
+              border-radius:16px 16px 0 0;padding:16px 14px 26px}
 </style></head><body>
 
 <div id="barraArriba"><div id="tabs"></div><div id="aspectoAqui"></div></div>
@@ -7746,6 +7755,7 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
 </nav>
 <div id="chapas"></div>
 <div id="visor" onclick="this.classList.remove('abierto')"><img id="visorImg"></div>
+<div id="hojaEntorno" onclick="if (event.target === this) cerrarEntorno()"><div class="entornoCaja" id="entornoCaja"></div></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -9171,6 +9181,37 @@ if (window.Pasos) Pasos.iniciar({
   repintar: () => { firmaChat[activa] = ''; pintarSesion(); },
 });
 
+// ⭐ La columna derecha del Desktop, en el celular (2026-10-20): una hoja con Entorno
+// (control remoto incluido), Contexto, Conectores y lo ultimo que vio en el navegador.
+// La dibuja /estaticos/entorno.js, la misma pieza que la compu. Abierta se refresca sola.
+const ubicEntorno = () => { const p = pestanas.find(x => x.sid === activa);
+  return p && !esNueva(p.sid) ? {cwd: p.cwd, sid: p.sid, nombre: p.nombre || ''} : null; };
+let entornoReloj = null, entornoPidiendo = false;
+async function refrescarEntorno(){
+  const u = ubicEntorno(), caja = $('#entornoCaja');
+  if (!u || !window.Entorno){ cerrarEntorno(); return; }
+  if (entornoPidiendo) return;          // uno por vez: si no, se apilan en la fila del navegador
+  entornoPidiendo = true;
+  try { Entorno.pintar(caja, await Entorno.pedir(u), u); }
+  catch(e){ caja.innerHTML = '<div class="notaDer">No pude hablar con el panel.</div>'; caja.dataset.html = ''; }
+  finally { entornoPidiendo = false; }
+}
+function verEntorno(){
+  $('#hojaEntorno').classList.add('abierta');
+  // ⚠ Al abrir la charla, el celular precarga las de todas sus pestañas: este pedido puede
+  // quedar unos segundos en la fila del navegador. Mejor un "Cargando…" que una hoja vacía.
+  const caja = $('#entornoCaja');
+  if (!caja.innerHTML) caja.innerHTML = '<div class="notaDer">Cargando…</div>';
+  refrescarEntorno();
+  clearInterval(entornoReloj);
+  entornoReloj = setInterval(refrescarEntorno, 4000);
+}
+function cerrarEntorno(){
+  $('#hojaEntorno').classList.remove('abierta');
+  clearInterval(entornoReloj); entornoReloj = null;
+}
+if (window.Entorno) Entorno.iniciar({ubicacion: ubicEntorno, alCambiar: refrescarEntorno});
+
 // De qué proyecto es una pestaña: la última parte de la carpeta del disco
 // ("D:\\IA\\wpp-transcriptor" -> "wpp-transcriptor"), que es como se lo nombra hablando.
 function proyectoDe(p){
@@ -9232,6 +9273,7 @@ function dibujarSesion(p, mensajes){
     `<div id="cabecera"><h1 id="titulo"><span class="volver" onclick="ir('nueva')">←</span>
        <span class="nom">${esc(p.nombre)}</span>
        ${proyectoDe(p) ? `<span class="eti">${esc(proyectoDe(p))}</span>` : ''}
+       ${!esNueva(p.sid) ? `<span class="lapiz" onclick="verEntorno()" title="Entorno, contexto, conectores y navegador">ⓘ</span>` : ''}
        <span class="lapiz" onclick="renombrar('${p.sid}')">✎</span>
        <span class="cierra" onclick="cerrar('${p.sid}')">✕</span></h1>` +
     // ⭐ Con qué modelo corre esta charla y el botón de compactarla (pedido de Martín,
@@ -11669,6 +11711,42 @@ def movil_paso(cwd: str, sid: str, ids: str = ""):
     return {"pasos": sesiones_movil.detalle_pasos(cwd, sid, ids.split(","))}
 
 
+@app.get("/movil/foto")
+def movil_foto(cwd: str, sid: str, id: str):
+    """⭐ La captura que saco una sesion en el navegador (2026-10-20), para verla en el hilo
+    como en Claude Desktop. Sale de la charla la primera vez y despues del cache en disco;
+    por eso se puede guardar en el navegador para siempre (el id de un paso no cambia)."""
+    from app.voz import sesiones_movil
+    ruta, tipo = sesiones_movil.foto_paso(cwd, sid, id)
+    if not ruta:
+        return JSONResponse({"error": "no hay foto"}, status_code=404)
+    return FileResponse(str(ruta), media_type=tipo,
+                        headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
+
+@app.get("/movil/entorno")
+def movil_entorno(cwd: str = "", sid: str = ""):
+    """⭐ La columna derecha de /sesiones (2026-10-20), como la del Claude Desktop: en que
+    maquina y carpeta corre, cuanto contexto lleva, los conectores, el control remoto y lo
+    ultimo que vio en el navegador. Todo en un pedido, porque se refresca mientras trabaja."""
+    from app.voz import sesiones_movil
+    return sesiones_movil.entorno(cwd, sid)
+
+
+@app.post("/movil/remoto")
+def movil_remoto(d: dict = Body(...)):
+    """Prender o apagar el control remoto de una charla: la publica en claude.ai/code para
+    seguirla desde el celular, igual que el interruptor del Desktop.
+    ⚠ `def` y no `async def` a proposito: prenderlo espera hasta 40 s la respuesta del CLI
+    y no puede trabar al resto del panel mientras tanto."""
+    from app.voz import sesiones_movil
+    try:
+        return sesiones_movil.remoto((d.get("cwd") or "").strip(), (d.get("sid") or "").strip(),
+                                     bool(d.get("prender")), d.get("nombre") or "")
+    except Exception as e:
+        return {"ok": False, "error": f"No pude: {e}"}
+
+
 @app.get("/movil/envivo")
 async def movil_envivo(request: Request, cwd: str, sid: str = ""):
     """⭐ El texto en vivo de una charla, empujado a medida que se escribe (2026-09-27).
@@ -13034,6 +13112,14 @@ def estatico_pasos():
     `/sesiones` y el celular: dibuja cada renglon con su estado y, al tocarlo, el cambio o
     la salida que pide a `/movil/paso`. Trae sus propios estilos."""
     return FileResponse(ESTATICOS / "pasos.js", media_type="application/javascript",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/estaticos/entorno.js")
+def estatico_entorno():
+    """La columna de la derecha del Claude Desktop (2026-10-20): Entorno, Contexto,
+    Conectores y Navegador. La comparten `/sesiones` (columna) y el celular (hoja ⓘ)."""
+    return FileResponse(ESTATICOS / "entorno.js", media_type="application/javascript",
                         headers={"Cache-Control": "no-store"})
 
 

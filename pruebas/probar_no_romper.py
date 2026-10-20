@@ -649,9 +649,14 @@ def _chrome_perezoso(texto):
     if "abrir_chrome_perfil(" in cuerpo(texto, "def _arrancar_viva("):
         return ("_arrancar_viva() volvio a abrir el Chrome al arrancar: una ventana en "
                 "cada charla de cada proyecto, la use o no")
-    if "_asegurar_chrome(viva)" not in cuerpo(texto, "def _turno("):
-        return ("_turno() ya no abre el Chrome al pedir una herramienta del navegador: "
-                "la sesion se queda sin navegador")
+    # ⭐ Desde el 2026-10-20 el portero vive en `_atender_pedido` (lo comparten `_turno` y
+    # el vigia del control remoto): se mira que el portero abra y que el turno lo use.
+    if "_asegurar_chrome(viva)" not in cuerpo(texto, "def _atender_pedido("):
+        return ("_atender_pedido() ya no abre el Chrome al pedir una herramienta del "
+                "navegador: la sesion se queda sin navegador")
+    if "_atender_pedido(viva, d, clave)" not in cuerpo(texto, "def _turno("):
+        return ("_turno() ya no pasa los pedidos del CLI por _atender_pedido(): nadie "
+                "abre el Chrome ni contesta los permisos")
     if "mcp__claude-in-chrome\"" in cuerpo(texto, "def _permitidas_de("):
         return ("_permitidas_de() volvio a permitir el servidor entero: sin pedido de "
                 "permiso no hay ningun momento donde abrir la ventana")

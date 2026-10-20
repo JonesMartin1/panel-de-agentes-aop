@@ -78,23 +78,65 @@ def correr(callar=False):
     if not callar:
         print("\nDel archivo al hilo")
     tmp = Path(tempfile.mkdtemp(prefix="rastro_")) / "s.jsonl"
+    def con_imagen(tool_id):
+        return json.dumps({"type": "user", "timestamp": "2026-08-28T12:00:00.000Z", "message": {
+            "role": "user", "content": [{"type": "tool_result", "tool_use_id": tool_id,
+                                         "content": [{"type": "image", "source": {
+                                             "type": "base64", "media_type": "image/png",
+                                             "data": "iVBORw0KGgo="}}]}]}})
+    mandada = r"D:\IA\x\resultados\chat_panel\1_0.png"
     tmp.write_text("\n".join([
-        linea_usuario("probá la pizarra"),
+        linea_usuario(f"[Te paso una imagen desde el panel; está guardada en {mandada} — "
+                      "abrila con la herramienta Read antes de contestar.] probá la pizarra"),
         linea_asistente([{"type": "thinking", "thinking": "", "signature": "xxx"},
-                         {"type": "tool_use", "name": CH + "navigate",
+                         {"type": "tool_use", "id": "toolu_nav0001", "name": CH + "navigate",
                           "input": {"url": "http://localhost:8750"}}]),
-        linea_asistente([{"type": "tool_use", "name": CH + "computer",
+        linea_asistente([{"type": "tool_use", "id": "toolu_foto0001", "name": CH + "computer",
                           "input": {"action": "screenshot"}}]),
+        con_imagen("toolu_foto0001"),
         linea_asistente([{"type": "text", "text": "Cargó bien, sin errores."}]),
+        # La foto que mandó Martín: la sesión la abre con Read (con otras barras) y vuelve.
+        linea_asistente([{"type": "tool_use", "id": "toolu_lee0001", "name": "Read",
+                          "input": {"file_path": mandada.replace("\\", "/")}}]),
+        con_imagen("toolu_lee0001"),
+        # Una captura que sacó la sesión para mirar algo: esa SÍ se ve.
+        linea_asistente([{"type": "tool_use", "id": "toolu_lee0002", "name": "Read",
+                          "input": {"file_path": r"C:\tmp\captura.png"}}]),
+        con_imagen("toolu_lee0002"),
+        linea_asistente([{"type": "tool_use", "id": "toolu_nav0002", "name": CH + "read_page",
+                          "input": {}}]),
     ]), encoding="utf-8")
     filas = sm._filas_de(tmp)
-    tipos = [f["de"] for f in filas]
+    filas += [{"de": "", "texto": ""}] * (6 - len(filas))   # que una regla rota no tire la prueba
+    tipos = [f["de"] for f in filas if f["de"]]
+    # ⭐ Desde el 2026-10-20 la tanda del navegador va en UN renglón plegable, como
+    # "Interacted with page" de Claude Desktop, con la última foto a la vista.
     chequear("aparecen los pasos, en orden, entre lo dicho",
-             tipos == ["vos", "paso", "paso", "claude"], tipos)
+             tipos == ["vos", "paso", "claude", "paso", "paso", "paso"], tipos)
     chequear("el paso dice a dónde entró",
-             filas[1]["texto"].startswith("entró a http://localhost:8750"), filas[1]["texto"])
+             filas[1]["texto"].startswith("usó el navegador en localhost:8750 · 2 pasos"),
+             filas[1]["texto"])
+    chequear("la tanda del navegador guarda sus pasos adentro, en orden",
+             [s["t"] for s in filas[1].get("grupo") or []]
+             == ["entró a http://localhost:8750", "miró la pantalla"], filas[1].get("grupo"))
+    chequear("y lleva la última foto a la vista", filas[1].get("foto") == "toolu_foto0001",
+             filas[1].get("foto"))
+    chequear("un paso del navegador suelto queda como estaba (sin plegar)",
+             filas[5]["texto"] == "leyó la página" and not filas[5].get("grupo"), filas[5])
+    chequear("un paso que no es del navegador no se mete en la tanda",
+             filas[3]["texto"].startswith("leyó 1_0.png"), filas[3]["texto"])
+    # ⚠⚠ Pedido de Martín (2026-10-20): las capturas que saca la sesión las quiere ver; la
+    # foto que él le acaba de mandar, no (la sesión la abre con Read y volvía repetida).
+    chequear("la imagen que abre un Read (la foto que mandaste) NO se repite en el hilo",
+             not filas[3].get("foto"), filas[3])
+    chequear("una captura que la sesión sacó para mirar algo SÍ se ve",
+             filas[4].get("foto") == "toolu_lee0002", filas[4])
     chequear("el pensamiento vacío no ensucia el hilo",
              not any("thinking" in f["texto"] for f in filas))
+    sid = "0000aaaa-prueba"
+    chequear("la foto no se sirve con un id armado para salirse de la carpeta",
+             sm.foto_paso(str(tmp.parent), sid, "../../etc") == (None, "")
+             and sm.foto_paso(str(tmp.parent), "../" + sid, "toolu_foto0001") == (None, ""))
 
     if not callar:
         print("\n⚠ El recorte cuenta lo HABLADO, no los pasos")
@@ -122,6 +164,18 @@ MUTACIONES = [
     ("los pasos del navegador dejan de contarse",
      lambda: setattr(sm, "_paso_de", lambda nombre, entrada: ""),
      ["aparecen los pasos, en orden, entre lo dicho", "el paso dice a dónde entró"]),
+    ("la tanda del navegador deja de plegarse",
+     lambda: setattr(sm, "_agrupar_navegador", lambda filas, fotos: filas),
+     ["el paso dice a dónde entró", "y lleva la última foto a la vista"]),
+    ("deja de reconocer la foto que mandaste",
+     lambda: setattr(sm, "_fotos_que_mando", lambda dicho, leidas: set()),
+     ["la imagen que abre un Read (la foto que mandaste) NO se repite en el hilo"]),
+    ("las capturas que no son del navegador dejan de verse",
+     lambda: setattr(sm, "_fotos_que_mando", lambda dicho, leidas: set(leidas)),
+     ["una captura que la sesión sacó para mirar algo SÍ se ve"]),
+    ("la foto deja de anotarse",
+     lambda: setattr(sm, "_imagen_de", lambda b: None),
+     ["y lleva la última foto a la vista"]),
 ]
 
 
@@ -129,7 +183,9 @@ def mutar():
     print("\nProbando la prueba: se rompe cada regla a proposito\n")
     bien = mal = 0
     for nombre, romper, deben_fallar in MUTACIONES:
-        guardado = {n: getattr(sm, n) for n in ("_ultimos_mensajes", "_paso_de")}
+        guardado = {n: getattr(sm, n) for n in ("_ultimos_mensajes", "_paso_de",
+                                                "_agrupar_navegador", "_imagen_de",
+                                                "_fotos_que_mando")}
         try:
             romper()
             sm._HILOS.clear()          # el hilo esta cacheado por archivo: se vacia

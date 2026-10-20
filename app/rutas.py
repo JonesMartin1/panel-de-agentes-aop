@@ -237,6 +237,11 @@ PIZARRA_IMAGENES = RESULTADOS / "pizarra_imagenes"
 # 2026-09-27: "no perder los prompts que yo mando"). Solo se agrega, nunca se reescribe.
 # Adentro de resultados/ porque lleva nombres de clientes y datos de los proyectos.
 MIS_MENSAJES = RESULTADOS / "mis_mensajes.jsonl"
+# ⭐ Las capturas que saca una sesion con navegador, sacadas de su charla para mostrarlas en
+# el hilo (2026-10-20, "que conteste como Claude Desktop"). Adentro de resultados/ porque
+# son fotos de paginas reales, con datos de clientes. Es un cache: se puede borrar entero,
+# la foto se vuelve a sacar de la charla la proxima vez que se pida.
+FOTOS_PASOS = RESULTADOS / "fotos_pasos"
 # Archivos estaticos que el panel sirve tal cual (hoy: rough.js, la libreria
 # que dibuja "a mano alzada" en la pizarra — local para no depender de un CDN).
 ESTATICOS   = RAIZ / "app" / "estaticos"

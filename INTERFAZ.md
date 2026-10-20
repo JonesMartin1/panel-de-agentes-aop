@@ -501,6 +501,58 @@ clic", "escribió «REGUERA»", "miró la pantalla", "leyó la consola", "corri�
 - Prueba: `pruebas/probar_rastro_pasos.py` (22 chequeos, con `--mutar`). La mutación que
   más importa es la del recorte, porque es la que rompe la pantalla en silencio.
 
+### El navegador en el hilo, como Claude Desktop (2026-10-20)
+
+Pedido de Martín, con una captura del Desktop al lado: *"quiero que funcione igual de bien"*.
+Cuando la sesión usa el navegador, el hilo ya no se llena de "hizo clic / miró la pantalla":
+
+- ⭐ **Una tanda seguida de pasos del navegador es UN renglón plegable** ("usó el navegador
+  en tal sitio · 6 pasos", con "· 1 falló" o "· 1 sin dejar" si corresponde), como el
+  "Interacted with page" del Desktop. Al tocarlo se abre la lista de pasos de a uno, y cada
+  uno se despliega como siempre. Lo arma `_agrupar_navegador` (después de `_juntar_pasos`);
+  un paso suelto del navegador queda como estaba.
+- ⚠⚠ **Se ve toda captura que la sesión saca para mirar algo, MENOS la foto que le mandó
+  Martín** (*"lo que no quiero ver es cuando se mete a ver la foto que le acabo de mandar"*).
+  La sesión abre con `Read` lo que le mandás y ese Read devuelve la imagen: se reconoce
+  porque la ruta va escrita en el mensaje ("[Te paso una imagen…; está guardada en …]"), y
+  `_fotos_que_mando` la saca. Un Read de un `.png` que no nombraste (una captura propia) sí
+  lleva su foto.
+- ⭐ **La última foto que sacó queda a la vista debajo**, y al tocarla se abre grande.
+  ⭐ **Toda imagen se abre en un visor flotante, nunca en otra pestaña** (pedido de Martín:
+  *"yo quiero que se me abra como un pop up"*): el visor vive en `pasos.js` (`Pasos.verFoto`,
+  cualquier `<img data-visor>`), se cierra tocando afuera, con la ✕ o con Esc, y agranda
+  las capturas hasta casi toda la pantalla. Lo usan las fotos del navegador y las que
+  mandás en `/sesiones`; el celular ya tenía su visor propio. La
+  foto vive en el `tool_result` del `.jsonl` (base64): el hilo solo lleva el id y la imagen
+  se pide aparte por `GET /movil/foto`, que la saca de la charla una vez y la deja en
+  `resultados/fotos_pasos/` (caché que se puede borrar: está en `resultados/` porque son
+  pantallas de clientes). El id y el sid se validan con una regla estricta antes de armar
+  ninguna ruta.
+- Misma pieza para compu y celular (`pasos.js`). Prueba: `pruebas/probar_rastro_pasos.py`
+  (con `--mutar`: deja de plegar, deja de anotar la foto).
+
+### La columna derecha y el control remoto, como Claude Desktop (2026-10-20)
+
+- **El botón ◨ de arriba (o Ctrl+.) abre una columna a la derecha** de `/sesiones` con cuatro
+  tarjetas plegables: **Entorno** (máquina, carpeta y la llave del control remoto),
+  **Contexto** (% del techo del modelo con barra), **Conectores** (los servidores MCP con su
+  estado, del `system`/`init` del CLI; si la charla no arrancó, los configurados) y
+  **Navegador** (la última foto y la última dirección). En el celular es la ⓘ de la
+  cabecera, que abre una hoja desde abajo. Una sola pieza: `/estaticos/entorno.js`, con los
+  datos de `GET /movil/entorno`.
+- ⚠ Cerrada, la columna sigue siendo un hijo de la grilla con ancho cero (no
+  `display:none`), por lo mismo que la izquierda.
+- ⭐⭐ **Control remoto**: la llave publica la charla en claude.ai/code (`POST /movil/remoto`
+  → `control_request` `remote_control`, medido con `pruebas/sonda_remote_control.py`). Desde
+  ahí el CLI arranca turnos SOLO, y los atiende `_vigia_remoto`: contesta los permisos con
+  el mismo portero (`_atender_pedido`), la marca trabajando y la muestra en vivo. Una charla
+  publicada no se duerme nunca, y si se rearranca por cambio de modelo se vuelve a publicar.
+  Prueba: `pruebas/probar_entorno_remoto.py` (con `--mutar`).
+- ⚠ Visto probando: al abrir una charla, el celular precarga las de TODAS sus pestañas a la
+  vez (en localhost, 31 pedidos a `/movil/chat`), y por el tope de 6 conexiones del
+  navegador la hoja tardó 22 s en llenarse. Por eso muestra "Cargando…". Sin diagnosticar si
+  pasa igual por el túnel (HTTP/2 comparte las conexiones).
+
 ### El explorador de archivos de `/sesiones` (2026-08-17)
 
 Pedido de Martín: *"quiero el explorador de archivos del proyecto al lateral izquierdo,

@@ -52,6 +52,29 @@
        está mal, regla de Martín); es el mismo código de colores de Claude Code, apagado. */
     .dl.dp{background:rgba(46,160,67,.16)} .dl.dp .ds,.dl.dp .dt{color:#a8d8b0}
     .dl.dm{background:rgba(229,83,75,.13)} .dl.dm .ds,.dl.dm .dt{color:#e0aeaa}
+    /* ⭐ El navegador como en Claude Desktop (2026-10-20): la tanda en un renglón plegable
+       y la última foto a la vista, abajo. */
+    .paso.grupoNav{cursor:pointer}
+    .paso.grupoNav::before{content:'▸';display:inline-block;width:13px;color:#6e7889}
+    .paso.grupoNav.abierto::before{content:'▾'}
+    .paso.grupoNav:hover{text-decoration:underline;text-underline-offset:3px}
+    .subNav{margin:2px 0 4px 13px;border-left:1px solid var(--rastro-borde,#232b3a);padding-left:9px}
+    .subNav .paso{display:block}
+    .subNav .paso.conFoto::after{content:' ▣';color:#6e7889}
+    .fotoPaso{display:block;margin:6px 0 10px;max-width:min(620px,96%);line-height:0}
+    .fotoPaso img{width:100%;height:auto;border-radius:9px;border:1px solid var(--rastro-borde,#232b3a);
+      background:#fff;cursor:zoom-in}
+    .detPaso .fotoPaso{margin:0}
+    .visorPasos{position:fixed;inset:0;z-index:1000;display:none;align-items:center;
+      justify-content:center;background:rgba(4,6,10,.88);padding:24px;cursor:zoom-out}
+    .visorPasos.abierto{display:flex}
+    /* Las capturas del navegador miden ~750 px: se agrandan hasta casi toda la pantalla
+       (sin deformarse, por el object-fit) para que se lean. */
+    .visorPasos img{max-width:94vw;max-height:90vh;min-width:min(1100px,94vw);object-fit:contain;
+      border-radius:10px;cursor:default;
+      box-shadow:0 10px 40px rgba(0,0,0,.6);background:#fff}
+    .visorPasos .cerrarVisor{position:absolute;top:14px;right:20px;font-size:26px;line-height:1;
+      color:#c9cfdb;cursor:pointer}
   `;
   document.head.appendChild(estilos);
 
@@ -90,6 +113,7 @@
       // Lo que hizo un subagente (leído de su propio archivo), antes de su informe.
       if (d.sub_pasos && d.sub_pasos.length)
         h += '<div class="dpSub">' + d.sub_pasos.map(p => '<div>↳ ' + esc(p) + '</div>').join('') + '</div>';
+      if (d.foto) h += fotoHtml(d.foto);
       if (d.hunks) h += hunksHtml(d);
       if (d.salida) h += '<pre>' + esc(d.salida) + '</pre>';
       else if (!d.hunks && d.estado) h += '<div class="dpVacio">(no devolvió nada)</div>';
@@ -98,27 +122,89 @@
     }).join('') + '</div>';
   }
 
-  // Un renglón del rastro. Abre el bloque si es el primero de una tanda seguida y lo
-  // cierra si es el último; al cerrarlo, agrega abajo el detalle de los que estén abiertos.
-  function fila(mensajes, iM) {
-    const m = mensajes[iM], ant = mensajes[iM - 1] || {}, sig = mensajes[iM + 1] || {};
+  // La foto de un paso. Se pide aparte (`/movil/foto`): el hilo no la trae adentro.
+  // ⭐ Al tocarla se abre en el visor flotante, no en otra pestaña (pedido de Martín,
+  // 2026-10-20: "yo quiero que se me abra como un pop up").
+  function fotoHtml(id) {
+    const u = cfg.ubicacion() || {};
+    if (!u.sid || !id) return '';
+    const src = '/movil/foto?cwd=' + encodeURIComponent(u.cwd || '') + '&sid=' +
+                encodeURIComponent(u.sid) + '&id=' + encodeURIComponent(id);
+    return '<span class="fotoPaso"><img loading="lazy" data-visor alt="lo que vio en el navegador" src="' +
+           esc(src) + '"></span>';
+  }
+
+  // El visor: la imagen grande encima de la página. Se cierra tocando afuera, con la ✕ o con
+  // Esc. Se arma la primera vez que hace falta.
+  let visor = null;
+  function verFoto(src) {
+    if (!visor) {
+      visor = document.createElement('div');
+      visor.className = 'visorPasos';
+      visor.innerHTML = '<span class="cerrarVisor" title="Cerrar (Esc)">✕</span><img alt="">';
+      visor.addEventListener('click', e => { if (e.target.tagName !== 'IMG') cerrarFoto(); });
+      document.body.appendChild(visor);
+    }
+    visor.querySelector('img').src = src;
+    visor.classList.add('abierto');
+  }
+  function cerrarFoto() { if (visor) visor.classList.remove('abierto'); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && visor && visor.classList.contains('abierto')) {
+      e.stopPropagation(); cerrarFoto();
+    }
+  }, true);
+
+  // Un renglón de paso suelto (o de adentro de un grupo), con su clase de estado.
+  function renglon(m, iM, extra) {
     const u = cfg.ubicacion() || {};
     const ids = (m.ids || []).filter(Boolean);
     const clave = claveDe(u.sid || '', ids);
+    const est = m.estado != null ? m.estado : m.e;
     const cls = 'paso' + (ids.length ? ' abre' : '') + (abiertos.has(clave) ? ' abierto' : '') +
-                (m.estado === 'negado' ? ' negado' : m.estado === 'error' ? ' fallo' : '');
-    let h = (ant.de === 'paso' ? '' : '<div class="pasos">') +
-            '<div class="' + cls + '" data-msg="' + iM + '" data-ids="' + esc(ids.join(',')) + '">' +
-            esc(m.texto) + '</div>';
-    if (sig.de === 'paso') return h;
+                (est === 'negado' ? ' negado' : est === 'error' ? ' fallo' : '') + (extra || '');
+    return '<div class="' + cls + '"' + (iM != null ? ' data-msg="' + iM + '"' : '') +
+           ' data-ids="' + esc(ids.join(',')) + '">' + esc(m.texto != null ? m.texto : m.t) + '</div>';
+  }
+
+  // ⭐ La tanda del navegador (2026-10-20): un renglón plegable, como "Interacted with page"
+  // de Claude Desktop. Adentro van los pasos de a uno (cada uno se despliega como siempre).
+  function grupoHtml(m, iM) {
+    const u = cfg.ubicacion() || {};
+    const kg = 'g:' + claveDe(u.sid || '', (m.ids || []).slice(0, 1));
+    const abierto = abiertos.has(kg);
+    let h = '<div class="paso grupoNav' + (abierto ? ' abierto' : '') + '" data-msg="' + iM +
+            '" data-grupo="' + esc(kg) + '">' + esc(m.texto) + '</div>';
+    if (!abierto) return h;
+    h += '<div class="subNav">';
+    (m.grupo || []).forEach(s => {
+      h += renglon(s, null, s.f ? ' conFoto' : '');
+      const k = claveDe(u.sid || '', (s.ids || []).filter(Boolean));
+      if (abiertos.has(k)) h += detalleHtml(k);
+    });
+    return h + '</div>';
+  }
+
+  // Un renglón del rastro. Abre el bloque si es el primero de una tanda seguida y lo
+  // cierra si es el último; al cerrarlo, agrega abajo el detalle de los que estén abiertos.
+  // ⭐ Un paso con foto también cierra el bloque: la foto va justo debajo de lo que la
+  // sacó, no al final de una pila de pasos que vinieron después.
+  function fila(mensajes, iM) {
+    const m = mensajes[iM], ant = mensajes[iM - 1] || {}, sig = mensajes[iM + 1] || {};
+    const u = cfg.ubicacion() || {};
+    const abre = ant.de !== 'paso' || !!ant.foto;
+    let h = (abre ? '<div class="pasos">' : '') + (m.grupo ? grupoHtml(m, iM) : renglon(m, iM));
+    if (sig.de === 'paso' && !m.foto) return h;
     h += '</div>';
     // Los detalles abiertos de toda esta tanda, en orden, debajo del bloque.
     let ini = iM;
-    while (ini > 0 && (mensajes[ini - 1] || {}).de === 'paso') ini--;
+    while (ini > 0 && (mensajes[ini - 1] || {}).de === 'paso' && !(mensajes[ini - 1] || {}).foto) ini--;
     for (let j = ini; j <= iM; j++) {
+      if (mensajes[j].grupo) continue;           // los del grupo se abren adentro de él
       const k = claveDe(u.sid || '', (mensajes[j].ids || []).filter(Boolean));
       if (abiertos.has(k)) h += detalleHtml(k);
     }
+    if (m.foto) h += fotoHtml(m.foto);
     return h;
   }
 
@@ -142,16 +228,25 @@
   }
 
   document.addEventListener('click', e => {
-    const p = e.target.closest && e.target.closest('.paso.abre');
-    if (!p) return;
+    const im = e.target.closest && e.target.closest('img[data-visor]');
+    if (im) { e.preventDefault(); verFoto(im.currentSrc || im.src); return; }
+    const g = e.target.closest && e.target.closest('.paso.grupoNav');
+    const p = !g && e.target.closest && e.target.closest('.paso.abre');
+    if (!g && !p) return;
     // Estabas seleccionando texto (para copiar o marcar): eso no es un toque.
     const sel = window.getSelection && String(window.getSelection() || '');
     if (sel) return;
+    if (g) {
+      const k = g.dataset.grupo;
+      if (abiertos.has(k)) abiertos.delete(k); else abiertos.add(k);
+      cfg.repintar();
+      return;
+    }
     alternar((p.dataset.ids || '').split(',').filter(Boolean));
   });
 
   window.Pasos = {
     iniciar: c => { cfg = Object.assign(cfg, c || {}); },
-    fila, detalleHtml, hunksHtml,
+    fila, detalleHtml, hunksHtml, fotoHtml, verFoto, cerrarFoto,
   };
 })();
