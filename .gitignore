@@ -1,6 +1,37 @@
 # --- Secretos: NUNCA versionar ---
 .env
+.env.*
+!.env.ejemplo
 spotify_token.json
+*token*.json
+*credentials*.json
+*.pem
+*.key
+
+# --- Audios y videos: suelen ser mensajes reales de terceros ---
+# Las tres excepciones son del proyecto (la musica de espera y las muestras de las pruebas).
+*.wav
+*.mp3
+*.ogg
+*.opus
+*.m4a
+*.flac
+*.mp4
+*.webm
+!musica_espera.wav
+!pruebas/prueba.wav
+!pruebas/prueba_video.mp4
+
+# --- Skill de diseño impeccable: bocetos y preguntas de trabajo (traen nombres reales de carpetas) ---
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/review/
+
+# --- Dependencias y entornos ---
+node_modules/
+venv/
+.venv/
+env/
 
 # --- Datos de ejecucion: son mensajes reales de terceros (audios, frames, transcripciones) ---
 resultados/
@@ -44,6 +75,7 @@ seguir_lectura.json
 # --- Estado del panel y del celular (cambia todo el tiempo, no es codigo) ---
 pestanas_movil.json
 nombres_sesiones.json
+subproyectos_sesiones.json
 carpetas_sesiones.json
 sesiones_archivadas.json
 aspecto.json

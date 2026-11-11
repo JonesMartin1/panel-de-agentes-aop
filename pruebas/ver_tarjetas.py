@@ -22,10 +22,13 @@ Lo que fija esta prueba:
   * el ＋ no tiene menú propio: ahí sale el del navegador.
 
 ⚠ No toca nada real: las pestañas de la compu viven en el `localStorage` del navegador de
-la prueba y la conversación se intercepta.
+la prueba, la conversación se intercepta y **ningún guardado llega al panel** (ver `portero`).
+⚠⚠ Eso último es del 2026-11-10 y antes NO era cierto: del 25/08 a ese día, cada corrida le
+dejaba el color rosa y el apodo "Mi proyecto" a una carpeta real.
 
 Correr con:  python -m pruebas.ver_tarjetas   (con el panel prendido)
 """
+import json
 import sys
 
 from playwright.sync_api import sync_playwright
@@ -36,6 +39,9 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 SALIDA = RAIZ / "pruebas"
 BASE = "http://127.0.0.1:8750"
+# El estilo de siempre: es contra el que están escritos los colores que espera la prueba.
+ASPECTO = {"tipo": "segoe", "color": "celeste", "fondo": "azulado", "img": "", "letra": "normal",
+           "velo": "media", "rastro": "tema"}
 fallas = []
 
 
@@ -55,6 +61,42 @@ def main():
         pag.on("pageerror", lambda e: errores.append(str(e)))
         pag.route("**/movil/chat*", lambda r: r.fulfill(
             status=200, content_type="application/json", body='{"mensajes":[]}'))
+        # ⚠⚠ NADA que no sea un GET sale hacia el panel (2026-11-10). Esta prueba es del
+        # 18/08, cuando el color y el apodo vivían solo en el navegador; desde el 25/08 se
+        # guardan en el SERVIDOR (`/carpetas/aspecto`), así que cada corrida le pintaba de
+        # rosa y le ponía "Mi proyecto" a una carpeta REAL (la primera con dos charlas), y
+        # ahí quedaba. Ahora lo que la prueba "guarda" se anota acá (`puesto`) y se le
+        # devuelve en `/movil/sesiones`, que es lo que haría el servidor: así "se acuerda
+        # al volver" se sigue pudiendo medir sin escribir nada.
+        # ⚠ Y el estilo se fija en el de siempre: los colores que espera son los de ese
+        # estilo. Con el que tenga puesto Martín (Vidrio, Carta celeste) fallaban diez.
+        puesto = {}
+
+        def portero(r):
+            pedido = r.request
+            camino = pedido.url.split("?")[0]
+            if pedido.method != "GET":
+                if camino.endswith("/carpetas/aspecto"):
+                    try:
+                        d = pedido.post_data_json or {}
+                    except Exception:
+                        d = {}
+                    if d.get("carpeta"):
+                        puesto.setdefault(d["carpeta"], {}).update(
+                            {k: v for k, v in d.items() if k != "carpeta"})
+                return r.fulfill(status=200, content_type="application/json", body='{"ok": true}')
+            if camino.endswith("/aspecto"):
+                return r.fulfill(status=200, content_type="application/json", body=json.dumps(ASPECTO))
+            if camino.endswith("/movil/sesiones") and puesto:
+                resp = r.fetch()
+                datos = resp.json()
+                aspecto = datos.setdefault("carpetas", {}).setdefault("aspecto", {})
+                for carpeta, campos in puesto.items():
+                    aspecto.setdefault(carpeta, {}).update(campos)
+                return r.fulfill(response=resp, json=datos)
+            return r.fallback()
+
+        pag.route("**/*", portero)
         pag.goto(BASE + "/sesiones", wait_until="domcontentloaded")
         pag.wait_for_function("() => datos && datos.proyectos.length", timeout=40000)
 
@@ -211,9 +253,14 @@ def main():
         revisar("la pastilla pasa a llamarse como vos quieras",
                 "Mi proyecto" in pag.evaluate(
                     "() => document.querySelector('#tabs .grupo.abierto').textContent"), True)
+        # ⚠ Desde el 25/08 el apodo es del PROYECTO: lo muestran la pastilla y también su
+        # renglón de la lista. Lo que no cambia es la carpeta en sí: la llave sigue siendo el
+        # nombre real, que es con lo que se abren las charlas. (Antes este chequeo buscaba el
+        # nombre real escrito en la lista, y eso dejó de ser cierto ese día.)
         revisar("⚠ pero la carpeta del disco NO cambia de nombre",
-                pag.evaluate("n => [...document.querySelectorAll('#carpetas .nom')]"
-                             ".some(e => e.textContent.trim() === n)", info["grupo"]), True)
+                pag.evaluate("n => [...document.querySelectorAll('#carpetas .carpeta')]"
+                             ".some(e => e.dataset.proy === n) && grupoAbierto === n",
+                             info["grupo"]), True)
 
         # --- Se acuerda ---------------------------------------------------------------
         pag.reload(wait_until="domcontentloaded")

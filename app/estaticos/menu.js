@@ -29,12 +29,28 @@
  */
 (function () {
   const PANTALLAS = [
-    { href: '/',         ic: '🏠', nom: 'Panel',    tit: 'El panel del Servidor IA: servicios, chat y estado' },
-    { href: '/sesiones', ic: '🧠', nom: 'Sesiones', tit: 'Las sesiones de Claude Code, cada una en su pestaña' },
-    { href: '/pizarra',  ic: '🧷', nom: 'Pizarra',  tit: 'Pizarron interactivo: notas y pines que Laura deja por voz' },
-    { href: '/estudio',  ic: '🎧', nom: 'Estudio',  tit: 'Estudio de audio: pegar varios audios y que salga uno solo' },
-    { href: '/avisos',   ic: '🔔', nom: 'Avisos',   tit: 'Los Recordatorios de tu iPhone, y lo que anotes desde la compu' },
+    { href: '/',         ic: 'casa', nom: 'Panel',    tit: 'El panel del Servidor IA: servicios, chat y estado' },
+    { href: '/sesiones', ic: 'sesiones', nom: 'Sesiones', tit: 'Las sesiones de Claude Code, cada una en su pestaña' },
+    { href: '/pizarra',  ic: 'pizarra', nom: 'Pizarra',  tit: 'Pizarron interactivo: notas y pines que Laura deja por voz' },
+    { href: '/estudio',  ic: 'estudio', nom: 'Estudio',  tit: 'Estudio de audio: pegar varios audios y que salga uno solo' },
+    { href: '/avisos',   ic: 'avisos', nom: 'Avisos',   tit: 'Los Recordatorios de tu iPhone, y lo que anotes desde la compu' },
   ];
+
+  /* ⭐ Los dibujitos (2026-11-10): iconos de linea de UNA familia, en vez de siete emojis
+     que venian cada uno con su color y su peso. Toman el color de la letra de al lado,
+     asi que el de la pantalla donde estas se enciende con ella.
+     Cada `ic` de arriba es una clave de este mapa. ⚠ Si a una pantalla nueva le ponen un
+     emoji en vez de una clave, se muestra tal cual: no se rompe nada, solo desentona. */
+  const ICONOS = {
+    casa: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>',
+    sesiones: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="m7 9.5 3 2.5-3 2.5"/><path d="M13 15h4"/>',
+    pizarra: '<path d="M4 4h16v10l-6 6H4z"/><path d="M20 14h-6v6"/>',
+    estudio: '<path d="M4.75 14v-2a7.25 7.25 0 0 1 14.5 0v2"/>' +
+      '<rect x="2.5" y="14" width="4.5" height="6.5" rx="1.5"/><rect x="17" y="14" width="4.5" height="6.5" rx="1.5"/>',
+    avisos: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  };
+  const dib = ic => ICONOS[ic]
+    ? '<svg class="mi" viewBox="0 0 24 24" aria-hidden="true">' + ICONOS[ic] + '</svg>' : ic;
 
   const CSS = `
 /* ⭐ Sigue a --ui, el tamaño de los controles del 🎨 (2026-09-12): si las pestañas de una
@@ -52,8 +68,17 @@
   padding:calc(3px * var(--ui,1)) calc(11px * var(--ui,1));
   border-radius:999px;font-size:calc(12px * var(--ui,1));line-height:1.5;background:#161b23;
   border:1px solid #262e3a;color:#8b93a1;text-decoration:none;white-space:nowrap;
-  cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+  cursor:pointer;transition:background .15s,border-color .15s,color .15s,
+             transform .16s cubic-bezier(.23,1,.32,1)}
 .menu-pantallas a:hover{background:#1d2530;border-color:#3a4658;color:#e8eaed}
+.menu-pantallas a:active{transform:scale(.97)}
+.menu-pantallas a:focus-visible,.menu-pantallas .abrir:focus-visible{
+  outline:2px solid var(--acento,#8ecbff);outline-offset:2px}
+/* El dibujo de cada pantalla: una linea del color de la letra (2026-11-10). */
+.menu-pantallas .ic{display:inline-flex;align-items:center}
+.menu-pantallas svg.mi{width:1.25em;height:1.25em;display:block;flex:none;fill:none;
+  stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+@media (prefers-reduced-motion:reduce){.menu-pantallas a:active{transform:none}}
 /* La pantalla en la que estas parado se marca y NO se puede clickear: apretarla
    recargaria la misma pagina, que es lo que uno menos quiere de un menu. */
 .menu-pantallas a.aca{background:#16263a;border-color:#2c4a6b;color:#cfe6ff;
@@ -98,11 +123,11 @@
     caja.classList.add('menu-pantallas');
     const aca = PANTALLAS.find(p => esAca(p.href)) || PANTALLAS[0];
     caja.innerHTML =
-      '<div class="abrir" title="Ir a otra pantalla"><span>' + aca.ic + '</span>' +
+      '<div class="abrir" title="Ir a otra pantalla"><span class="ic">' + dib(aca.ic) + '</span>' +
         '<span>' + aca.nom + '</span><span style="opacity:.6;font-size:10px">▾</span></div>' +
       '<div class="todo">' + PANTALLAS.map(p =>
         '<a href="' + p.href + '"' + (esAca(p.href) ? ' class="aca"' : '') +
-        ' title="' + p.tit + '"><span class="ic">' + p.ic + '</span>' +
+        ' title="' + p.tit + '"><span class="ic">' + dib(p.ic) + '</span>' +
         '<span class="nom">' + p.nom + '</span></a>').join('') + '</div>';
     caja.querySelector('.abrir').onclick = e => {
       e.stopPropagation();

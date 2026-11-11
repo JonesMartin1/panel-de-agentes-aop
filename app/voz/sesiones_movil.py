@@ -33,7 +33,7 @@ from app.rutas import (CLAUDE_PROYECTOS, CARPETAS_SESIONES, AJUSTES_SESIONES,
                        NOMBRES_SESIONES, FRENO_AGENTES,
                        PROYECTOS_CONFIABLES, CERT_NODE_CODEX, CERT_BUNDLE_CODEX,
                        ASPECTO_CARPETAS, CHROME_EXE, CHROME_EXE_X86, FOTOS_PASOS)
-from app.voz import seguir
+from app.voz import almacen_chrome, seguir
 from app.voz.prompt_master_auto import INSTRUCCION as PROMPT_MASTER_AUTO, argumento_codex
 
 # ⚠ Esto es SILENCIO, no duracion del turno. Hasta el 2026-08-19 era un presupuesto de
@@ -57,7 +57,8 @@ TIMEOUT = 900
 # el modelo por sesion es la perilla para no pagar eso cuando no hace falta.
 # La llave del diccionario es lo que se le pasa a `--model`; el valor, como se lee.
 # ⚠ La llave es un ALIAS del CLI, no un id de modelo: `fable` apunta siempre al Fable
-# mas nuevo que tenga instalado el CLI (hoy, 2026-09-07, Fable 5.1 = `claude-fable-5-1`),
+# mas nuevo que tenga instalado el CLI (desde el 2.1.321 del 2026-11-09, Fable 5.2 =
+# `claude-fable-5-2`; antes era Fable 5.1),
 # igual que `opus` apunta al Opus mas nuevo. Por eso el rotulo dice la version pero la
 # llave no: escribir el id completo congelaria el panel en el modelo de hoy.
 # ⚠⚠ Y el alias solo vale lo que sepa el CLI INSTALADO: un modelo publicado hoy no
@@ -68,8 +69,8 @@ TIMEOUT = 900
 MODELOS = {
     "opus":       "Opus 5.5 (200 mil)",
     "opus[1m]":   "Opus 5.5 (1 millon)",
-    "fable":      "Fable 5.1 (200 mil)",
-    "fable[1m]":  "Fable 5.1 (1 millon)",
+    "fable":      "Fable 5.2 (200 mil)",
+    "fable[1m]":  "Fable 5.2 (1 millon)",
     "sonnet":     "Sonnet",
     "haiku":      "Haiku",
 }
@@ -87,7 +88,12 @@ MODELO_DEFECTO = "opus"
 # cerca de los 800 mil y cada turno pagaría todo lo arrastrado — exactamente el drenaje
 # del 2026-08-18 que esta perilla existe para evitar. Con "200000" el CLI dispara cerca
 # de los 160 mil, que es el mismo punto donde el panel ya autocompacta a Laura.
-AUTOCOMPACT = {"opus": "200000", "opus[1m]": "1000000", "fable[1m]": "1000000"}
+# ⭐ Lo mismo con `fable` desde Fable 5.2 (CLI 2.1.321, 2026-11-09): el changelog lo
+# anuncia "with a 1M context window", asi que sin su renglon la perilla "200 mil"
+# pasaria a ser un millon apenas se actualice el CLI. Si resultara que no es nativo,
+# el renglon no molesta: es la misma ventana que ya tenia.
+AUTOCOMPACT = {"opus": "200000", "opus[1m]": "1000000",
+               "fable": "200000", "fable[1m]": "1000000"}
 
 # --- Cuanto se esfuerza el modelo en pensar --------------------------------------
 # ⭐ Pedido de Martin el 2026-08-18, la perilla hermana de la del modelo: `--effort`
@@ -345,9 +351,10 @@ def navegador_de(cwd):
 # falta encontrar un uuid al lado de una llave. Se leen los mas nuevos primero, porque
 # LevelDB deja las versiones viejas en los `.ldb` ya compactados.
 EXT_CLAUDE_CHROME = "fcoeoabgfenejglbffodgkkbkcdhcgfn"
+# El valor guardado es el uuid entre comillas (es JSON). Tiene que ser eso y nada mas:
+# cualquier otra cosa se toma como "no hay id", que hace avisar en vez de adivinar.
 _ID_NAVEGADOR = re.compile(
-    rb'bridgeDeviceId.{0,12}?"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-'
-    rb'[0-9a-f]{4}-[0-9a-f]{12})"', re.S)
+    rb'"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"')
 _IDS_CACHE = {}                     # perfil -> (firma de los archivos, id)
 
 
@@ -394,15 +401,14 @@ def id_navegador_de(perfil):
     guardado = _IDS_CACHE.get(str(perfil))
     if guardado and guardado[0] == firma:
         return guardado[1]
-    hallado = ""
-    for f in archivos:
-        try:
-            m = _ID_NAVEGADOR.search(f.read_bytes())
-        except OSError:
-            continue
-        if m:
-            hallado = m.group(1).decode()
-            break
+    # ⭐⭐ Se LEE la base, no se la rastrea con una expresion regular (2026-11-10). Las
+    # tablas `.ldb` van comprimidas y ahi la llave no queda escrita entera: buscando el
+    # texto crudo, el id salia vacio en el Chrome de base y en el de Consultoria —
+    # justo los que usan casi todas las carpetas— y la sesion terminaba preguntandole
+    # a Martin en que navegador entrar. El porque completo esta en `almacen_chrome.py`.
+    crudo = almacen_chrome.leer_llave(carpeta, "bridgeDeviceId") or b""
+    m = _ID_NAVEGADOR.fullmatch(crudo.strip())
+    hallado = m.group(1).decode() if m else ""
     if len(_IDS_CACHE) > 50:
         _IDS_CACHE.clear()
     _IDS_CACHE[str(perfil)] = (firma, hallado)
@@ -415,10 +421,59 @@ def _regla_cual_navegador(perfil):
     if bid:
         return (" El navegador de este proyecto es el que tiene id %s: antes de tocar "
                 "nada usa select_browser con ese id, y no uses ningun otro aunque haya "
-                "mas conectados." % bid)
+                "mas conectados. No le preguntes a Martin cual usar ni llames a "
+                "switch_browser: ya esta decidido. Si select_browser contesta que ese id "
+                "no esta conectado, es que el Chrome se esta abriendo: espera unos "
+                "segundos y proba una vez mas antes de avisarle." % bid)
     return (" ⚠ El Chrome de este proyecto todavia no conecto su extension de Claude, "
             "asi que NO sabemos cual de los navegadores conectados es. No agarres otro: "
             "decile a Martin que abra ese Chrome y active la extension.")
+
+
+# ⭐⭐ El candado de CUAL navegador (2026-11-10). Hasta hoy "usa el tuyo y ningun otro"
+# era solo una instruccion. Medido ese dia contra el CLI 2.1.322, con dos Chrome
+# conectados y dos sesiones:
+#   - una sesion que YA eligio su navegador no es movida por lo que elija otra;
+#   - una sesion que TODAVIA NO eligio hereda, sin preguntar ni avisar, "el ultimo que
+#     eligio cualquiera" — o sea que una charla de un cliente de una agencia podia
+#     arrancar sobre el Chrome de la otra solo porque otra charla paso antes por ahi.
+# Y el proceso que vuelve con `--resume` es nuevo: la charla "se acuerda" de haber
+# elegido, pero ese proceso no eligio nada.
+# Por eso el portero no deja pasar NINGUNA herramienta del navegador hasta que ESTE
+# proceso haya elegido el navegador de su proyecto, y no le deja elegir otro. La negativa
+# le dice exactamente que llamar, asi que se resuelve sola en un paso y sin Martin.
+# ⚠ Si el id no se pudo leer del disco NO se frena nada: queda la instruccion de avisar,
+# como antes. Un candado que depende de un dato que falta dejaria a todos los proyectos
+# sin navegador el dia que la extension cambie donde lo guarda.
+# ⚠ Los tres motivos empiezan igual a proposito: por ese comienzo el rastro los reconoce
+# como "no se lo dejaron hacer" (`_NEGADO_PREFIJOS`) en vez de mostrarlos como hechos.
+_NAVEG_NEGADO = "Navegador del proyecto: "
+
+
+def _permiso_cual_navegador(viva, herramienta, entrada):
+    """¿Esta herramienta va contra el navegador de ESTE proyecto? (si_o_no, motivo)."""
+    bid = id_navegador_de(viva.perfil)
+    if not bid:
+        return True, ""
+    que = herramienta[len(CHROME_PREFIJO):]
+    if que == "list_connected_browsers":
+        return True, ""                 # mirar no elige nada
+    if que == "switch_browser":
+        # Le abre una pantalla de "Conectar" a TODOS los Chrome que tengan la extension,
+        # incluidos los que estan usando otras charlas.
+        return False, (_NAVEG_NEGADO + "no hace falta emparejar nada. Usa select_browser "
+                       "con deviceId %s." % bid)
+    if que == "select_browser":
+        if str((entrada or {}).get("deviceId") or "").strip().lower() != bid:
+            return False, (_NAVEG_NEGADO + "ese es otro Chrome. El de este proyecto es "
+                           "select_browser con deviceId %s; no uses ningun otro." % bid)
+        viva.navegador_elegido = bid
+        return True, ""
+    if viva.navegador_elegido != bid:
+        return False, (_NAVEG_NEGADO + "todavia no lo elegiste en este proceso. Llama "
+                       "primero a select_browser con deviceId %s y despues repeti esto "
+                       "mismo. No le preguntes a Martin: ya esta decidido." % bid)
+    return True, ""
 
 
 def _permitidas_de(perfil, sitios):
@@ -986,6 +1041,10 @@ class _Viva:
         self.perfil = perfil
         self.chrome_listo = False
         self.candado_chrome = threading.Lock()
+        # ⭐ El id del navegador que ESTE proceso ya eligio con `select_browser`. Arranca
+        # vacio en cada proceso a proposito, tambien en el que vuelve con `--resume`:
+        # la eleccion vive en el proceso, no en la charla (`_permiso_cual_navegador`).
+        self.navegador_elegido = ""
         self.cola = queue.Queue()
         self.candado_stdin = threading.Lock()
         self.turno = threading.Lock()     # un turno por vez sobre el mismo proceso
@@ -1881,10 +1940,139 @@ def _hora_local(linea):
         return ""
 
 
-# Lo ya leido de cada charla, por VERSION del archivo (mtime + tamaño): el hilo cosido
-# relee tambien las charlas ANTERIORES de la cadena en cada consulta, y esas ya no
-# cambian nunca — sin cache seria releer megas del disco cada pocos segundos.
-_HILOS = {}
+# ⭐⭐ El hilo de cada charla se lee ENTERO una sola vez y despues solo LO NUEVO
+# (2026-11-10). Antes lo leido se guardaba por VERSION del archivo (mtime + tamaño): una
+# charla quieta salia del cache, pero una que estaba trabajando cambiaba de version con
+# cada herramienta, y cada pedido de la pantalla —uno cada 3 s— releia el archivo desde
+# el primer renglon. Medido ese dia sobre una charla de 115 MB (casi la mitad, capturas
+# del navegador): 6 segundos por pedido con el panel prendido, y otro segundo entero por
+# agregarle UNA linea. Como Python hace una sola cosa a la vez, esos segundos se los
+# comia el panel completo: las demas charlas, el texto en vivo y el celular.
+# Ahora por cada archivo se recuerda hasta donde se leyo (`pos`) y se guardan las filas
+# CRUDAS; cuando el archivo crece se leen solo los renglones agregados y se vuelve a
+# armar el hilo (juntar pasos, agrupar el navegador), que es barato.
+# ⚠ Las filas crudas no se tocan nunca: `_juntar_pasos` y `_agrupar_navegador` escriben
+# arriba de las filas que reciben (suman "×3", pegan la foto), asi que trabajan sobre
+# una COPIA. Si se les pasaran las crudas, la segunda pasada contaria "×3" dos veces.
+# ⚠ Un archivo de charla solo crece. Si se achico, o lo ultimo que se habia leido ya no
+# esta en el mismo lugar (alguien lo reescribio), se tira todo y se lee de cero.
+# Se prueba con `python -m pruebas.probar_hilo_incremental --mutar`.
+HILOS_MAX = 60          # cuantas charlas se recuerdan; al pasarse sale la que hace mas que no se mira
+_HILO_COLA = 64         # bytes del final de lo leido que se guardan como prueba de identidad
+_HILO_CABEZA = 256      # y del principio del archivo, para lo mismo
+_HILOS = {}             # ruta del archivo -> _HiloLeido (el dict de Python conserva el orden)
+_CANDADO_HILOS = threading.Lock()
+
+
+class _HiloLeido:
+    """Lo ya leido de UN archivo de charla, para poder seguir desde ahi."""
+
+    def __init__(self):
+        self.candado = threading.Lock()   # dos pedidos a la vez no leen el mismo tramo dos veces
+        self.crudas = []       # las filas tal cual salen de los renglones, SIN juntar ni agrupar
+        self.resultados = {}   # como le fue a cada herramienta, por id
+        self.fotos = set()     # que herramientas devolvieron una foto
+        self.dicho = []        # lo que escribio Martin tal cual (para reconocer SUS fotos)
+        self.leidas = {}       # que archivo abrio cada Read
+        self.reiniciar()
+
+    def reiniciar(self):
+        """Olvida todo. ⚠ Vacia las listas EN EL LUGAR: `_filas_de` las tiene agarradas."""
+        self.pos = 0           # hasta que byte del archivo ya se leyo (siempre fin de renglon)
+        self.cola = b""        # los ultimos bytes leidos
+        self.cabeza = b""      # y los primeros del archivo: entre los dos, su identidad
+        self.firma = None      # (mtime, tamaño) del archivo en la ultima lectura
+        self.a_medias = False  # una lectura que se corto por un error: lo guardado no sirve
+        self.final = []        # el hilo ya armado de la ultima lectura
+        self.crudas.clear()
+        self.resultados.clear()
+        self.fotos.clear()
+        self.dicho.clear()
+        self.leidas.clear()
+
+
+def _hilo_de(clave):
+    """La ficha de ese archivo, creandola si hace falta. La mas vieja sin mirar se va."""
+    with _CANDADO_HILOS:
+        h = _HILOS.pop(clave, None) or _HiloLeido()
+        _HILOS[clave] = h                      # queda ultima: es la mas recien usada
+        while len(_HILOS) > HILOS_MAX:
+            del _HILOS[next(iter(_HILOS))]
+        return h
+
+
+def _mismo_archivo(h, jsonl, tam):
+    """Si el archivo sigue siendo el que se venia leyendo, solo que mas largo.
+
+    ⚠ Si no se puede ni abrir, el error SALE (no se contesta "es otro"): contestar que
+    es otro tiraria todo lo leido por un tropiezo del disco, y la pantalla mostraria la
+    charla vacia hasta releerla entera.
+    """
+    if tam < h.pos:
+        return False
+    with open(jsonl, "rb") as f:
+        # Se mira el principio Y el final de lo ya leido. ⚠ Lo que esto NO ve es un cambio
+        # en el medio que deje igual las dos puntas y el largo: un archivo de charla no se
+        # edita asi (Claude Code solo le agrega), y verlo costaria releerlo entero cada vez.
+        if f.read(len(h.cabeza)) != h.cabeza:
+            return False
+        f.seek(h.pos - len(h.cola))
+        return f.read(len(h.cola)) == h.cola
+
+
+def _objeto_entero(cruda):
+    """Si esos bytes ya son un renglon completo (un objeto json entero)."""
+    try:
+        return isinstance(json.loads(cruda.decode("utf-8", errors="replace")), dict)
+    except Exception:
+        return False
+
+
+def _lineas_desde(jsonl, marca):
+    """Entrega de a uno los renglones ENTEROS del archivo a partir de `marca[0]`.
+
+    `marca` es [posicion, ultimos bytes leidos, si salio bien, primeros bytes del archivo]
+    y se va actualizando a medida que avanza: al terminar dice hasta donde se llego. Se lee de a un renglon y no
+    el archivo de un saque: hay charlas de casi 200 MB, y cargarlas enteras en memoria
+    para partirlas seria gastar medio giga justo cuando la maquina esta apretada.
+    ⚠ Un ultimo renglon sin salto de linea se toma solo si ya es un objeto entero (uno
+    cortado por la mitad nunca lo es): si Claude Code lo esta escribiendo en este
+    instante, se lee en el proximo pedido en vez de perderse.
+    ⚠ Un error del disco (el antivirus que tiene tomado el archivo, por ejemplo) NO tira
+    lo ya leido: se corta ahi, `marca[2]` queda en False y el proximo pedido sigue desde
+    el mismo lugar. Tirarlo obligaria a releer la charla entera por un tropiezo.
+    """
+    try:
+        with open(jsonl, "rb") as f:
+            f.seek(marca[0])
+            for cruda in f:
+                if not cruda.endswith(b"\n") and not _objeto_entero(cruda):
+                    return
+                if len(marca[3]) < _HILO_CABEZA:
+                    marca[3] = (marca[3] + cruda)[:_HILO_CABEZA]
+                marca[0] += len(cruda)
+                # La cola sale del propio renglon cuando alcanza: sumarle lo anterior a un
+                # renglon de un mega seria copiarlo entero para quedarse con 64 bytes.
+                marca[1] = (cruda if len(cruda) >= _HILO_COLA
+                            else marca[1] + cruda)[-_HILO_COLA:]
+                if cruda.strip():
+                    yield cruda.decode("utf-8", errors="replace")
+    except OSError as e:
+        marca[2] = False
+        print("sesiones: no pude seguir leyendo la charla, sigo en el proximo pedido:",
+              e, flush=True)
+
+
+def _hilo_terminado(h):
+    """El hilo listo para la pantalla, armado sobre una COPIA de las filas crudas."""
+    filas = []
+    for f in h.crudas:
+        g = dict(f)
+        if g.get("de") == "paso":
+            g["us"], g["ids"] = list(f["us"]), list(f["ids"])
+        filas.append(g)
+    fotos = h.fotos - _fotos_que_mando(h.dicho, h.leidas)
+    return _agrupar_navegador(_juntar_pasos(filas, h.resultados), fotos)
 
 # ⭐ Cuanto de UN mensaje viaja a la pantalla. Estaba en 4.000 y cortaba a la mitad
 # justo las respuestas que mas importan: Martin trajo una captura (2026-08-24) donde
@@ -1998,7 +2186,8 @@ def _uuid_de(linea):
 # en el .jsonl y el rastro decia "corrio: git push" como si hubiera pasado. Ahora cada paso
 # lleva su estado: "ok", "error" (corrio y fallo), "negado" (nunca corrio) o "" (todavia
 # sin resultado, o sea corriendo).
-_NEGADO_PREFIJOS = ("Permission to use", "Esa direccion no esta en la lista")
+_NEGADO_PREFIJOS = ("Permission to use", "Esa direccion no esta en la lista",
+                    _NAVEG_NEGADO)
 
 
 def _texto_resultado(b):
@@ -2329,24 +2518,47 @@ def _sumar_subagente(d, archivo, extra):
 
 
 def _filas_de(jsonl):
-    """Los mensajes de UN archivo .jsonl, cacheados por version del archivo."""
+    """Los mensajes de UN archivo .jsonl: entero la primera vez, despues solo lo nuevo.
+
+    El porque y las trampas estan arriba, en el bloque de `_HILOS`.
+    """
     try:
         est = jsonl.stat()
     except OSError:
         return []
-    clave = (str(jsonl), est.st_mtime, est.st_size)
-    guardado = _HILOS.get(clave)
-    if guardado is not None:
-        return list(guardado)
-    filas, resultados, fotos = [], {}, set()
-    # Lo que dijo Martin tal cual (con la marca "[Te paso una imagen… guardada en …]") y
-    # que archivo abrio cada Read: con eso se sabe que foto es la que el mismo mando.
-    dicho, leidas = [], {}
-    with open(jsonl, "r", encoding="utf-8", errors="replace") as f:
-        for linea in f:
-            if seguir._es_turno_usuario(linea):
+    firma = (est.st_mtime, est.st_size)
+    h = _hilo_de(str(jsonl))
+    with h.candado:
+        if h.firma == firma and not h.a_medias:
+            return list(h.final)
+        if h.a_medias:
+            h.reiniciar()
+        elif h.pos:
+            try:
+                if not _mismo_archivo(h, jsonl, est.st_size):
+                    h.reiniciar()
+            except OSError:
+                return list(h.final)      # ni se pudo abrir: se contesta lo que habia
+        # Las MISMAS listas de la ficha: lo que se lea ahora se suma a lo ya leido.
+        filas, resultados, fotos = h.crudas, h.resultados, h.fotos
+        # Lo que dijo Martin tal cual (con la marca "[Te paso una imagen… guardada en …]") y
+        # que archivo abrio cada Read: con eso se sabe que foto es la que el mismo mando.
+        dicho, leidas = h.dicho, h.leidas
+        marca = [h.pos, h.cola, True, h.cabeza]
+        # ⚠ Si algo revienta a mitad de camino, las filas ya sumadas dejan de coincidir con
+        # `pos`. Queda anotado para que la proxima lectura arranque de cero y no duplique.
+        h.a_medias = True
+        for linea in _lineas_desde(jsonl, marca):
+            # ⭐ Cada linea se interpreta UNA sola vez. Antes eran hasta cuatro, y una
+            # charla con capturas del navegador tiene lineas de mas de un mega.
+            try:
+                d = json.loads(linea)
+            except Exception:
+                continue
+            if not isinstance(d, dict):
+                continue
+            if seguir._es_turno_usuario_d(d):
                 try:
-                    d = json.loads(linea)
                     c = (d.get("message") or {}).get("content")
                     t = c if isinstance(c, str) else " ".join(
                         b.get("text", "") for b in (c or []) if isinstance(b, dict))
@@ -2359,21 +2571,18 @@ def _filas_de(jsonl):
                     filas.append({"de": "vos", "texto": _recortar(t),
                                   "h": _hora_local(linea)})
                 continue
-            t = seguir._texto_de(linea)
+            t = seguir._texto_de_d(d)
             if t:
                 # ⭐ `u` es el uuid de la linea: con eso la pantalla sabe que un bloque del
                 # texto en vivo (`EN_VIVO`) ya llego al disco y lo puede soltar.
                 filas.append({"de": "claude", "texto": _recortar(t),
-                              "h": _hora_local(linea), "u": _uuid_de(linea)})
+                              "h": _hora_local(linea), "u": d.get("uuid") or ""})
                 continue
             # ⭐ El rastro: cada herramienta, un renglon. Va DESPUES del texto a
             # proposito — un mensaje del asistente puede traer texto Y herramientas, y
             # lo que se lee es el texto; el paso es el detalle de abajo.
-            try:
-                d = json.loads(linea)
-            except Exception:
-                continue
-            c = (d.get("message") or {}).get("content")
+            mensaje = d.get("message")
+            c = mensaje.get("content") if isinstance(mensaje, dict) else None
             if d.get("type") == "attachment":
                 # ⭐ Lo que le escribiste MIENTRAS trabajaba (`encolar`, 2026-09-27): Claude
                 # Code NO lo guarda como un mensaje tuyo sino como un adjunto
@@ -2418,12 +2627,15 @@ def _filas_de(jsonl):
                         leidas[b.get("id") or ""] = str(
                             (b.get("input") or {}).get("file_path") or "")
                     filas.append(f)
-    fotos -= _fotos_que_mando(dicho, leidas)
-    filas = _agrupar_navegador(_juntar_pasos(filas, resultados), fotos)
-    if len(_HILOS) > 300:
-        _HILOS.clear()
-    _HILOS[clave] = filas
-    return list(filas)
+        hubo_nuevo = marca[0] != h.pos
+        h.pos, h.cola, h.cabeza = marca[0], marca[1], marca[3]
+        h.a_medias = False
+        # Si la lectura se corto por un error del disco, la firma NO se anota: el proximo
+        # pedido sigue desde donde quedo en vez de dar por leido lo que falta.
+        h.firma = firma if marca[2] else None
+        if hubo_nuevo:
+            h.final = _hilo_terminado(h)
+        return list(h.final)
 
 
 def _es_pedido_resumen(texto):
@@ -3747,6 +3959,11 @@ def _atender_pedido(viva, d, clave):
             # dejar una ventana abierta en la pantalla.
             permiso, motivo = _permiso_navegador(
                 req.get("input") or {}, viva.sitios)
+            if permiso:
+                # ⭐ Y despues, CUAL navegador: nada pasa hasta que este proceso
+                # eligio el de su proyecto (ver `_permiso_cual_navegador`).
+                permiso, motivo = _permiso_cual_navegador(
+                    viva, str(req.get("tool_name")), req.get("input") or {})
             if permiso:
                 _asegurar_chrome(viva)
             _mandar_control(p, viva.candado_stdin, rid, (

@@ -263,7 +263,7 @@ def main():
         pag.wait_for_timeout(300)
         revisar("el primer toque pregunta y no manda nada", compactados, [])
         revisar("y el botón lo dice", pag.evaluate(
-            "() => document.getElementById('compactar').textContent"), "⇲ ¿compacto?")
+            "() => document.getElementById('compactar').textContent"), "¿compacto?")
 
         pag.click("#compactar")
         pag.wait_for_timeout(1500)

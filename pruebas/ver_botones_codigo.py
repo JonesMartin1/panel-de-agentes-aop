@@ -59,6 +59,12 @@ def main():
             pedidos.append(ruta.request.post_data_json)
             ruta.fulfill(status=200, content_type="application/json", body='{"ok":true}')
         pag.route("**/correr", atajar)
+        # ⭐ Desde el 2026-11-10 /sesiones tiene una terminal adentro, y con ella el ▶ ESCRIBE
+        # el comando ahí en vez de pedir la ventana de PowerShell (eso lo cuida
+        # `ver_terminal`). Esta prueba mide el camino de antes, que sigue vivo en las
+        # pantallas sin terminal (el celular): por eso acá la terminal se deja afuera.
+        pag.route("**/estaticos/terminal.js", lambda r: r.fulfill(
+            status=200, content_type="application/javascript", body=""))
         pag.route("**/movil/chat*", lambda r: r.fulfill(
             status=200, content_type="application/json", body=json.dumps(CHARLA)))
 

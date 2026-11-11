@@ -359,6 +359,19 @@ def _texto_de(linea):
         d = json.loads(linea)
     except Exception:
         return None
+    return _texto_de_d(d)
+
+
+def _texto_de_d(d):
+    """Lo mismo que `_texto_de`, pero con la linea YA interpretada.
+
+    ⭐ Existe para no interpretar dos veces la misma linea (2026-11-10): el hilo de la
+    pantalla de sesiones le pasaba el texto crudo a `_es_turno_usuario`, despues a
+    `_texto_de` y despues lo interpretaba el por tercera vez. En una charla con capturas
+    del navegador hay lineas de mas de un mega, y eso era el grueso del tiempo.
+    """
+    if not isinstance(d, dict):
+        return None
     if d.get("type") != "assistant" or d.get("isSidechain"):
         return None
     msg = d.get("message") or {}
@@ -380,6 +393,13 @@ def _es_turno_usuario(linea):
     try:
         d = json.loads(linea)
     except Exception:
+        return False
+    return _es_turno_usuario_d(d)
+
+
+def _es_turno_usuario_d(d):
+    """Lo mismo que `_es_turno_usuario`, pero con la linea YA interpretada."""
+    if not isinstance(d, dict):
         return False
     if (d.get("type") != "user" or d.get("isSidechain") or d.get("isMeta")
             or d.get("isCompactSummary") or d.get("isVisibleInTranscriptOnly")):

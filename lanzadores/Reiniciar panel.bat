@@ -32,7 +32,17 @@ REM decia que reiniciaba, y NO mataba nada: el panel seguia con el codigo viejo 
 REM se volvia loco buscando por que no aparecia el cambio en la pantalla.
 REM Y se relanza con el MISMO ejecutable con el que estaba corriendo, para no
 REM cambiarle a Martin la ventana (o la falta de ventana) que ya tenia.
+REM
+REM -WindowStyle Hidden al final, y NO se saca (2026-11-10). Sin eso, cada reinicio
+REM dejaba al panel adentro de una terminal a la vista: una ventana negra que Martin no
+REM sabia de donde salia ("me da miedo, puede que haya algo malicioso") y que encima
+REM es el panel mismo -- cerrarla lo apaga. Start-Process abre SIEMPRE una consola
+REM nueva para un python.exe, venga de donde venga quien lo llama; lo unico que la
+REM esconde es pedirlo aca. Medido con pruebas/ver_terminales.py: sin la marca aparece
+REM la terminal, con la marca no aparece nada y el proceso sigue vivo.
+REM El acceso del escritorio (launcher.vbs) ya lo lanzaba oculto: por eso la ventana
+REM salia solamente al reiniciar.
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -in 'python.exe','pythonw.exe' -and $_.CommandLine -like '*panel.py*' }; $exe = ($p | Select-Object -First 1).ExecutablePath; if (-not $exe) { $exe = 'D:\IA\envs\wpp\pythonw.exe' }; $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Start-Sleep -Seconds 2; Start-Process -FilePath $exe -ArgumentList %PYARGS% -WorkingDirectory 'D:\IA\wpp-transcriptor'"
+  "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -in 'python.exe','pythonw.exe' -and $_.CommandLine -like '*panel.py*' }; $exe = ($p | Select-Object -First 1).ExecutablePath; if (-not $exe) { $exe = 'D:\IA\envs\wpp\pythonw.exe' }; $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Start-Sleep -Seconds 2; Start-Process -FilePath $exe -ArgumentList %PYARGS% -WorkingDirectory 'D:\IA\wpp-transcriptor' -WindowStyle Hidden"
 
 endlocal

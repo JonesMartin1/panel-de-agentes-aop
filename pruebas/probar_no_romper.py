@@ -321,6 +321,21 @@ INVARIANTES = [
                      "        # ⚠ Aca NO se abre el Chrome"),
     },
     {
+        "clave": "navegador-elige-el-suyo",
+        "titulo": "La sesion no toca un navegador hasta elegir el de SU proyecto",
+        "por_que": ("Medido el 2026-11-10 contra el CLI: una sesion que todavia no eligio "
+                    "hereda en silencio el ultimo Chrome que eligio cualquier otra, o sea "
+                    "que una charla de una agencia podia arrancar sobre el Chrome de la "
+                    "otra. Y el id del navegador se LEE de la base de la extension: "
+                    "rastreando los bytes salia vacio en los perfiles con uso (van "
+                    "comprimidos) y la sesion terminaba preguntandole a Martin cual usar."),
+        "archivos": ["app/voz/sesiones_movil.py"],
+        "mira": lambda t: _navegador_el_suyo(t["app/voz/sesiones_movil.py"]),
+        "mutacion": ("app/voz/sesiones_movil.py",
+                     "                permiso, motivo = _permiso_cual_navegador(",
+                     "                permiso, motivo = True, \"\" or (lambda *a: a)("),
+    },
+    {
         "clave": "prompt-navegador-una-linea",
         "titulo": "Las reglas del navegador viajan en UNA sola linea",
         "por_que": ("Van pegadas al --append-system-prompt, y un `\\n` rompe el .CMD de "
@@ -406,6 +421,22 @@ INVARIANTES = [
         "mutacion": ("vigilar.ejemplo.json", '"canal": "telegram"', '"canal": "whatsapp"'),
     },
     {
+        "clave": "reinicio-sin-terminal",
+        "titulo": "Reiniciar el panel no lo deja adentro de una terminal a la vista",
+        "por_que": ("El .bat relanza el panel con Start-Process, que le abre SIEMPRE una "
+                    "consola nueva a un python.exe. Sin `-WindowStyle Hidden` cada reinicio "
+                    "dejaba una ventana negra con el panel adentro: Martin no sabia que "
+                    "era (\"me da miedo, puede que haya algo malicioso\", 2026-11-10) y "
+                    "cerrarla apaga el panel. El acceso del escritorio ya lo lanzaba "
+                    "oculto, por eso solo pasaba al reiniciar. Se mide de verdad con "
+                    "pruebas/ver_terminales.py."),
+        "archivos": ["lanzadores/Reiniciar panel.bat"],
+        "mira": lambda t: _reinicio_oculto(t["lanzadores/Reiniciar panel.bat"]),
+        "mutacion": ("lanzadores/Reiniciar panel.bat",
+                     "-WorkingDirectory 'D:\IA\wpp-transcriptor' -WindowStyle Hidden\"",
+                     "-WorkingDirectory 'D:\IA\wpp-transcriptor'\""),
+    },
+    {
         "clave": "cli-sin-ventana-negra",
         "titulo": "Nada que corra en un servicio abre una consola",
         "por_que": ("Los servicios los lanza el panel SIN consola, asi que cuando uno de "
@@ -417,10 +448,10 @@ INVARIANTES = [
                     "2026-09-06, cuando volvio a aparecer por todos los lugares que habian "
                     "quedado afuera de aquel arreglo. La salida se captura igual por los "
                     "pipes: la marca no esconde ningun log."),
-        "archivos": ["app/voz/claude_voz.py", "app/voz/codex_voz.py",
-                     "app/voz/sesiones_movil.py", "app/voz/acciones.py",
-                     "app/voz/spotify.py", "app/voz/adversarial.py",
-                     "app/nucleo/core.py", "app/nucleo/entrantes.py"],
+        # ⭐ Desde el 2026-11-10 mira TODOS los .py de app/ y panel.py, no una lista a
+        # mano de diez archivos: una lista a mano deja afuera justo el archivo nuevo,
+        # que es como volvio a aparecer la ventana las dos veces anteriores.
+        "archivos": None,
         "mira": lambda t: _cli_sin_ventana(t),
         "mutacion": [
             ("app/voz/claude_voz.py",
@@ -435,13 +466,32 @@ INVARIANTES = [
              'errors="replace", bufsize=1)'),
         ],
     },
+    {
+        "clave": "terminal-con-candados",
+        "titulo": "La terminal del panel no deja entrar sin sus tres candados",
+        "por_que": ("La terminal de /sesiones (2026-11-10) es un PowerShell de verdad "
+                    "alcanzable por un WebSocket, y a un WebSocket el navegador NO lo "
+                    "protege como a un pedido comun: sin mirar de que pagina viene, "
+                    "cualquier sitio abierto en el Chrome de Martin podria conectarse a "
+                    "ws://127.0.0.1:8750/terminal/ws y tipear en su maquina. Los candados "
+                    "son tres y hacen falta los tres: el nombre con el que llegaron "
+                    "(Host), la pagina de la que vienen (Origin) y la llave. Se prueba de "
+                    "verdad, con sus mutaciones, en pruebas/probar_terminal.py; esto cuida "
+                    "que nadie saque la puerta de una ruta al pasar."),
+        "archivos": ["app/voz/terminales.py"],
+        "mira": lambda t: _terminal_con_candados(t["app/voz/terminales.py"]),
+        "mutacion": ("app/voz/terminales.py",
+                     '        motivo = _puerta(ws.headers, ws.query_params.get("llave", ""),\n'
+                     "                         origenes_extra, anfitriones_extra)",
+                     '        motivo = ""'),
+    },
 ]
 
 # ⭐ El piso. La idea es de Marcus y es simple: el que hace el cambio no puede
 # tocar la vara que lo mide. Sin esto, la salida mas facil para un agente al que
 # el commit se le frena es borrar el invariante que le molesta, y el chequeo
 # quedaria en verde con menos reglas que ayer. Si agregas una, subi el numero.
-MINIMO_INVARIANTES = 19
+MINIMO_INVARIANTES = 25
 
 
 # --- Chequeos que no entran en una linea -----------------------------------------
@@ -471,8 +521,40 @@ def _llamada(texto, i):
     return texto[i:]
 
 
+# Los unicos lanzamientos que pueden ir sin la marca, cada uno con su motivo.
+CON_VENTANA_A_PROPOSITO = {
+    "app/web/navegador.py": "abre Chrome, que es un programa con ventana y no una consola",
+}
+
+
+def _terminal_con_candados(t):
+    """La puerta mira las tres cosas, el WebSocket pasa por ella ANTES de aceptar, y
+    ninguna ruta de la terminal se la saltea."""
+    puerta = cuerpo(t, "def _puerta(")
+    for pieza, que in (("_anfitrion_propio(anfitrion", "el nombre con el que llegaron"),
+                       ("urlsplit(origen).netloc", "la pagina de la que vienen"),
+                       ("secrets.compare_digest", "la llave")):
+        if pieza not in puerta:
+            return f"`_puerta` ya no mira {que}"
+    desde = t.find("async def terminal_ws(")
+    hasta = t.find("    def archivo(", desde)
+    if desde == -1 or hasta == -1:
+        return "no encuentro la ruta del WebSocket de la terminal"
+    motivo = antes_que(t[desde:hasta], "_puerta(ws.headers", "await ws.accept()")
+    if motivo:
+        return "el WebSocket acepta la conexion sin pasar por la puerta: " + motivo
+    # Las rutas comunes: cada `/terminal/...` llama a la puerta en su cuerpo.
+    trozos = t.split('@r.')[1:]
+    for trozo in trozos:
+        if trozo.startswith(('get("/terminal/', 'post("/terminal/')) and "puerta(request" not in trozo:
+            return "una ruta de la terminal no pasa por la puerta: " + trozo.split(")")[0]
+    return ""
+
+
 def _cli_sin_ventana(t):
     for arch, texto in t.items():
+        if arch in CON_VENTANA_A_PROPOSITO:
+            continue
         for m in re.finditer(r"subprocess\.(Popen|run|call|check_output)\s*\(", texto):
             abre = texto.index("(", m.start())
             if "creationflags" not in _llamada(texto, abre):
@@ -480,6 +562,20 @@ def _cli_sin_ventana(t):
                 return (f"{arch}:{linea}: hay un subprocess.{m.group(1)} sin "
                         "creationflags. Corriendo adentro de un servicio, eso le abre "
                         "una consola negra en la pantalla")
+    return ""
+
+
+def _reinicio_oculto(texto):
+    """Cada Start-Process del .bat (sin contar los comentarios) pide ventana oculta."""
+    lineas = [l for l in texto.splitlines()
+              if "Start-Process" in l and not l.lstrip().upper().startswith("REM")]
+    if not lineas:
+        return "el .bat ya no relanza el panel con Start-Process: revisar como lo esconde"
+    for l in lineas:
+        for trozo in l.split("Start-Process")[1:]:
+            if "-WindowStyle Hidden" not in trozo:
+                return ("el .bat relanza el panel sin -WindowStyle Hidden: cada reinicio "
+                        "deja una terminal a la vista con el panel adentro")
     return ""
 
 
@@ -670,6 +766,18 @@ def _chrome_perezoso(texto):
     if not re.search(r'AJUSTES_CHROME\s*=\s*\{"permissions": \{"ask": '
                      r'\["mcp__claude-in-chrome"\]\}\}', texto):
         return "AJUSTES_CHROME ya no pide preguntar por las herramientas del navegador"
+    return ""
+
+
+def _navegador_el_suyo(texto):
+    """El portero exige elegir el navegador del proyecto, y el id se lee de la base."""
+    if "permiso, motivo = _permiso_cual_navegador(" not in cuerpo(
+            texto, "def _atender_pedido("):
+        return ("_atender_pedido() ya no pasa por _permiso_cual_navegador(): una sesion "
+                "que no eligio navegador hereda el ultimo que eligio otra")
+    if "almacen_chrome.leer_llave(" not in cuerpo(texto, "def id_navegador_de("):
+        return ("id_navegador_de() ya no lee la base con almacen_chrome: rastreando los "
+                "bytes, el id sale vacio en los perfiles comprimidos")
     return ""
 
 

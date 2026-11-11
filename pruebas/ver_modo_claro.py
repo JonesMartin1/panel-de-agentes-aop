@@ -93,7 +93,14 @@ CONTRASTES = """
 () => {
   const lin = c => { c /= 255; return c <= .03928 ? c/12.92 : Math.pow((c+.055)/1.055, 2.4); };
   const luz = ([r,g,b]) => .2126*lin(r) + .7152*lin(g) + .0722*lin(b);
-  const nums = s => (s.match(/[\\d.]+/g) || []).map(Number);
+  // ⚠ Un color armado con color-mix() no vuelve como "rgb(245, 241, 234)" sino como
+  // "color(srgb 0.96 0.95 0.92 / 0.8)": los canales van de 0 a 1. Leídos como si fueran
+  // de 0 a 255 daban casi negro, y el medidor veía "texto oscuro sobre negro" donde en
+  // la pantalla hay papel claro (pasó con la barra de vidrio de los estilos, 2026-11-10).
+  const nums = s => {
+    const v = (s.match(/[\\d.]+/g) || []).map(Number);
+    return /^color\\(srgb/.test(s) ? v.map((x, i) => i < 3 ? x * 255 : x) : v;
+  };
   // El fondo de verdad: se sube por los padres hasta encontrar uno que tape.
   function fondoDe(el){
     let n = el, capas = [];

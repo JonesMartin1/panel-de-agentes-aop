@@ -84,6 +84,14 @@ def montar(pag, html, aspecto):
     pag.route(BASE + "/", lambda r: r.fulfill(status=200, content_type="text/html", body=html))
     pag.route("**/pizarra/rough.js", lambda r: r.fulfill(status=200, body=""))
     pag.route("**/fondo/**", lambda r: r.fulfill(status=200, body=""))
+    # ⚠ Los .js de estaticos que no estan en la lista de vacios van con su contenido
+    # REAL: el celular carga ademas envivo, pasos, entorno, arroba y colorcharla, y esos
+    # caian en la ruta de arriba, que contesta JSON. El navegador lo leia como codigo y
+    # tiraba "Unexpected token ':'": un error de la prueba, no de la pantalla
+    # (2026-10-27). Vacios tampoco sirven: el celular usa `EnVivo` apenas arranca.
+    pag.route("**/estaticos/*.js", lambda r: r.fulfill(
+        status=200, content_type="application/javascript",
+        body=(ESTATICOS / r.request.url.split("?")[0].rsplit("/", 1)[1]).read_text(encoding="utf-8")))
     for est in ("menu.js", "marcado.js", "atajos.js", "marcas.js", "direccion.js"):
         pag.route(f"**/estaticos/{est}", lambda r: r.fulfill(
             status=200, content_type="application/javascript", body=""))
@@ -163,9 +171,10 @@ def main():
     revisar("los campos nuevos estan en la lista blanca de /aspecto (viajan al celular)",
             not faltan, ", ".join(faltan))
     marcados = set(re.findall(r'data-bloque="(\w+)"', panel_py))
-    revisar("los siete bloques del panel estan marcados con data-bloque",
+    revisar("todos los bloques del panel estan marcados con data-bloque",
             marcados == set(bloques), f"HTML {sorted(marcados)} vs JS {sorted(bloques)}")
-    revisar("hay cinco estilos para elegir", len(estilos) == 5, ", ".join(estilos))
+    # Ocho desde el 2026-11-10: se sumaron "Carta celeste" y "Vidrio" (el rediseño de /sesiones).
+    revisar("hay ocho estilos para elegir", len(estilos) == 8, ", ".join(estilos))
     # ⚠ El acento de un estilo no puede ser verde, rojo ni ambar: son el semaforo. Se mira
     # el matiz de cada uno contra los tres de fabrica.
     peligro = []
@@ -230,10 +239,10 @@ def main():
         cols = pag.evaluate("""() => [...document.querySelectorAll('[data-bloque]')]
             .map(e => e.style.getPropertyValue('--bloque'))""")
         puestos = [c for c in cols if c]
-        revisar("con un estilo puesto, los siete bloques se pintan",
-                len(puestos) == 7, f"{len(puestos)} de {len(cols)}", clave=True)
-        revisar("y los siete colores son distintos entre si",
-                len(set(puestos)) == 7, ", ".join(puestos[:3]), clave=True)
+        revisar("con un estilo puesto, todos los bloques se pintan",
+                len(puestos) == len(bloques), f"{len(puestos)} de {len(cols)}", clave=True)
+        revisar("y los colores son distintos entre si",
+                len(set(puestos)) == len(bloques), ", ".join(puestos[:3]), clave=True)
         revisar("el filito solo aparece en los bloques con color",
                 pag.evaluate("() => document.querySelectorAll('.bq-color').length")
                 == len(puestos))
@@ -400,6 +409,15 @@ ESTILO_CAMPOS = {
              "tipo": "trebu", "letraFx": "resplandor"},
     "nordico": {"fondo": "azulado", "color": "#7aa2ff", "tintaLetras": "#bcd0f5",
                 "tintaCajas": "#1e3a5f", "tipo": "calibri", "tipoTitulo": "cambria"},
+    "grok": {"fondo": "negro", "color": "#fed7aa", "burbujaVos": "#c2410c",
+             "burbujaIa": "#a1a1aa", "aviso": "#38bdf8", "sombra": "suave",
+             "vidrio": "mucho"},
+    "celeste": {"fondo": "#080d1b", "color": "#cfe0ff", "tintaLetras": "#c9d4f2",
+                "tintaCajas": "#16204a", "aviso": "#7fd0ff", "sombra": "nada",
+                "vidrio": "nada", "tipo": "Archivo"},
+    "vidrio": {"fondo": "#0b1020", "color": "#f2f6ff", "tintaLetras": "#e3e9f8",
+               "tintaCajas": "#1b2440", "aviso": "#7fd0ff", "sombra": "suave",
+               "vidrio": "mucho", "tipo": "Segoe UI Variable Display"},
 }
 
 

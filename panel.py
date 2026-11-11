@@ -40,7 +40,7 @@ from app.rutas import (PESTANAS_MOVIL, PAUSA_ESCUCHA, SEGUIR_LECTURA, ESCRIBIR_E
                        NUEVA_SESION, ENV, CLAUDE_SESION, NOMBRES_SESIONES,
                        CARPETAS_SESIONES, ORDEN_CARPETAS, ASPECTO_CARPETAS,
                        RAIZ, WINDOWS_FONDOS,
-                       SESIONES_ARCHIVADAS,
+                       SESIONES_ARCHIVADAS, SUBPROYECTOS_SESIONES,
                        ESTUDIO, ESTUDIO_ENTRANTES, ESTUDIO_MINIATURAS, MARCAS_CHAT, ASPECTO,
                        COLORES_CHARLAS, FONDOS_CHARLAS, COMPACTAR_LAURA, BORRADORES_SESIONES,
                        PERFILES_CHROME, PERFIL_CHROME_PERSONAL, MIS_MENSAJES)
@@ -646,7 +646,9 @@ PAGINA = """<!doctype html><html lang="es"><head><meta charset="utf-8">
  @media(max-width:950px){
    body{overflow:auto}
    .cols{display:flex;flex-direction:column}
-   .col{overflow:visible}
+   .col{overflow:visible;flex:none}
+   .col-b{flex-direction:column}
+   .col-b > .card{flex:none;overflow:visible}
    #chat{height:60vh;flex:none}
  }
 </style></head><body><div class="wrap">
@@ -1772,6 +1774,7 @@ setInterval(cargarModelo,20000);
 // El contraste son turnos de varios minutos: cada 8 s alcanza y sobra. Mirarlo mas
 // seguido no lo hace terminar antes, y son tres sesiones de agente ocupadas.
 advPintar(); setInterval(advPintar,8000);
+
 </script></body></html>
 """
 
@@ -7551,6 +7554,32 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
  .correo .baj{color:var(--c7c8797,#7c8797);font-size:12.5px;margin-top:2px;white-space:nowrap;
               overflow:hidden;text-overflow:ellipsis}
  .correo .lapiz{color:var(--c5c6675,#5c6675);padding:6px 4px;font-size:15px}
+ /* ⭐ Subproyectos (2026-11-10): el título de cada grupo es un rótulo como los de
+    sección (.rubro), tocable para plegarlo. Solo aparece si alguna charla de la carpeta
+    tiene subproyecto: sin ninguno, la lista es la de siempre. */
+ .subgrupo{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.16em;
+        text-transform:uppercase;color:var(--c5c6675,#5c6675);font-weight:700;
+        padding:16px 4px 7px;user-select:none}
+ .subgrupo .nom{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .subgrupo .num{letter-spacing:0;font-weight:400}
+ html.con-foto .subgrupo{color:var(--cc6d0dc,#c6d0dc);text-shadow:0 1px 8px rgba(0,0,0,.85)}
+ #hojaSub{position:fixed;inset:0;z-index:29;background:rgba(0,0,0,.58);display:none;
+        align-items:flex-end}
+ #hojaSub.abierto{display:flex}
+ #hojaSub .hoja-edit{width:100%;max-height:72dvh;overflow-y:auto;padding:18px 16px
+        calc(18px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;
+        background:var(--c151c29,#151c29);border-top:1px solid var(--c2b3547,#2b3547);box-shadow:var(--sombra-arriba)}
+ #hojaSub .edit-cab{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+ #hojaSub .edit-cab b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ #hojaSub .cerrar-edit{width:34px;height:34px;margin:0;padding:0;border-radius:50%;
+        background:rgba(var(--cffffff-rgb,255,255,255),.07);color:var(--caab4c2,#aab4c2);font-size:16px}
+ #hojaSub .edit-rot{font-size:11px;letter-spacing:.15em;text-transform:uppercase;
+        color:var(--c697689,#697689);font-weight:700;margin:12px 0 6px}
+ #hojaSub .op-sub{padding:13px 10px;border-radius:10px;font-size:15px;color:var(--ce8ecf1,#e8ecf1)}
+ #hojaSub .op-sub:active{background:rgba(var(--cffffff-rgb,255,255,255),.07)}
+ #hojaSub .op-sub.sel{color:var(--c8ecbff,#8ecbff);font-weight:600}
+ #hojaSub .op-sub.otra{color:var(--c8ecbff,#8ecbff)}
+ #hojaSub .op-sub.sacar{color:var(--c8b96a5,#8b96a5)}
  .correo.nueva .tit{color:var(--c8ecbff,#8ecbff)}
  /* Entrar a las archivadas (cabecera) y devolver una (cada fila). Con el dedo tiene que
     ser un blanco grande: por eso el Devolver es un botón y no un iconito. */
@@ -7757,6 +7786,7 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
 <div id="visor" onclick="this.classList.remove('abierto')"><img id="visorImg"></div>
 <div id="hojaEntorno" onclick="if (event.target === this) cerrarEntorno()"><div class="entornoCaja" id="entornoCaja"></div></div>
 
+
 <script>
 const $ = s => document.querySelector(s);
 // Las pestañas abiertas viven en el celular, no en el server: cada uno arma las suyas.
@@ -7766,6 +7796,8 @@ let sesiones = [];
 // Firmas de lo ya dibujado: si la pantalla nueva es idéntica, no se toca el DOM
 // (repintar de gusto te tira el scroll y te cierra los desplegables).
 let firmaPanel = '', elegirFirma = '', mensajesPanel = [];
+// Qué subproyectos plegaste (carpeta|subproyecto). Misma llave que la pantalla grande.
+const subPlegMovil = new Set(JSON.parse(localStorage.getItem('sesSubproyPlegados') || '[]'));
 // ⭐ Qué lista de conversaciones se dibujó la última vez (carpeta + si estabas en las
 // archivadas). Sirve para decidir cuándo la bandeja tiene que empezar ARRIBA de todo:
 // ver `pintarElegir`.
@@ -8926,8 +8958,10 @@ function dibujarElegir(d){
                                 // escribir media frase y volver a la bandeja no prendia
                                 // la chapa porque la lista se creia igual.
                                 lista.map(s => s.id + s.nombre + s.viva + s.detalle
-                                                    + estadoSes(s) + (s.sigue_en || '')
-                                                    + borradorDe(s.id, s.borrador).slice(0, 60))]);
+                                                    + estadoSes(s) + (s.sigue_en || '') + '|' + (s.sub || '')
+                                                    + borradorDe(s.id, s.borrador).slice(0, 60)),
+                                // Plegar o desplegar un subproyecto tiene que repintar.
+                                [...subPlegMovil]]);
   if (firma === elegirFirma && $('#cuerpo').dataset.vista === 'lista') return;
   elegirFirma = firma;
   // ⭐ ¿Esta lista es la MISMA que se estaba mirando, o es una recién llegada? Si es
@@ -8974,7 +9008,7 @@ function dibujarElegir(d){
         : '');
   marcarVuelve = '';
 
-  const filas = lista.map(s => `
+  const filaCorreo = s => `
     <div class="correo ${estadoSes(s)}" data-sid="${s.id}"
          onclick="abrir('${s._cwd.replace(/\\\\/g,'\\\\\\\\')}','${s.id}','${esc(s.nombre).replace(/'/g,'')}')">
       <div class="ini ${s.viva ? 'viva' : ''}">${esc(inicial(s.nombre))}</div>
@@ -8996,8 +9030,22 @@ function dibujarElegir(d){
       </div>
       ${viendoArchivadas
         ? `<div class="devolver" onclick="event.stopPropagation();archivarSesion('${s.id}',false)">↩ Devolver</div>`
-        : `<div class="lapiz" onclick="event.stopPropagation();renombrarEnLista('${s.id}','${esc(s.nombre).replace(/'/g,'')}')">✎</div>`}
-    </div>`).join('');
+        : `<div class="lapiz" onclick="event.stopPropagation();abrirHojaSub('${s.id}')"
+               aria-label="Subproyecto">⊞</div><div class="lapiz" onclick="event.stopPropagation();renombrarEnLista('${s.id}','${esc(s.nombre).replace(/'/g,'')}')">✎</div>`}
+    </div>`;
+  // ⭐ Subproyectos (2026-11-10): adentro de una carpeta, si alguna charla tiene uno, la
+  // bandeja se parte en grupos plegables, los nombrados primero y "Sin subproyecto" al
+  // final. Si ninguna tiene, `grupos` es null y la lista sale como siempre. En "Todas" y
+  // en las archivadas no se agrupa, igual que en la pantalla grande.
+  const grupos = (!enTodas && !viendoArchivadas) ? agruparSubMovil(lista) : null;
+  const filas = !grupos ? lista.map(filaCorreo).join('')
+    : grupos.map(g => {
+        const k = p.proyecto + '|' + g.sub, pleg = subPlegMovil.has(k);
+        return `<div class="subgrupo" data-subpleg="${esc(k)}">
+                  <span>${pleg ? '▸' : '▾'}</span><span class="nom">${esc(g.sub || 'Sin subproyecto')}</span>
+                  <span class="num">${g.filas.length}</span></div>` +
+               (pleg ? '' : g.filas.map(filaCorreo).join(''));
+      }).join('');
 
   const nueva = enTodas
     ? `<div class="correo nueva" onclick="abrirCajon(true)">
@@ -9056,7 +9104,13 @@ function dibujarElegir(d){
         <input class="naveg-sitios" placeholder="sitios permitidos (vacío = todos)">
         <div class="naveg-aviso"></div>
       </div>
+    </div>
+    <div id="hojaSub" onclick="if(event.target===this)cerrarHojaSub()">
+      <div class="hoja-edit"></div>
     </div>`;
+  document.querySelectorAll('#cuerpo .subgrupo[data-subpleg]').forEach(x => {
+    x.onclick = () => plegarSubMovil(x.dataset.subpleg);
+  });
   if (foco === 'filtroSes' || foco === 'buscaCarp'){
     const c = $('#' + foco);
     if (c){ c.focus(); c.setSelectionRange(c.value.length, c.value.length); }
@@ -9080,6 +9134,68 @@ function dibujarElegir(d){
 }
 
 function nuevaEn(cwd){ abrir(cwd, '', 'Charla nueva'); }
+
+// ⭐⭐ SUBPROYECTOS (2026-11-10, pedido de Martín para la carpeta de UMINDS): una etiqueta
+// por charla, guardada en el servidor (`/movil/subproyecto`), así se ve igual acá y en la
+// pantalla grande. Es SOLO una forma de ordenar la vista: no cambia la carpeta donde se
+// abre la charla, ni su memoria, ni nada de Claude.
+function agruparSubMovil(filas){
+  if (!filas.some(s => s.sub)) return null;
+  const g = new Map();
+  filas.forEach(s => { const k = s.sub || ''; if (!g.has(k)) g.set(k, []); g.get(k).push(s); });
+  const out = [...g].filter(([k]) => k).map(([k, v]) => ({sub: k, filas: v}));
+  if (g.has('')) out.push({sub: '', filas: g.get('')});
+  return out;
+}
+function plegarSubMovil(k){
+  if (subPlegMovil.has(k)) subPlegMovil.delete(k); else subPlegMovil.add(k);
+  localStorage.setItem('sesSubproyPlegados', JSON.stringify([...subPlegMovil]));
+  elegirFirma = ''; pintarElegir();
+}
+function cerrarHojaSub(){ const h = $('#hojaSub'); if (h) h.classList.remove('abierto'); }
+// La hoja de abajo, como la de editar carpeta: los subproyectos que ya tiene la carpeta,
+// uno nuevo, y sacarla del que tiene.
+function abrirHojaSub(sid){
+  const d = listaSes, h = $('#hojaSub');
+  if (!d || !d.proyectos || !h) return;
+  const p = d.proyectos.find(x => x.sesiones.some(s => s.id === sid));
+  if (!p) return;
+  const s = p.sesiones.find(x => x.id === sid), actual = s.sub || '';
+  const existentes = [...new Set(p.sesiones.map(x => x.sub).filter(Boolean))]
+                       .sort((a, b) => a.localeCompare(b));
+  h.querySelector('.hoja-edit').innerHTML = `
+    <div class="edit-cab"><b>${esc(s.nombre || 'Conversación')}</b>
+      <button class="cerrar-edit" onclick="cerrarHojaSub()">×</button></div>
+    <div class="edit-rot">Subproyecto en ${esc(apodoCarp(p.proyecto))}</div>
+    ${existentes.map(n => `<div class="op-sub ${n === actual ? 'sel' : ''}" data-sub="${esc(n)}">${
+        n === actual ? '✓ ' : ''}${esc(n)}</div>`).join('')}
+    <div class="op-sub otra" data-hace="nuevo">＋ Nuevo subproyecto…</div>
+    ${actual ? `<div class="op-sub sacar" data-hace="sacar">✕ Sacarla de «${esc(actual)}»</div>` : ''}`;
+  h.querySelectorAll('[data-sub]').forEach(o => o.onclick = () => {
+    cerrarHojaSub(); if (o.dataset.sub !== actual) asignarSubMovil(sid, o.dataset.sub);
+  });
+  h.querySelector('[data-hace="nuevo"]').onclick = () => {
+    cerrarHojaSub();
+    const n = prompt('¿Cómo se llama el subproyecto?', '');
+    if (n !== null && n.trim()) asignarSubMovil(sid, n);
+  };
+  const sacar = h.querySelector('[data-hace="sacar"]');
+  if (sacar) sacar.onclick = () => { cerrarHojaSub(); asignarSubMovil(sid, ''); };
+  h.classList.add('abierto');
+}
+async function asignarSubMovil(sid, sub){
+  // Sin comillas: el nombre viaja adentro de atributos del HTML.
+  sub = (sub || '').replace(/"/g, '').split(/ +/).join(' ').trim().slice(0, 40);
+  // Se ve en el acto con lo que ya está en memoria; el servidor confirma al traer la lista.
+  if (listaSes && listaSes.proyectos)
+    listaSes.proyectos.forEach(p => p.sesiones.forEach(s => {
+      if (s.id === sid){ if (sub) s.sub = sub; else delete s.sub; }
+    }));
+  elegirFirma = ''; pintarElegir();
+  await fetch('/movil/subproyecto', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({sid, subproyecto: sub})}).catch(()=>{});
+  elegirFirma = ''; pintarElegir();
+}
 
 // Ponerle nombre propio a una sesión. El título que le puso Claude no se toca: esto
 // es un alias nuestro, guardado en el servidor, así que lo ves igual desde donde
@@ -10737,7 +10853,16 @@ if (window.Atajos) Atajos.montar({
   // Traer en segundo plano las conversaciones de las pestañas abiertas: cuando
   // toques una, ya está y se dibuja sin esperar nada.
   pestanas.forEach(precargar);
-  setInterval(pintar, 3000);          // el "en vivo": relee el archivo de la sesión
+  // El "en vivo": relee el archivo de la sesión. ⭐ De a UN pedido por vez (2026-11-10):
+  // por el túnel del teléfono un pedido puede tardar más de 3 s, y antes el siguiente
+  // salía igual y se apilaban. Con vencimiento (20 s) para que uno que no vuelve nunca
+  // no deje la charla muda.
+  let sondeoDesde = 0;
+  setInterval(() => {
+    if (sondeoDesde && Date.now() - sondeoDesde < 20000) return;
+    sondeoDesde = Date.now();
+    Promise.resolve(pintar()).catch(() => {}).finally(() => { sondeoDesde = 0; });
+  }, 3000);
   // cuales estan abiertas en la compu cambia solo cuando Martin abre o cierra una
   // ventana alla: con mirarlo cada 15 s alcanza y no carga al server al pedo
   setInterval(async () => { if (await traerSesiones()) pintarTabs(); }, 15000);
@@ -10796,6 +10921,7 @@ def movil_sesiones():
     from app.voz import sesiones_movil
     laura = _sesion_de_laura()
     alias = _nombres_sesiones()
+    subs = _subproyectos()
     guardadas = _archivadas()
     borradores = _borradores()
     proyectos = sesiones_movil.listar()
@@ -10823,6 +10949,10 @@ def movil_sesiones():
             if alias.get(s["id"]):
                 s["nombre"] = alias[s["id"]]
                 s["mio"] = True
+            # ⭐ El subproyecto (2026-11-10): solo viaja si tiene uno, así una carpeta
+            # donde nadie lo usó devuelve exactamente lo mismo que antes.
+            if subs.get(s["id"]):
+                s["sub"] = subs[s["id"]]
             # ⚠ Las archivadas se MARCAN, no se sacan: la pantalla las esconde de la
             # bandeja pero tiene que poder mostrarlas para desarchivarlas.
             if s["id"] in guardadas:
@@ -11632,6 +11762,20 @@ async def correr_en_powershell(request: Request):
     return {"ok": True}
 
 
+# ⭐ La TERMINAL adentro de /sesiones (2026-11-10): una terminal de verdad en la carpeta de
+# la charla, como la de Claude Code. Todo vive en `app/voz/terminales.py` (el PowerShell sin
+# ventana, las rutas `/terminal/*`, el WebSocket y sus TRES candados, y los archivos de la
+# pagina); aca solo se enchufa. En la compu el ▶ de un bloque de codigo escribe ahi en vez de
+# llamar a `/correr`, que queda para el celular.
+# ⚠ Va dentro de un `try`: si al entorno le faltara una pieza, el panel tiene que arrancar
+# igual y la pestaña simplemente no aparece.
+try:
+    from app.voz import terminales
+    app.include_router(terminales.router)
+except Exception as _e:
+    print("terminal: no se pudo enchufar:", _e, flush=True)
+
+
 def _nombres_sesiones():
     try:
         return json.loads(NOMBRES_SESIONES.read_text(encoding="utf-8"))
@@ -11659,6 +11803,42 @@ async def movil_nombre(request: Request):
                                 encoding="utf-8")
     _SESIONES_ULTIMA["datos"] = None      # el nombre nuevo tiene que verse en el acto
     return {"ok": True, "nombre": nombre}
+
+
+# --- ⭐ Subproyectos dentro de una carpeta (pedido de Martín, 2026-11-10) --------------
+# En UMINDS conviven charlas de temas distintos y la bandeja era una lista plana. Esto es
+# SOLO una etiqueta para agrupar la vista, guardada aparte como los nombres: no cambia el
+# cwd, ni la carpeta, ni la memoria, ni los archivos de Claude. La llave de la carpeta
+# sigue siendo su nombre real. Un grupo existe mientras alguna sesión lo tenga: no hay
+# lista de subproyectos aparte, así que uno sin sesiones no se guarda ni se muestra.
+def _subproyectos():
+    try:
+        d = json.loads(SUBPROYECTOS_SESIONES.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(d, dict):
+        return {}
+    return {k: v for k, v in d.items() if isinstance(k, str) and isinstance(v, str) and v.strip()}
+
+
+@app.post("/movil/subproyecto")
+async def movil_subproyecto(request: Request):
+    """Asignarle, cambiarle o sacarle el subproyecto a una sesión. Vacío = sacarlo."""
+    d = await request.json()
+    sid = (d.get("sid") or "").strip()
+    # Sin comillas: el nombre viaja adentro de atributos del HTML de las dos pantallas.
+    sub = " ".join(str(d.get("subproyecto") or "").replace('"', "").split())[:40]
+    if not sid or sid.startswith("nueva-"):
+        return {"ok": False, "error": "falta la sesión"}
+    subs = _subproyectos()
+    if sub:
+        subs[sid] = sub
+    else:
+        subs.pop(sid, None)
+    SUBPROYECTOS_SESIONES.write_text(json.dumps(subs, ensure_ascii=False, indent=1),
+                                     encoding="utf-8")
+    _SESIONES_ULTIMA["datos"] = None      # que se vea en el acto, en las dos pantallas
+    return {"ok": True, "subproyecto": sub}
 
 
 @app.get("/movil/chat")
@@ -11838,6 +12018,36 @@ _TRABAJOS_MOVIL = {}
 _TRABAJOS_CANDADO = threading.Lock()
 
 
+def _persistir(t):
+    """⭐ Copia la ficha al disco (`app/ingesta/trabajos.py`, 2026-10-27). El dict de
+    arriba sigue mandando; esto es lo que hace que un reinicio no borre los trabajos.
+    Nunca voltea al que llama: si el disco falla, se avisa en el log y se sigue."""
+    from app.ingesta import trabajos
+    trabajos.guardar(dict(t))
+
+
+@app.on_event("startup")
+def _arrancar_trabajos():
+    """⭐ Al arrancar, los trabajos vuelven del disco (2026-10-27).
+
+    Lo que figuraba corriendo pasa a `interrumpido`: con el panel caido, nadie lo iba a
+    terminar, y la pantalla tiene que decirlo en vez de quedarse esperando para siempre.
+    """
+    from app.ingesta import trabajos
+    try:
+        trabajos.podar()
+        cortados = trabajos.marcar_interrumpidos()
+        cargados = trabajos.cargar()
+        with _TRABAJOS_CANDADO:
+            for t in cargados:
+                if t.get("id"):
+                    _TRABAJOS_MOVIL.setdefault(t["id"], t)
+        print(f"trabajos: {len(cargados)} vueltos del disco, {len(cortados)} interrumpidos",
+              flush=True)
+    except Exception as e:
+        print("trabajos: no pude leer el disco al arrancar:", e, flush=True)
+
+
 def _trabajo_publico(t):
     return {k: t.get(k) for k in ("id", "estado", "cwd", "sid", "sid_nuevo", "respuesta",
                                   "error", "aviso", "pide_compactar", "cerebro",
@@ -11955,6 +12165,11 @@ def _correr_trabajo_movil(trabajo_id, cwd, sid, texto, cerebro, esfuerzo,
             t = _TRABAJOS_MOVIL.get(trabajo_id)
             if t and t.get("estado") == "trabajando":
                 t["sid_nuevo"] = sid_real
+                copia = dict(t)
+            else:
+                copia = None
+        if copia:
+            _persistir(copia)
 
     resultado = _ejecutar_turno_movil(
         cwd, sid, texto, cerebro, esfuerzo, modelo, velocidad, al_nacer=_nacio,
@@ -11969,6 +12184,8 @@ def _correr_trabajo_movil(trabajo_id, cwd, sid, texto, cerebro, esfuerzo,
         t["terminado"] = time.time()
         estado = t["estado"]
         quiere_aviso = bool(t.get("avisar"))
+        copia = dict(t)
+    _persistir(copia)
     if quiere_aviso and estado in ("terminado", "fallo"):
         _avisar(_aviso_tarea(cwd, resultado, estado))
 
@@ -12121,6 +12338,7 @@ async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = F
                    "creado": time.time(), "terminado": None}
         with _TRABAJOS_CANDADO:
             _TRABAJOS_MOVIL[trabajo_id] = trabajo
+        _persistir(trabajo)
         threading.Thread(target=_correr_trabajo_movil,
                          args=(trabajo_id, cwd, sid, texto, cerebro, esfuerzo, modelo,
                                velocidad, desde if not sid else ""),
@@ -12144,6 +12362,26 @@ def movil_trabajo(trabajo_id: str):
 @app.post("/movil/trabajo/{trabajo_id}/cancelar")
 async def movil_cancelar_trabajo(trabajo_id: str):
     from app.voz import sesiones_movil
+    with _TRABAJOS_CANDADO:
+        t = _TRABAJOS_MOVIL.get(trabajo_id)
+        if not t:
+            return {"ok": False, "error": "No encuentro ese trabajo."}
+        estado = t.get("estado")
+        if estado == "en_fila":
+            # El mensaje ya esta adentro del proceso de la charla: no hay como sacarlo.
+            # El error va DESPUES de la ficha: si no, su "error" vacio lo pisa.
+            return {**_trabajo_publico(t), "ok": False, "paro": False,
+                    "error": "Ese pedido ya entró en la charla y no se puede sacar; se "
+                    "corta cortando el turno de la charla."}
+        if estado == "en_cola":
+            # Todavia no arranco: alcanza con marcarlo (con el candado tomado, asi no se
+            # cruza con el que lo va a arrancar). El que espera lo ve y no lo corre.
+            t.update(estado="cancelado", error="Cancelado antes de arrancar.",
+                     terminado=time.time())
+            copia = dict(t)
+    if estado == "en_cola":
+        _persistir(copia)
+        return {"ok": True, "paro": True, **_trabajo_publico(copia)}
     with _TRABAJOS_CANDADO:
         t = _TRABAJOS_MOVIL.get(trabajo_id)
         if not t:
@@ -12185,6 +12423,8 @@ def _trabajos_de_sesion(sid, trabajo_id=""):
         if t.get("estado") == "trabajando":
             if not vivo or t.get("creado", 0) > vivo.get("creado", 0):
                 vivo = t
+        elif t.get("estado") in ("en_fila", "en_cola"):
+            continue     # pedidos que todavia esperan turno: ni vivos ni terminados
         elif not ultimo or (t.get("terminado") or 0) > (ultimo.get("terminado") or 0):
             ultimo = t
     return vivo, ultimo
@@ -13226,7 +13466,13 @@ async def aspecto_guardar(request: Request):
                                     # porque el telefono tiene otra densidad y otra
                                     # ampliacion — con la de la laptop puesta aca, los
                                     # botones saldrian de cualquier tamano.
-                                    "botones", "botonesZoom")
+                                    "botones", "botonesZoom",
+                                    # ⭐ El material del vidrio (2026-11-10, "siento que
+                                    # tengo limitaciones a la hora de configurar el
+                                    # vidrio"): cuanto tapan los paneles, su color, el
+                                    # brillo del borde y el grano. `vidrio` ya estaba y
+                                    # ahora tambien puede ser un numero ('1.35').
+                                    "vdOpaco", "vdTinte", "vdBrillo", "vdGrano")
               if d.get(k) is not None}
     ASPECTO.write_text(json.dumps(limpio), encoding="utf-8")
     # ⚠ Se devuelve lo GUARDADO, no un "ok" pelado: es como la pantalla se entera de que
@@ -14347,10 +14593,57 @@ def movil_manifest():
             "icons": [{"src": "/movil/icono.png", "sizes": "180x180", "type": "image/png"}]}
 
 
+class _SalidaDoble:
+    """Lo que el panel imprime va a su consola (si tiene) Y a `logs/panel.log`.
+
+    ⭐ Por que existe (2026-11-10): el log solo se escribia cuando el panel arrancaba SIN
+    consola. Arrancado con `python.exe` —que es como arranca casi siempre— todo lo que
+    imprimia, incluido el error con el que se moria, se iba a una consola escondida que
+    nadie ve. Ese dia el panel se cayo solo a las 04:07 y no quedo escrito por que: el
+    ultimo renglon de `panel.log` era de cinco dias antes.
+    """
+
+    def __init__(self, original, archivo):
+        self._original, self._archivo = original, archivo
+
+    def write(self, texto):
+        for salida in (self._archivo, self._original):
+            try:
+                if salida is not None:
+                    salida.write(texto)
+            except Exception:
+                pass                    # una salida rota no puede voltear al panel
+        return len(texto)
+
+    def flush(self):
+        for salida in (self._archivo, self._original):
+            try:
+                if salida is not None:
+                    salida.flush()
+            except Exception:
+                pass
+
+    def isatty(self):
+        return False
+
+    def __getattr__(self, nombre):      # encoding, fileno… lo que pida una libreria
+        return getattr(self._archivo, nombre)
+
+
 if __name__ == "__main__":
-    if sys.stdout is None or sys.stderr is None:
-        _f = open(LOGS / "panel.log", "a", encoding="utf-8", buffering=1)
-        sys.stdout = _f
-        sys.stderr = _f
+    import atexit
+    import faulthandler
+    _f = open(LOGS / "panel.log", "a", encoding="utf-8", buffering=1)
+    sys.stdout = _SalidaDoble(sys.stdout, _f)
+    sys.stderr = _SalidaDoble(sys.stderr, _f)
+    # Si Python se muere de golpe (un error de memoria, una libreria nativa), que deje
+    # escrito en que estaba cada hilo. Un `print` no llega a salir en ese caso; esto si.
+    faulthandler.enable(file=_f, all_threads=True)
+    # ⭐ Arranque y salida, con hora: asi el log distingue "lo apagaron" (queda el renglon
+    # de salida) de "se cayo o lo mataron" (el log termina sin el).
+    print(f"panel: arranco {time.strftime('%Y-%m-%d %H:%M:%S')} (pid {os.getpid()})", flush=True)
+    atexit.register(lambda: print(
+        f"panel: salgo ordenado {time.strftime('%Y-%m-%d %H:%M:%S')} (pid {os.getpid()})",
+        flush=True))
     silenciar_reset_windows()
     uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning")

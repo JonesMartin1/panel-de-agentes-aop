@@ -206,6 +206,16 @@
     // corre lo que diga el bloque en la maquina de Martin: un solo clic de mas no puede
     // ser suficiente. La pregunta va en el propio boton, al lado del comando que se ve.
     if (b.dataset.md === 'correr') {
+      // ⭐ Con la terminal del panel (2026-11-10) el comando se ESCRIBE ahí y no se ejecuta:
+      // apretar Enter es la confirmación, así que acá no hace falta el segundo toque. La
+      // pantalla que tiene terminal lo dice definiendo `MD_CORRER`; las demás (el celular)
+      // siguen con la ventana de PowerShell de siempre.
+      if (typeof window.MD_CORRER === 'function') {
+        const donde = (typeof window.MD_CWD === 'function') ? (window.MD_CWD() || '') : '';
+        let hecho = false;
+        try { hecho = window.MD_CORRER(cmd, donde); } catch (err) {}
+        if (hecho) { aviso(b, '✓ en la terminal', 'ok'); return; }
+      }
       if (!b.classList.contains('pregunta')) {
         b.dataset.antes = b.textContent;
         b.textContent = '▶ ¿corro esto?';

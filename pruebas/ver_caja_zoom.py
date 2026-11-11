@@ -103,7 +103,7 @@ FILA_COMPLETA = """() => {
   const p = document.querySelector('#parar');
   if (p) p.style.display = '';
   const b = document.querySelector('#compactar');
-  if (b) b.textContent = '⇲ resumiendo…';
+  if (b) rotular(b, 'resumiendo…');
 }"""
 
 MEDIR = """() => {

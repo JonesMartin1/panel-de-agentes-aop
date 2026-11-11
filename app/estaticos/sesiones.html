@@ -1,4 +1,4 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8">
+<!doctype html><html lang="es" data-carta><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Sesiones</title>
 <!--
   Las sesiones de Claude Code en pantalla grande. Referencia que pidio Martin: Gmail.
@@ -43,8 +43,11 @@
       border-color .18s ease,opacity .15s ease}
  .tab.moviendo{opacity:.42}
  .tab:active{cursor:grabbing}
- .tab .x{margin-left:9px;color:var(--c6b7280,#6b7280)}
- .tab .x:hover{color:var(--mal-txt)}
+ /* La cruz tiene su propio cuadradito: 16 px para acertarle, y se marca al pasar. */
+ .tab .x{display:inline-block;width:calc(16px * var(--ui,1));line-height:calc(16px * var(--ui,1));
+         text-align:center;border-radius:5px;margin-left:5px;margin-right:calc(-5px * var(--ui,1));
+         color:var(--c7d8592,#7d8592);transition:background-color .15s ease-out,color .15s ease-out}
+ .tab .x:hover{color:var(--mal-txt);background:color-mix(in srgb,currentColor 16%,transparent)}
  /* El punto de una sesion VIVA = esta trabajando: amarillo, como en la lista. */
  .tab .viva{color:var(--aviso);font-size:10px;margin-right:5px}
  /* El ＋ de arrancar una charla: mismo alto que las pestañas, pero se lee como botón. */
@@ -103,7 +106,7 @@
    box-shadow:var(--sombra-3)}
  #menuTarjeta.abierto{display:block}
  #menuTarjeta .rub{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-   color:var(--c5c6675,#5c6675);font-weight:700;margin:1px 0 8px 7px}
+   color:var(--c7d8592,#7d8592);font-weight:700;margin:1px 0 8px 7px}
  #menuTarjeta .tonos{display:flex;flex-wrap:wrap;gap:7px;padding:0 4px 4px}
  #menuTarjeta .tono{width:22px;height:22px;border-radius:50%;cursor:pointer;
    border:2px solid transparent}
@@ -129,7 +132,7 @@
    border:1px solid var(--c2a3342,#2a3342);border-radius:8px;color:var(--ce8ecf1,#e8ecf1);font-size:12.5px;
    padding:6px 9px;outline:none;font-family:inherit;margin:0 0 2px}
  #menuTarjeta .buscaIco:focus{border-color:var(--acento)}
- #menuTarjeta .buscaIco::placeholder{color:var(--c5c6675,#5c6675)}
+ #menuTarjeta .buscaIco::placeholder{color:var(--c7d8592,#7d8592)}
  #menuTarjeta .galeria{display:flex;flex-wrap:wrap;gap:7px;padding:7px 2px 2px;
    max-height:168px;overflow-y:auto;overscroll-behavior:contain}
  #menuTarjeta .galeria::-webkit-scrollbar{width:6px}
@@ -274,23 +277,55 @@
     ⚠ Cerrada sigue siendo un hijo de la grilla con ancho cero, NO `display:none`: por lo
     mismo que la de la izquierda, sacarla de la grilla corre la conversación de pista. */
  main{grid-template-columns:var(--lat,272px) 1fr var(--der,0px)}
- body.derecha-abierta{--der:300px}
- #derecha{overflow:hidden;background:var(--c0f1320,#0f1320);min-width:0;visibility:hidden}
- body.derecha-abierta #derecha{visibility:visible;overflow-y:auto;
-   border-left:1px solid var(--c1b2130,#1b2130);padding:12px 12px 20px}
+ /* ⭐⭐ Se ESTIRA y tiene PIEZAS (2026-11-10). Martín: *"hay cosas de Claude Code que
+    podríamos agregar a este panel, como la terminal o el navegador dentro del mismo
+    panel"*. Las dos necesitan lugar, y esta columna medía 300 px fijos. Ahora:
+    · su ancho sale de `--der-ancho` (lo guarda `sesDerAncho`; de fábrica, los 300 de
+      siempre) y se arrastra desde su borde izquierdo (`#tiradorDer`);
+    · adentro hay piezas (`.derPane`), una a la vista por vez, con pestañas arriba. Las
+      pestañas aparecen recién cuando hay MÁS de una pieza: con Entorno sola, la columna
+      se ve igual que antes. Las piezas se anotan con `Paneles.registrar()` (abajo).
+    ⚠ La que scrollea es la PIEZA, no la columna: el tirador está pegado al borde de la
+    columna, y si la columna scrolleara se iría para arriba con el contenido. */
+ body.derecha-abierta{--der:var(--der-ancho,300px)}
+ #derecha{overflow:hidden;background:var(--c0f1320,#0f1320);min-width:0;visibility:hidden;
+   position:relative;display:flex;flex-direction:column}
+ body.derecha-abierta #derecha{visibility:visible;border-left:1px solid var(--c1b2130,#1b2130)}
  #derecha .notaDer{font-size:12px;color:#7a8396}
+ .derPane{flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 12px 20px}
+ .derPane[hidden]{display:none}
+ #tiradorDer{position:absolute;top:0;left:0;bottom:0;width:6px;cursor:col-resize;z-index:5;
+   touch-action:none}
+ #tiradorDer:hover,#tiradorDer.tirando{background:var(--acento);opacity:.45}
+ #derTabs{flex:none;display:none;gap:calc(2px * var(--ui,1));
+   padding:calc(9px * var(--ui,1)) calc(12px * var(--ui,1)) 0}
+ #derTabs.varias{display:flex}
+ #derTabs button{appearance:none;border:0;background:none;cursor:pointer;font:inherit;
+   font-size:calc(12.5px * var(--ui,1));line-height:1.2;color:var(--c8b95a6,#8b95a6);
+   padding:calc(6px * var(--ui,1)) calc(11px * var(--ui,1));border-radius:8px;
+   transition:background-color .15s ease-out,color .15s ease-out}
+ #derTabs button:hover{color:var(--ce8ecf1,#e8ecf1);
+   background:rgba(var(--cffffff-rgb,255,255,255),.05)}
+ #derTabs button.sel{color:var(--ce8ecf1,#e8ecf1);font-weight:600;
+   background:rgba(var(--cffffff-rgb,255,255,255),.09)}
  /* ⭐ Los interruptores de las barras, todos juntos a la izquierda: la columna, el menú
     de pantallas, la fila de conversaciones y las dos de una. Apagado, el botón queda
     tenue pero SIGUE ESTANDO — es con lo que se vuelve. */
  #barraArriba .izq{display:flex;align-items:center;padding-left:12px}
+ /* ⭐ 2026-11-10: el dibujo es un icono de línea y "apagado" ya no es solo más tenue —
+    además se le va el relleno (`--rell`). A .22 de brillo el apagado no se distinguía
+    de "no hay nada acá"; a .34 sigue siendo el más bajo de la fila y se ve que es un
+    botón. */
  .botBarra{flex:none;display:flex;align-items:center;justify-content:center;
            width:calc(26px * var(--ui,1));height:calc(24px * var(--ui,1));border-radius:7px;
-           font-size:calc(14px * var(--ui,1));cursor:pointer;
-           opacity:.55;transition:opacity .15s,background .15s}
+           font-size:calc(14px * var(--ui,1));cursor:pointer;--rell:currentColor;
+           opacity:.62;transition:opacity .15s ease-out,background-color .15s ease-out,
+                                  transform .16s cubic-bezier(.23,1,.32,1)}
+ .botBarra .icn,#salirPleno .icn{width:calc(16px * var(--ui,1));height:calc(16px * var(--ui,1))}
  .botBarra:hover{opacity:1;background:var(--c1d2534,#1d2534)}
- .botBarra.off{opacity:.22}
- .botBarra.off:hover{opacity:.8}
- #btnLateral{font-size:15px}
+ .botBarra.off{opacity:.34;--rell:none}
+ .botBarra.off:hover{opacity:.85}
+ .botBarra:active{transform:scale(.94)}
  body.pleno #barraArriba,body.pleno #barra,body.sin-arriba #barraArriba{display:none}
  /* El botón de volver flota sobre la charla. Discreto, pero SIEMPRE visible: si
     apareciera solo al pasar el mouse, quien no sepa que está no lo encuentra nunca. */
@@ -300,8 +335,10 @@
    font-size:14px;backdrop-filter:blur(calc(6px * var(--vidrio,1)))}
  #salirPleno:hover{color:var(--ce8ecf1,#e8ecf1);border-color:var(--c3a4658,#3a4658)}
  body.pleno #salirPleno,body.sin-arriba #salirPleno{display:flex}
- .rubro{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--c5c6675,#5c6675);
-        margin:0 0 9px 18px;font-weight:700}
+ /* 2026-11-10: era de 10,5 px, en mayúsculas espaciadas y en un gris que daba 2,6 de
+    contraste. Ahora se escribe igual que el rótulo de "Archivos" (`.rubro.cab .nom`). */
+ .rubro{font-size:11.5px;letter-spacing:.02em;color:var(--c7c8797,#7c8797);
+        margin:0 0 9px 18px;font-weight:600}
  /* ⭐ Las filas de la columna también siguen a `--ui` (2026-09-12): con veintitrés
     carpetas y el zoom arriba, la lista era lo primero que dejaba de entrar. */
  .carpeta{display:flex;align-items:center;gap:calc(10px * var(--ui,1));
@@ -312,11 +349,15 @@
           margin-right:14px}
  .carpeta:hover{background:var(--c141a26,#141a26)}
  .carpeta .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
- .carpeta .num{color:var(--c5c6675,#5c6675);font-size:calc(11.5px * var(--ui,1));
-               flex:none;min-width:2.2ch;text-align:right}
+ .carpeta .num{color:var(--c7d8592,#7d8592);font-size:calc(11.5px * var(--ui,1));
+               /* El ancho va en px y no en `ch`: `ch` cambia con la negrita, y con una
+                  letra con serif la carpeta ELEGIDA corria sus marcas 2 px (2026-11-10). */
+               flex:none;min-width:calc(14px * var(--ui,1));text-align:right;
+               font-variant-numeric:tabular-nums}
  /* La marca de "esta carpeta maneja un navegador": apagada, para que no le compita al
     nombre, que es lo único que se viene a leer acá. Nunca en rojo. */
- .carpeta .naveg{flex:none;font-size:10px;opacity:.5;line-height:1;width:13px;text-align:center}
+ .carpeta .naveg{flex:none;width:13px;display:flex;align-items:center;justify-content:center;opacity:.6}
+ .carpeta .naveg .icn{width:12px;height:12px}
  /* Los lugares vacíos de las marcas de la derecha: miden lo mismo que la marca que
     les falta, así todo queda en columna aunque un renglón no tenga alguna. */
  .carpeta .hueco{flex:none}
@@ -365,7 +406,7 @@
                     margin-top:6px;padding-top:11px}
  .carpeta.guardadas:hover{color:var(--cc9d2de,#c9d2de)}
  .carpeta.devolver{padding-left:30px;color:var(--c8b93a1,#8b93a1);font-size:12.5px}
- .carpeta.devolver .vol{flex:none;color:var(--c5c6675,#5c6675);font-size:12px}
+ .carpeta.devolver .vol{flex:none;color:var(--c7d8592,#7d8592);font-size:12px}
  .carpeta.devolver:hover .vol{color:var(--acento,var(--c8ecbff,#8ecbff))}
  /* --- ⭐ La identidad visual de cada carpeta (2026-08-18) ------------------------
     Pintada, la carpeta lleva su color propio. ⚠ El color va en el `style` del
@@ -380,8 +421,8 @@
  /* --- ⭐ Las charlas activas colgando de su carpeta (2026-10-10) ------------------
     Más chicas y corridas a la derecha, con una línea fina a la izquierda que las ata a
     su carpeta: se tienen que leer como "adentro de", no como otra carpeta más. */
- .carpeta .plegar{flex:none;width:17px;text-align:center;color:var(--c5c6675,#5c6675);
-                  font-size:11px;border-radius:5px}
+ .carpeta .plegar{flex:none;width:17px;text-align:center;color:var(--c7d8592,#7d8592);
+                  font-size:12px;border-radius:5px}
  .carpeta .plegar:hover{color:var(--ce8ecf1,#e8ecf1);background:var(--c1a2333,#1a2333)}
  .subcarpeta{display:flex;align-items:center;gap:calc(8px * var(--ui,1));cursor:pointer;
              margin:0 14px 0 calc(30px * var(--ui,1));padding:calc(5px * var(--ui,1)) calc(10px * var(--ui,1));
@@ -394,19 +435,31 @@
  .subcarpeta.trabaja .pto{background:var(--c5eead4,#5eead4)}
  .subcarpeta.sel{background:var(--c16233a,#16233a);color:var(--c8ecbff,#8ecbff);font-weight:600;
                  border-left-color:currentColor}
+ /* ⭐ Subproyectos (2026-11-10): el título de cada grupo, con el mismo rótulo chico en
+    mayúsculas que ya usan los menús (`.rub`) y su flechita para plegarlo. Va en la
+    columna (bajo la carpeta, a la altura de sus charlas) y en la bandeja. */
+ .subgrupo{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+           margin:calc(6px * var(--ui,1)) 14px calc(2px * var(--ui,1)) calc(30px * var(--ui,1));
+           padding:2px calc(10px * var(--ui,1));font-size:calc(10px * var(--ui,1));
+           letter-spacing:.14em;text-transform:uppercase;color:var(--c6f7b8c,#6f7b8c)}
+ .subgrupo:hover{color:var(--ce8ecf1,#e8ecf1)}
+ .subgrupo .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .subgrupo .num{letter-spacing:0}
+ #cuerpo .subgrupo{margin:16px 0 6px;padding:0 4px;font-size:10.5px}
+ .lapiz.subp{font-size:13px}
  .carpeta .vive{flex:none;width:6px;height:6px;border-radius:50%;background:var(--c5eead4,#5eead4);
                 opacity:.85}
  #buscar{width:calc(100% - 28px);margin:0 14px 10px;padding:7px 11px;border-radius:9px;
          border:1px solid var(--c232a35,#232a35);background:var(--c151b26,#151b26);color:var(--ce8ecf1,#e8ecf1);font-size:13px}
- #buscar::placeholder{color:var(--c5c6675,#5c6675)}
+ #buscar::placeholder{color:var(--c7d8592,#7d8592)}
  .carpeta.sumar{color:var(--c8ecbff,#8ecbff);margin-top:8px;border-top:1px solid var(--c1b2130,#1b2130);padding-top:13px}
  section{overflow-y:auto;padding:16px 22px}
  .cabeza{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
  .cabeza b{font-size:19px} .cabeza small{color:var(--c7c8797,#7c8797)}
  .cabeza #filtro{margin-left:auto;padding:7px 12px;border-radius:9px;border:1px solid var(--c232a35,#232a35);
                  background:var(--c151b26,#151b26);color:var(--ce8ecf1,#e8ecf1);font-size:13px;width:230px}
- .cabeza #filtro::placeholder{color:var(--c5c6675,#5c6675)}
- .dedonde{font-size:11px;color:var(--c7c8797,#7c8797);font-weight:400;background:var(--c1a2130,#1a2130);padding:2px 7px;
+ .cabeza #filtro::placeholder{color:var(--c7d8592,#7d8592)}
+ .dedonde{font-size:11px;color:var(--c8b96a5,#8b96a5);font-weight:400;background:var(--c1a2130,#1a2130);padding:2px 7px;
           border-radius:999px;margin-right:7px}
  /* ⭐ LA CHAPA DE BORRADOR (pedido de Martín, 2026-08-18: "quiero que lo que yo escriba
     dentro de una sesión quede guardado como borrador y se pueda ver en todas, con una
@@ -470,7 +523,7 @@
  .med{flex:1;min-width:0}
  .tit{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  .baj{color:var(--c7c8797,#7c8797);font-size:12.5px}
- .lapiz{color:var(--c5c6675,#5c6675);padding:4px 8px} .lapiz:hover{color:var(--c8ecbff,#8ecbff)}
+ .lapiz{color:var(--c7d8592,#7d8592);padding:4px 8px} .lapiz:hover{color:var(--c8ecbff,#8ecbff)}
  /* El ▾ de cada carpeta y las últimas conversaciones que muestra. */
  .lapiz.despl{font-size:12.5px;color:var(--c7d8a9b,#7d8a9b);background:var(--c141a26,#141a26);border-radius:8px;padding:5px 9px}
  .lapiz.despl:hover{background:var(--c1a2536,#1a2536);color:var(--ccfe6ff,#cfe6ff)}
@@ -479,13 +532,13 @@
       cursor:pointer;font-size:13px;color:var(--cc3ccd9,#c3ccd9)}
  .ult:hover{background:var(--c131924,#131924);color:var(--ce8ecf1,#e8ecf1)}
  .ult .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
- .ult .cuando{color:var(--c5c6675,#5c6675);font-size:11.5px;white-space:nowrap}
+ .ult .cuando{color:var(--c7d8592,#7d8592);font-size:11.5px;white-space:nowrap}
  .ult .pto{width:7px;height:7px;border-radius:50%;background:var(--c3a4557,#3a4557);flex:none}
  .ult .pto.viva{background:var(--aviso)}
  #hilo{display:flex;flex-direction:column;gap:11px;padding-bottom:12px}
  /* Entrar a una pestaña: la charla aparece con un desvanecido corto en vez de golpe. */
  @keyframes entrar{from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:none}}
- #hilo.entrando{animation:entrar .18s ease-out}
+ #hilo.entrando{animation:entrar .18s ease-out backwards}
  /* ⭐ El tamaño sale del 🎨 (`--escala`, en /estaticos/aspecto.js): es un MULTIPLICADOR,
     no un tamaño fijo, así cada pantalla conserva su medida propia. */
  .msg{padding:9px 13px;border-radius:13px;max-width:min(760px,80%);white-space:pre-wrap;
@@ -513,7 +566,7 @@
        animation:late 1.25s infinite ease-in-out}
  .msg.pensa .pts i:nth-child(2){animation-delay:.18s}
  .msg.pensa .pts i:nth-child(3){animation-delay:.36s}
- .msg.pensa .reloj{color:var(--c5c6675,#5c6675);font-size:11.5px;font-variant-numeric:tabular-nums}
+ .msg.pensa .reloj{color:var(--c7d8592,#7d8592);font-size:11.5px;font-variant-numeric:tabular-nums}
  @keyframes late{0%,75%,100%{opacity:.2;transform:translateY(0)}
                  38%{opacity:1;transform:translateY(-4px)}}
  /* ⭐ La pregunta con opciones (AskUserQuestion): la sesión frenó a preguntarte algo y
@@ -573,7 +626,7 @@
  .pregunta .pOtra{display:flex;gap:7px;margin-top:8px}
  .pregunta .pOtra input{flex:1;background:var(--c151b26,#151b26);border:1px solid var(--c232a35,#232a35);
        border-radius:9px;color:var(--ce8ecf1,#e8ecf1);padding:7px 11px;font:inherit;font-size:13px}
- .pregunta .pOtra input::placeholder{color:var(--c5c6675,#5c6675)}
+ .pregunta .pOtra input::placeholder{color:var(--c7d8592,#7d8592)}
  .pregunta .pManda,.pregunta .pMandar{background:var(--acento-bg,var(--c16233a,#16233a));
        color:var(--acento,var(--c8ecbff,#8ecbff));border:0;border-radius:9px;padding:7px 14px;
        font:inherit;font-size:13px;font-weight:600;cursor:pointer}
@@ -593,7 +646,7 @@
          color:var(--c7d8a9b,#7d8a9b);font-weight:700;margin-bottom:6px}
  .tareas .tTit span{color:var(--c8ecbff,#8ecbff);margin-left:6px;letter-spacing:0}
  .tareas .tFila{display:flex;gap:8px;align-items:baseline;color:var(--cc9d2de,#c9d2de);padding:2px 0}
- .tareas .tFila .tIco{flex:none;width:16px;text-align:center;color:var(--c5c6675,#5c6675)}
+ .tareas .tFila .tIco{flex:none;width:16px;text-align:center;color:var(--c7d8592,#7d8592)}
  .tareas .tFila.hecha{color:var(--c6e7889,#6e7889)}
  .tareas .tFila.hecha .tIco{color:var(--ok-txt)}
  .tareas .tFila.haciendo{color:var(--ce8ecf1,#e8ecf1);font-weight:600}
@@ -634,7 +687,10 @@
  /* ⚠ El piso bajó de 280 a 160 con la fila de una línea (2026-10-10): con 280 la fila no
     entraba en el monitor vertical con zoom fuerte. 160 sigue siendo una caja donde se
     lee una frase, no la rendija del 25/08. */
- .caja textarea{flex:1 1 420px;min-width:calc(160px * var(--ui,1));
+ /* ⭐ 2026-11-10: la caja cede PRIMERO (el 20 del medio). Antes los dos elásticos se
+    achicaban a la par y el rótulo del modelo se cortaba ("Fable 5.2 · M…") con la caja
+    todavía ancha. Ahora el rótulo recién se corta cuando la caja llegó a su piso. */
+ .caja textarea{flex:1 20 420px;min-width:calc(160px * var(--ui,1));
        background:var(--c151b26,#151b26);border:1px solid var(--c232a35,#232a35);border-radius:11px;
        color:var(--ce8ecf1,#e8ecf1);padding:calc(11px * var(--ui,1)) calc(13px * var(--ui,1));
        font:calc(14px * var(--ui,1))/1.45 inherit;resize:none;max-height:calc(130px * var(--ui,1))}
@@ -686,7 +742,7 @@
  .cer{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;
       background:var(--c12261c,#12261c);border:1px solid var(--ok-bd);color:var(--ok-txt);
       font-size:10.5px;line-height:16px;vertical-align:1px}
- .tab .cer{margin-left:4px;line-height:14px;font-size:9.5px}
+ .tab .cer{margin-left:4px;line-height:14px;font-size:10.5px}
  /* La chapa de "esta charla se compactó y sigue en otra" (2026-08-20). Apagada, no es
     alarma: informa cuál es la vieja. Se toca para saltar a la continuación. */
  .sigue{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;
@@ -712,11 +768,11 @@
        background-repeat:no-repeat;background-position:right 10px center;background-size:9px 6px}
  .caja button.ajustes-modelo-boton.puesto{color:var(--c8ecbff,#8ecbff);border-color:var(--c25435e,#25435e)}
  .caja button.ajustes-modelo-boton:hover{background-color:var(--c1b2230,#1b2230);color:var(--cc9d2de,#c9d2de)}
- .ajustes-modelo-menu{display:none;position:absolute;right:0;bottom:46px;z-index:30;
+ .ajustes-modelo-menu{display:none;position:absolute;right:0;bottom:calc(var(--bh) + 8px);z-index:30;
        min-width:230px;padding:10px;background:var(--c111722,#111722);border:1px solid var(--c2b3443,#2b3443);
        border-radius:12px;box-shadow:var(--sombra-3)}
  .ajustes-modelo.abierto .ajustes-modelo-menu{display:grid;gap:8px}
- .ajustes-modelo-menu label{display:grid;gap:4px;color:var(--c778295,#778295);font-size:10.5px}
+ .ajustes-modelo-menu label{display:grid;gap:4px;color:var(--c8b96a5,#8b96a5);font-size:11.5px}
  .ajustes-modelo-menu label:has(select[style*="display: none"]){display:none}
  .ajustes-modelo-menu select.modelo{display:block;width:100%;max-width:none}
  /* Las acciones van abajo de las perillas y detrás de una línea: las perillas cambian
@@ -751,8 +807,8 @@
  /* Con alto de botón (y la letra centrada adentro) para que apoye en la misma línea que
     el resto de la fila, en vez de quedar una pastilla más baja colgando. */
  .caja .ctx{display:inline-flex;align-items:center;height:var(--bh);padding:0 calc(9px * var(--ui,1));
-       border-radius:9px;background:var(--c151b26,#151b26);
-       color:var(--c6e7889,#6e7889);font-size:calc(11.6px * var(--ui,1));border:1px solid var(--c232a35,#232a35);white-space:nowrap}
+       border-radius:11px;background:var(--c151b26,#151b26);
+       color:var(--c7d8592,#7d8592);font-size:calc(11.6px * var(--ui,1));border:1px solid var(--c232a35,#232a35);white-space:nowrap}
  .caja .ctx.medio{color:var(--aviso-txt);border-color:var(--aviso-bg)}
  .caja .ctx.mucho{color:var(--aviso-txt);background:var(--aviso-bg);border-color:var(--aviso-bd)}
  /* Las imágenes elegidas se ven ANTES de mandarlas, con su cruz para sacarlas. */
@@ -803,7 +859,7 @@
  .pideComp button{height:32px;padding:0 13px;border:none;border-radius:8px;cursor:pointer;
                   background:var(--aviso-txt);color:var(--c241f08,#241f08);font-weight:600;font-size:13px}
  .pideComp button.despues{background:var(--c151b26,#151b26);color:var(--c9aa3b2,#9aa3b2);font-weight:400}
- .vacio{color:var(--c616977,#616977);text-align:center;margin-top:60px}
+ .vacio{color:var(--c7d8592,#7d8592);text-align:center;margin-top:60px}
  .choque{background:var(--mal-bg);border:1px solid var(--mal-bd);color:var(--mal-txt);padding:11px 15px;
          border-radius:10px;font-size:13px;margin-bottom:14px;line-height:1.5}
  .choque b{color:var(--mal-txt)}
@@ -815,7 +871,7 @@
  .rubro.cab{display:flex;align-items:center;gap:8px;margin:11px 12px 7px 18px}
  .rubro.cab .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
                  text-transform:none;letter-spacing:.02em;font-size:11.5px;color:var(--c7c8797,#7c8797)}
- .rubro.cab .bot{cursor:pointer;color:var(--c5c6675,#5c6675);font-size:12px;letter-spacing:0;font-weight:400}
+ .rubro.cab .bot{cursor:pointer;color:var(--c7d8592,#7d8592);font-size:12px;letter-spacing:0;font-weight:400}
  .rubro.cab .bot:hover{color:var(--acento)}
  .nodo{display:flex;align-items:center;gap:calc(6px * var(--ui,1));
        padding:calc(3px * var(--ui,1)) calc(8px * var(--ui,1)) calc(3px * var(--ui,1)) 0;cursor:pointer;
@@ -827,7 +883,7 @@
  .nodo .fle{flex:none;width:12px;color:var(--c8894a6,#8894a6);font-size:10px}
  .nodo .ico{flex:none;width:16px;font-size:12px}
  .nodo .nom{overflow:hidden;text-overflow:ellipsis}
- .arbolNota{color:var(--c616977,#616977);font-size:12px;padding:6px 18px 10px;line-height:1.45}
+ .arbolNota{color:var(--c7d8592,#7d8592);font-size:12px;padding:6px 18px 10px;line-height:1.45}
  /* --- El visor de un archivo (a la derecha, donde va la conversación) ---------
     Solo lectura, a propósito: para CAMBIAR algo está la conversación, que sabe lo
     que está haciendo. Acá se viene a mirar qué hay y de qué se está hablando. */
@@ -870,6 +926,1036 @@
  .caja button{background:var(--acento-bg);color:var(--acento)}
  .lapiz:hover,.ult:hover .nom,.despl:hover{color:var(--acento)}
  /* El panel de aspecto: se abre debajo del 🎨 y se cierra tocando afuera. */
+ /* --- ⭐ Los botones, pasada de diseño (2026-11-10) ------------------------------
+    Pedido de Martín: "mejorar la interfaz del panel con mejores botones" — iconos
+    prolijos, más claros, más lindos y más ordenados. La pantalla se midió antes con el
+    detector de la skill Impeccable (43 avisos, casi todos de dos tipos: letra gris que
+    no se lee y letra demasiado chica). Lo que cambió, y por qué:
+    1. Los dibujitos de la barra de escribir y de la barra de arriba dejaron de ser
+       emojis y signos sueltos (cada uno de una fuente y un peso distintos) y son iconos
+       de línea de UNA familia: el <svg> de símbolos que abre el <body>. Toman el color
+       del botón, así que siguen al tema, al modo claro y al tinte sin tocar nada.
+       ⚠ La clase es `.icn` y no `.ico`: `.nodo .ico` ya existe en el árbol de archivos.
+       ⚠ Lo que eligió Martín NO se toca: el ícono y el color de cada carpeta siguen
+       siendo los suyos, y el ✕, el ＋ y las flechitas siguen siendo letras.
+    2. El gris #5c6675 daba entre 2,1 y 3,2 de contraste (el piso para leer es 4,5):
+       pasó a #7d8592 en toda la pantalla.
+    3. Cada botón contesta: se hunde un pelo al apretarlo, el apagado se nota y se ve
+       cuál tiene el foco del teclado. Nada dura más de 160 ms y nada se mueve si en
+       Windows está puesto "reducir movimiento".
+    ⚠ Un botón con dibujo Y texto lleva el texto adentro de un `.rot`: el que cambia el
+       texto por JavaScript usa `rotular()`, nunca `textContent` sobre el botón (borraría
+       el dibujo). */
+ .icn{flex:none;width:1.15em;height:1.15em;display:block;fill:none;stroke:currentColor;
+      stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+ .rot{min-width:0;overflow:hidden;text-overflow:ellipsis}
+ .caja button{display:inline-flex;align-items:center;justify-content:center;
+       gap:calc(7px * var(--ui,1));
+       transition:background-color .15s ease-out,color .15s ease-out,
+                  border-color .15s ease-out,transform .16s cubic-bezier(.23,1,.32,1)}
+ .caja button:active:not(:disabled){transform:scale(.96)}
+ .caja button:disabled{opacity:.55;cursor:default}
+ .caja button.ajustes-modelo-boton,
+ .ajustes-modelo-menu .menu-acciones button{justify-content:flex-start}
+ /* Enviar es el único botón lleno de la fila: un filo del color del tema lo despega del
+    fondo, y al pasar el mouse se aclara en vez de quedarse quieto. */
+ .caja button.enviar{border:1px solid color-mix(in srgb,var(--acento) 26%,transparent)}
+ .caja button.parar{border:1px solid var(--mal-bd)}
+ @media (hover:hover){
+   .caja button.enviar:hover:not(:disabled){
+       background:color-mix(in srgb,var(--acento) 17%,var(--acento-bg))}
+   /* Una pestaña que no estás mirando contesta al mouse (antes no hacía nada). Las del
+      semáforo y la recién abierta no: su color ya dice algo y no se pisa. */
+   html:not(.estilo-grok) .tab:not(.sel):not(.espera):not(.fallada):not(.mas):not(.recien):hover{
+       background:var(--c182030,#182030);color:var(--cc9d2de,#c9d2de)}
+ }
+ /* El foco del teclado, en el color del tema y no en el azul del navegador. */
+ button:focus-visible,select:focus-visible,.botBarra:focus-visible,#salirPleno:focus-visible{
+       outline:2px solid var(--acento);outline-offset:2px}
+ .caja textarea,#buscar,.cabeza #filtro{caret-color:var(--acento);
+       transition:border-color .15s ease-out,box-shadow .15s ease-out}
+ .caja textarea:focus,#buscar:focus,.cabeza #filtro:focus{outline:none;
+       border-color:color-mix(in srgb,var(--acento) 55%,transparent);
+       box-shadow:0 0 0 3px color-mix(in srgb,var(--acento) 13%,transparent)}
+ ::selection{background:color-mix(in srgb,var(--acento) 32%,transparent)}
+ /* El contador de una carpeta elegida o pintada: sobre un fondo de color, el gris de
+    siempre no llegaba a leerse (3,3 a 1 sobre el verde oliva). Este da 4,9 en el peor. */
+ .carpeta.sel .num,.carpeta.pintada .num{color:var(--c9aa5b4,#9aa5b4)}
+ /* La ayuda de la caja en UN renglón: con la pantalla angosta se partía en dos y el
+    segundo quedaba cortado por la mitad. Lo que no entra termina en puntos suspensivos. */
+ .caja textarea::placeholder{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ @media (prefers-reduced-motion:reduce){
+   .caja button:active:not(:disabled),.botBarra:active{transform:none}
+ }
+
+ /* ======================================================================================
+    ⭐⭐ CARTA CELESTE (2026-11-10) — el rediseño de esta pantalla.
+    Martín, después de dos pasadas de retoques: *"se sigue viendo como una aplicación
+    ordinaria; quiero que sea premium, que dé ganas de pagar por verla todos los días"*.
+    Eligió este rumbo entre cuatro bocetos. La idea: cada agente es un punto de una carta
+    del cielo y su TAMAÑO y su ANILLO dicen el estado, así que el estado de quince charlas
+    se lee sin leer una palabra. Fondo azul noche, tinta tiza, reglas finas.
+    Todo cuelga de `html.carta`, que `aspecto.js` pone solo con el estilo "Carta celeste":
+    sin esa clase esta hoja no existe y la pantalla es la de siempre.
+    Lo que NO se toca (lo dijo él): los colores y emojis de sus carpetas y la foto de fondo.
+    Lo que estaría mal: que quede recargado. Por eso acá no hay vidrio, ni brillos, ni
+    partículas, y lo único que se mueve es el anillo del agente que está trabajando.
+    ⭐⭐ EL DISEÑO PONE LAS FORMAS; LOS COLORES Y LA LETRA SIGUEN SIENDO DEL 🎨. Martín, con
+    Vidrio ya puesto: *"siento que se pierde mucha personalización con estos cambios; me
+    gustaría poder seguir configurando colores y esas cosas por más que haya un nuevo
+    diseño"*. Tenía razón: la primera versión escribía a mano la tinta, la letra, tu burbuja
+    y el botón Enviar, y la mitad de las perillas dejaban de hacer algo acá. Ahora cada
+    cosa sale de la misma variable de siempre:
+      · la tinta, del tinte de las letras (`--ce8ecf1-rgb`) → y el tema claro la da vuelta solo;
+      · las piezas (la caja, los menús), del tinte de las cajas (`--c151b26`);
+      · lo elegido y el botón Enviar, del color de acento (`--acento`, `--acento-sobre`);
+      · tu burbuja y la de la sesión, de las dos perillas de burbuja SI las elegiste
+        (`--burbuja-vos-puesta`, `--burbuja-ia-puesta`); si no, quedan como las dibuja el diseño;
+      · la letra, de la tipografía elegida (`--tipo`) y la de los títulos (`--tipo-titulo`);
+      · las barras de arriba, de su perilla (`--barra`);
+      · el tamaño, de la perilla de botones (`--ui`), sin ningún piso.
+    ⚠ REGLA para lo que se agregue: un color o una letra nuevos se escriben como respaldo de
+    una de esas variables, nunca sueltos. Lo cuida `ver_carta_celeste` (parte 3).
+    ⚠ Tres voces de letra y cada una con su trabajo: la cursiva con serif es para el NOMBRE
+    de lo que estás mirando, la grotesca para todo lo que se opera, la monoespaciada para
+    horas y medidas. No mezclarlas "para que quede lindo".
+    ====================================================================================== */
+ html.carta{--ct:var(--ce8ecf1-rgb,232,236,241);--ct-tinta:rgb(var(--ct));
+   --ct-2:rgba(var(--ct),.70);--ct-3:rgba(var(--ct),.54);--ct-regla:rgba(var(--ct),.09);
+   --ct-regla2:rgba(var(--ct),.16);--ct-hundido:rgba(var(--ct),.065);--ct-luz:var(--acento);
+   --u:var(--ui,1);--ct-pieza:var(--c151b26,#151b26);--ct-col:720px;--ct-ui:var(--tipo);
+   --ct-nombre:var(--tipo-titulo,'Piazzolla','Sitka Heading',Georgia,serif);
+   --ct-dato:'Chivo Mono','Cascadia Mono',Consolas,monospace}
+ html.carta body{color:var(--ct-tinta);-webkit-font-smoothing:antialiased;
+   font-variant-numeric:tabular-nums}
+ /* ⭐⭐ EL ESQUELETO. El riel va de arriba abajo y TODO lo demás queda a su derecha: las
+    dos barras, la charla y la pieza de escribir. En la pantalla de siempre las barras
+    cruzan por encima del riel y la caja por debajo; acá eso hacía que la raya de la
+    pestaña elegida pisara el borde del riel y que debajo quedara un escalón.
+    Se hace SIN mover el HTML: la página pasa a ser una grilla y `main` se disuelve
+    (`display:contents`), así el riel, la charla y la columna derecha se acomodan como
+    hijos directos de la página. Nada en el código le pregunta su tamaño a `main`.
+    Filas: barra de botones · fila de charlas · contenido · fotos adjuntas · pieza de escribir. */
+ html.carta body{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;
+   grid-template-columns:var(--lat,272px) minmax(0,1fr) var(--der,0px)}
+ html.carta body.lateral-oculto{grid-template-columns:0 minmax(0,1fr) var(--der,0px)}
+ html.carta main{display:contents}
+ html.carta aside{grid-column:1;grid-row:1 / 6;min-height:0}
+ html.carta #barraArriba{grid-column:2 / 4;grid-row:1}
+ html.carta #barra{grid-column:2 / 4;grid-row:2}
+ html.carta section#cuerpo{grid-column:2;grid-row:3;min-height:0}
+ html.carta #derecha{grid-column:3;grid-row:3 / 6;min-height:0}
+ html.carta #chapas{grid-column:2;grid-row:4}
+ html.carta .caja{grid-column:2;grid-row:5}
+ html.carta ::-webkit-scrollbar{width:11px;height:11px}
+ html.carta ::-webkit-scrollbar-track{background:transparent}
+ html.carta ::-webkit-scrollbar-thumb{background:rgba(var(--ct),.14);border-radius:6px;
+   border:3px solid transparent;background-clip:content-box}
+ html.carta ::-webkit-scrollbar-thumb:hover{background:rgba(var(--ct),.3);background-clip:content-box}
+
+ /* --- La estrella: el punto que dice el estado. Es la firma de toda la pantalla. ---
+    Rampa FIJA de magnitudes: chico y apagado = dormida; mediano = prendida y quieta;
+    grande y lleno = trabajando (con su anillo, lo único que se mueve); anillo hueco = te
+    espera (verde) o falló (rojo). El color sigue siendo el semáforo de siempre. */
+ .ast,.estrellas,#marcaCarta,#cielo,.carta-cab{display:none}
+ html.carta .ast{display:inline-block;flex:none;position:relative;box-sizing:border-box;
+   border-radius:50%;width:calc(4px * var(--u));height:calc(4px * var(--u));background:var(--ct-3)}
+ html.carta .ast.viva{width:calc(6px * var(--u));height:calc(6px * var(--u));background:var(--ct-2)}
+ html.carta .ast.trabajando,html.carta .ast.espera,html.carta .ast.fallada{
+   width:calc(9px * var(--u));height:calc(9px * var(--u))}
+ html.carta .ast.trabajando{background:var(--aviso)}
+ html.carta .ast.espera{background:none;border:2px solid var(--ok)}
+ html.carta .ast.fallada{background:none;border:2px solid var(--mal)}
+ /* ⚠⚠ El anillo del que trabaja es FIJO. La primera versión lo hacía latir en cada lugar
+    donde aparece un agente trabajando (riel, franja, pestaña, bandeja): con tres agentes
+    eran nueve anillos moviéndose a la vez, o sea exactamente lo "recargado" que Martín
+    dijo que no quería. Lo cazó una revisión de ojos frescos; las capturas no lo mostraban
+    porque se sacaron con el movimiento apagado.
+    Lo ÚNICO que se mueve en toda la pantalla es el anillo de "pensando" de la charla que
+    tenés abierta, que es la que estás mirando esperar. */
+ html.carta .ast.trabajando::after,html.carta .tab .viva.late::after,
+ html.carta .msg.pensa .pts i:first-child::after,html.carta .correo.trabajando .ini::after{
+   content:'';position:absolute;inset:-4px;border-radius:50%;border:1px solid var(--aviso);
+   opacity:.38}
+ html.carta #cielo .ast.trabajando::after{display:none}      /* en la franja no hay lugar */
+ html.carta .msg.pensa .pts i:first-child::after{opacity:0;
+   animation:ctAnillo 2.8s cubic-bezier(.16,1,.3,1) infinite}
+ @keyframes ctAnillo{0%{opacity:.6;transform:scale(.55)} 70%,100%{opacity:0;transform:scale(1.35)}}
+ @media (prefers-reduced-motion:reduce){
+   html.carta .msg.pensa .pts i:first-child::after{animation:none;opacity:.38;transform:none}
+ }
+
+ /* --- Las dos barras de arriba: retroceden. La charla es la dueña de la pantalla. --- */
+ html.carta #barraArriba{background:var(--barra,transparent);border-bottom:0;
+   padding:calc(8px * var(--u)) calc(16px * var(--u)) 0 calc(4px * var(--u))}
+ html.carta #barra{background:var(--barra,transparent);border-bottom:1px solid var(--ct-regla)}
+ html.carta.con-foto #barraArriba,html.carta.con-foto #barra{background:var(--barra,var(--fondo2))}
+ html.carta .botBarra{width:calc(28px * var(--u));height:calc(26px * var(--u));border-radius:8px;
+   color:var(--ct-tinta);opacity:.46}
+ html.carta .botBarra .icn{width:calc(16px * var(--u));height:calc(16px * var(--u))}
+ html.carta .botBarra:hover{opacity:1;background:var(--ct-hundido)}
+ html.carta .botBarra.off{opacity:.24}
+ html.carta .menu-pantallas,html.carta .menu-pantallas .todo{gap:calc(2px * var(--u))}
+ html.carta .menu-pantallas a,html.carta .menu-pantallas .abrir{background:none;
+   border-color:transparent;border-radius:8px;color:var(--ct-3);
+   font-size:calc(12.5px * var(--u));padding:calc(5px * var(--u)) calc(9px * var(--u))}
+ html.carta .menu-pantallas a:hover,html.carta .menu-pantallas .abrir:hover{
+   background:var(--ct-hundido);border-color:transparent;color:var(--ct-tinta)}
+ html.carta .menu-pantallas a.aca,html.carta .menu-pantallas .abrir{background:none;
+   border-color:transparent;color:var(--ct-tinta);font-weight:600}
+ html.carta .menu-pantallas.mini .todo{background:var(--ct-pieza);
+   border:1px solid var(--ct-regla2);border-radius:12px;box-shadow:none}
+ html.carta .menu-pantallas.mini .todo a{background:none;border-color:transparent;color:var(--ct-2)}
+ html.carta .menu-pantallas.mini .todo a.aca{background:var(--ct-hundido);color:var(--ct-tinta)}
+ html.carta #aspectoBtn{background:none;border-color:transparent}
+ html.carta #aspectoBtn:hover{background:var(--ct-hundido);border-color:transparent}
+
+ /* --- La fila de charlas abiertas: texto y una raya, no solapas. --- */
+ html.carta #tabs{padding:0 calc(8px * var(--u));gap:calc(2px * var(--u));align-items:stretch}
+ html.carta .tab{display:inline-flex;align-items:center;background:none;border:0;border-radius:0;
+   border-bottom:2px solid transparent;color:var(--ct-3);
+   font-size:calc(13px * var(--u));
+   padding:calc(11px * var(--u)) calc(12px * var(--u)) calc(10px * var(--u))}
+ html.carta .tab[style]{background:none !important}
+ html.carta .tab:not(.sel){border-bottom-color:transparent !important}
+ html.carta .tab:not(.sel):hover{background:none;color:var(--ct-2)}
+ html.carta .tab.sel{background:none;color:var(--ct-tinta);font-weight:600;
+   border-bottom-color:var(--ct-luz)}
+ html.carta .tab.espera,html.carta .tab.fallada{background:none;border-color:transparent;
+   color:var(--ct-tinta)}
+ html.carta .tab .viva,html.carta .tab .bola,html.carta .grupo .bola{display:inline-block;
+   flex:none;position:relative;box-sizing:border-box;font-size:0;border-radius:50%;
+   width:calc(9px * var(--u));height:calc(9px * var(--u));margin-right:calc(8px * var(--u));
+   background:var(--aviso);animation:none}
+ html.carta .tab.espera .bola,html.carta .grupo.espera .bola{background:none;border:2px solid var(--ok)}
+ html.carta .tab.fallada .bola,html.carta .grupo.fallada .bola{background:none;border:2px solid var(--mal)}
+ html.carta .tab .x{opacity:0;color:var(--ct-3);border-radius:6px;
+   margin-left:calc(8px * var(--u));margin-right:calc(-4px * var(--u))}
+ html.carta .tab:hover .x,html.carta .tab.sel .x{opacity:1}
+ html.carta .tab .x:hover{color:var(--ct-tinta);background:var(--ct-hundido)}
+ html.carta .tab .cer,html.carta .cer{background:none;border:1px solid var(--ct-regla2);
+   color:var(--ct-3);font:calc(10px * var(--u)) var(--ct-dato);border-radius:6px}
+ html.carta .tab.mas{background:none;color:var(--ct-3);font-weight:400;
+   padding-left:calc(10px * var(--u));padding-right:calc(10px * var(--u))}
+ html.carta .tab.mas:hover{background:none;color:var(--ct-tinta)}
+ html.carta .tab.recien{animation:none}
+ /* ⭐ La FORMA que le elegiste a las pestañas y a las pastillas (botón derecho → forma) se
+    respeta. Con la de fábrica ("redonda") van como texto con una raya; con cualquier otra
+    necesitan una superficie para que la forma se vea, así que se la devuelve. */
+ html.carta #tabs:not([data-ftab="redonda"]) .tab{border-bottom:0;
+   background:rgba(var(--ct),.06) !important}
+ html.carta #tabs:not([data-ftab="redonda"]) .tab.sel{background:rgba(var(--ct),.17) !important}
+ html.carta #tabs:not([data-fgrupo="redonda"]) .grupo{background:rgba(var(--ct),.06) !important}
+ html.carta .grupo{align-self:center;margin-bottom:0;background:none;border:0;border-radius:8px;
+   color:var(--ct-3);font-size:calc(12px * var(--u));font-weight:600;letter-spacing:0;
+   padding:calc(5px * var(--u)) calc(9px * var(--u))}
+ html.carta .grupo[style]{background:none !important}
+ html.carta .grupo:hover{background:var(--ct-hundido) !important;color:var(--ct-tinta)}
+ html.carta .grupo.abierto:not([style]){color:var(--ct-2)}
+ html.carta .grupo .x{color:var(--ct-3)}
+ html.carta #tabs .grupo:not(:first-child){margin-left:calc(10px * var(--u))}
+ html.carta #abrazo{top:calc(7px * var(--u));bottom:calc(6px * var(--u));border:0;
+   border-radius:10px;background:rgba(var(--ct),.04)}
+
+ /* --- El riel: la marca, "esta noche", el buscador y los proyectos con sus puntos. --- */
+ html.carta aside{border-right:1px solid var(--ct-regla)}
+ html.carta #paneProy{padding:calc(18px * var(--u)) calc(12px * var(--u)) calc(8px * var(--u))}
+ html.carta #paneProy > .rubro{display:none}
+ html.carta #marcaCarta{display:flex;align-items:baseline;gap:10px;margin:0;
+   padding:2px calc(10px * var(--u)) calc(16px * var(--u));color:var(--ct-tinta);
+   font:italic 500 calc(23px * var(--u))/1 var(--ct-nombre);letter-spacing:-.005em}
+ html.carta #marcaCarta small{font:400 calc(11px * var(--u)) var(--ct-dato);color:var(--ct-3);
+   letter-spacing:0}
+ /* ⭐ "Esta noche": todas las charlas sobre un eje de tiempo. A la izquierda lo de recién,
+    a la derecha lo de ayer. Es una carta de verdad —la posición es la hora de la última
+    actividad—, no un adorno: los puntos son los mismos de la lista y se pueden clickear. */
+ html.carta #cielo{display:block;position:relative;height:calc(70px * var(--u));
+   margin:0 calc(10px * var(--u)) calc(14px * var(--u))}
+ html.carta #cielo .eje{position:absolute;left:0;right:0;top:calc(12px * var(--u));height:1px;
+   background:var(--ct-regla2)}
+ html.carta #cielo .ast{position:absolute;top:calc(12px * var(--u));
+   translate:-50% -50%;cursor:pointer}
+ html.carta #cielo .ast::before{content:'';position:absolute;inset:-6px}   /* dónde agarrar */
+ html.carta #cielo i{position:absolute;top:calc(24px * var(--u));translate:-50% 0;
+   font:normal calc(10px * var(--u)) var(--ct-dato);color:var(--ct-3)}
+ html.carta #cielo i:first-of-type{translate:0 0}
+ html.carta #cielo .res{position:absolute;left:0;right:0;bottom:0;white-space:nowrap;
+   overflow:hidden;text-overflow:ellipsis;font-size:calc(12.5px * var(--u));color:var(--ct-2)}
+ html.carta #cielo .res b{color:var(--ct-tinta);font-weight:600}
+ html.carta #buscar{width:calc(100% - 4px);margin:0 2px calc(10px * var(--u));border:0;
+   height:calc(34px * var(--u));padding:0 calc(12px * var(--u));border-radius:9px;
+   background:var(--ct-hundido);color:var(--ct-tinta);font:calc(13px * var(--u)) var(--ct-ui)}
+ html.carta #buscar::placeholder{color:var(--ct-3)}
+ html.carta #buscar:focus{border:0;
+   box-shadow:0 0 0 1px color-mix(in srgb,var(--ct-luz) 55%,transparent)}
+ /* ⚠ Como siempre: margen y relleno IGUALES en todas las filas (las marcas van en columna)
+    y nada de `transition` ni `:active` en `.carpeta` (pisaría el arrastre). */
+ html.carta .carpeta{margin:0;height:calc(35px * var(--u));border-radius:9px;
+   padding:0 calc(10px * var(--u));gap:calc(8px * var(--u));
+   font-size:calc(14px * var(--u));color:var(--ct-tinta)}
+ html.carta .carpeta > .nom{margin-left:calc(3px * var(--u))}
+ html.carta .carpeta[data-proy] > span:first-child,html.carta .carpeta.guardadas > span:first-child{
+   flex:none;width:calc(20px * var(--u));text-align:center;
+   font-size:calc(15px * var(--u))}
+ html.carta .carpeta:hover{background:rgba(var(--ct),.04)}
+ /* ⭐ El color que él le puso a una carpeta tiñe su NOMBRE (viene escrito en el renglón) y
+    ya no una banda entera: catorce bandas de colores era lo que más gritaba de la pantalla.
+    Solo la carpeta ELEGIDA lleva fondo. El dato guardado no se toca. */
+ html.carta .carpeta.pintada{background:transparent !important;border-radius:9px}
+ html.carta .carpeta.pintada:hover{background:rgba(var(--ct),.04) !important}
+ html.carta .carpeta.sel,html.carta .carpeta.pintada.sel{border-radius:9px;font-weight:600;
+   background:var(--ct-hundido) !important;box-shadow:inset 0 0 0 1px var(--ct-regla2)}
+ html.carta .carpeta.sel:not(.pintada){color:var(--ct-tinta)}
+ html.carta .carpeta.pintada.sel::after{display:none}
+ html.carta .carpeta.deslizando{background:var(--ct-pieza) !important;
+   box-shadow:inset 0 0 0 1px var(--ct-regla2)}
+ html.carta .carpeta .naveg{opacity:.24}
+ html.carta .carpeta:hover .naveg,html.carta .carpeta.sel .naveg{opacity:.7}
+ /* "Tiene algo vivo" ya lo dicen los puntos. Se esconde el puntito Y su hueco, los dos: toda
+    fila lleva uno o el otro, así que las marcas siguen en columna. */
+ html.carta .carpeta .vive,html.carta .carpeta .h-vive{display:none}
+ /* ⚠ El ancho de los puntos es FIJO (entran tres): si creciera con la cantidad, el
+    globito de al lado dejaría de estar en columna. */
+ html.carta .carpeta .estrellas{display:inline-flex;align-items:center;justify-content:flex-end;
+   flex:none;gap:calc(5px * var(--u));width:calc(37px * var(--u))}
+ html.carta .carpeta .estrellas + .num{display:none}
+ html.carta .carpeta .num,html.carta .carpeta.sel .num{font:calc(11px * var(--u)) var(--ct-dato);
+   color:var(--ct-3)}
+ html.carta .carpeta .plegar{opacity:.5;color:var(--ct-tinta)}
+ html.carta .carpeta .plegar:hover{opacity:1;background:var(--ct-hundido)}
+ html.carta .subcarpeta{margin:0 0 0 calc(41px * var(--u));border-left:0;border-radius:8px;
+   height:calc(29px * var(--u));padding:0 calc(10px * var(--u)) 0 0;gap:calc(10px * var(--u));
+   font-size:calc(13px * var(--u));color:var(--ct-2)}
+ html.carta .subcarpeta:hover{background:none;color:var(--ct-tinta)}
+ html.carta .subcarpeta.sel{background:none;color:var(--ct-tinta);font-weight:600}
+ html.carta .subgrupo{margin-left:calc(41px * var(--u));padding-left:0;color:var(--ct-3);
+   font-family:var(--ct-dato)}
+ html.carta .subgrupo:hover{color:var(--ct-tinta)}
+ html.carta #cuerpo .subgrupo{max-width:var(--ct-col);margin-left:auto;margin-right:auto}
+ html.carta .subcarpeta .pto{position:relative;box-sizing:border-box;
+   width:calc(4px * var(--u));height:calc(4px * var(--u));margin:0 calc(2.5px * var(--u));
+   background:var(--ct-3)}
+ html.carta .subcarpeta.trabaja .pto,html.carta .subcarpeta.e-espera .pto,
+ html.carta .subcarpeta.e-fallada .pto{width:calc(9px * var(--u));height:calc(9px * var(--u));margin:0}
+ html.carta .subcarpeta.trabaja .pto{background:var(--aviso)}
+ html.carta .subcarpeta.e-espera .pto{background:none;border:2px solid var(--ok)}
+ html.carta .subcarpeta.e-fallada .pto{background:none;border:2px solid var(--mal)}
+ html.carta .carpeta.sumar,html.carta .carpeta.guardadas{border-top:0;padding-top:0;
+   margin-top:calc(6px * var(--u));color:var(--ct-3);font-size:calc(13px * var(--u))}
+ html.carta .carpeta.sumar:hover,html.carta .carpeta.guardadas:hover{color:var(--ct-tinta)}
+ html.carta .carpeta.devolver{color:var(--ct-2);font-size:calc(13px * var(--u))}
+ html.carta #paneArch{border-top:1px solid var(--ct-regla)}
+ html.carta .rubro.cab{margin:calc(12px * var(--u)) 14px calc(6px * var(--u)) calc(22px * var(--u))}
+ html.carta .rubro.cab .nom{font-size:calc(12px * var(--u));font-weight:500;letter-spacing:0;
+   color:var(--ct-3)}
+ html.carta .rubro.cab .bot{color:var(--ct-3)}
+ html.carta .rubro.cab .bot:hover{color:var(--ct-tinta)}
+ html.carta .nodo{font-size:calc(13px * var(--u));color:var(--ct-2)}
+ html.carta .nodo:hover{background:rgba(var(--ct),.04)}
+ html.carta .nodo.sel{background:var(--ct-hundido);color:var(--ct-tinta)}
+ html.carta .arbolNota{color:var(--ct-3);padding:6px calc(22px * var(--u)) 10px}
+ html.carta #tirador:hover{background:var(--ct-luz);opacity:.3}
+ html.carta #derecha{border-left-color:var(--ct-regla)}
+ html.carta #derTabs button{color:var(--ct-3);font-family:var(--ct-ui)}
+ html.carta #derTabs button:hover{color:var(--ct-tinta);background:var(--ct-hundido)}
+ html.carta #derTabs button.sel{color:var(--ct-tinta);background:var(--ct-hundido)}
+ html.carta #tiradorDer:hover,html.carta #tiradorDer.tirando{background:var(--ct-luz);opacity:.3}
+
+ /* --- La charla: una columna de lectura. Lo que dice la sesión va SIN caja. --- */
+ /* ⚠ UN solo ancho (`--ct-col`) para la charla, la bandeja y la pieza de escribir: con
+    tres anchos distintos el borde izquierdo saltaba al pasar de la bandeja a la charla.
+    El hueco de la barra de scroll va de los DOS lados, para que la columna quede centrada
+    igual que la pieza de escribir, que no tiene scroll. */
+ html.carta section#cuerpo{padding:calc(30px * var(--u)) 24px 44px;scrollbar-gutter:stable both-edges}
+ html.carta #cuerpo > .carta-cab,html.carta #cuerpo > #hilo,html.carta #cuerpo > .aviso,
+ html.carta #cuerpo > .choque{max-width:var(--ct-col);margin-left:auto;margin-right:auto}
+ html.carta .carta-cab{display:block;padding-bottom:calc(26px * var(--u))}
+ html.carta .carta-cab h1{margin:0;display:flex;align-items:center;gap:12px;color:var(--ct-tinta);
+   font:italic 500 calc(32px * var(--escala,1))/1.12 var(--ct-nombre);letter-spacing:-.01em;
+   text-wrap:balance}
+ html.carta .carta-cab h1 .em{flex:none;font:normal calc(20px * var(--escala,1))/1 var(--ct-ui)}
+ /* Elegiste otra letra para los títulos: va esa, derecha y no en la cursiva de la carta. */
+ html.carta.titulo-propio .carta-cab h1,html.carta.titulo-propio #marcaCarta,
+ html.carta.titulo-propio .cabeza b{font-style:normal;font-weight:600}
+ html.carta .carta-cab p{margin:9px 0 0;color:var(--ct-3);
+   font:calc(12.5px * var(--escala,1)) var(--ct-ui)}
+ html.carta #hilo{gap:calc(20px * var(--escala,1))}
+ html.carta .msg{font-size:calc(15px * var(--escala,1));line-height:1.65}
+ html.carta .msg.claude{align-self:stretch;max-width:100%;background:none;border:0;
+   border-radius:0;padding:0;color:var(--ct-tinta)}
+ /* Tu burbuja, discreta. Si la charla o su carpeta tienen color propio, ese manda. */
+ html.carta .msg.vos{max-width:min(560px,84%);line-height:1.5;padding:10px 15px;
+   border-radius:15px 15px 4px 15px;
+   background:var(--charla-vos,var(--burbuja-vos-puesta,rgba(var(--ct),.08)));
+   color:var(--charla-vos-txt,var(--burbuja-vos-puesta-txt,var(--ct-tinta)))}
+ /* La burbuja de la sesión que elegiste en el 🎨 (para todas las charlas): como acá la
+    respuesta no lleva caja, va como la misma regla fina que usa el color propio de una
+    charla. ⚠ Va ANTES que esa: las dos pesan lo mismo y la de la charla tiene que ganar. */
+ html.carta.con-burbuja-ia .msg.claude{border-left:2px solid var(--burbuja-ia-puesta);padding-left:16px}
+ /* El color propio de la burbuja de la sesión: sin caja no hay borde que pintar, así que
+    va como una regla fina a la izquierda. Solo aparece si él lo eligió. */
+ html.carta .con-color-ia .msg.claude{border-left:2px solid var(--charla-ia-borde);padding-left:16px}
+ /* Con foto atrás, el texto suelto no se lee: ahí sí lleva un apoyo. */
+ html.carta.con-foto .msg.claude,html.carta.con-foto .carta-cab{padding:14px 18px;border-radius:14px;
+   background:color-mix(in srgb,var(--fondo) 80%,transparent)}
+ html.carta .msg.pensa{align-self:flex-start;gap:11px;padding:0;color:var(--ct-3);
+   font:calc(13px * var(--escala,1)) var(--ct-ui)}
+ html.carta.con-foto .msg.pensa{padding:8px 16px 8px 12px}
+ html.carta .msg.pensa .pts{gap:0;padding:4px}
+ html.carta .msg.pensa .pts i{display:none}
+ html.carta .msg.pensa .pts i:first-child{display:block;position:relative;animation:none;
+   width:9px;height:9px;opacity:1;transform:none;background:var(--aviso)}
+ html.carta .msg.pensa .reloj{font:calc(11.5px * var(--escala,1)) var(--ct-dato);color:inherit}
+ html.carta .msg.envivo.escribiendo::after{color:var(--ct-luz)}
+ html.carta .msg.vos.enfila{outline-color:rgba(var(--ct),.3)}
+ html.carta .pasos{max-width:100%;margin:0;padding:2px 0 2px 14px;background:none;border:0;
+   border-left:1px solid var(--ct-regla2);border-radius:0;backdrop-filter:none}
+ html.carta.con-foto .pasos{padding:8px 14px;border-left:0;border-radius:10px;
+   background:color-mix(in srgb,var(--fondo) 74%,transparent)}
+ html.carta .paso{font:calc(11.5px * var(--escala,1))/1.8 var(--ct-dato)}
+ html.carta .pasos + .msg{margin-top:0}
+ html.carta .marcaHilo{font:11px var(--ct-dato);color:var(--ct-3)}
+ html.carta .marcaHilo::before,html.carta .marcaHilo::after{border-top-color:var(--ct-regla)}
+ html.carta .aviso,html.carta .pideComp,html.carta .choque{border-radius:12px}
+ /* La pregunta NO es una tarjeta: sus opciones ya son cajas, y una caja adentro de otra es
+    ruido. Va con la misma regla fina a la izquierda que las tareas. Y su botón de mandar no
+    va lleno: el único botón lleno de la pantalla es Enviar. */
+ html.carta .pregunta{max-width:100%;padding:2px 0 2px 16px;border-radius:0;background:none;
+   border:0;border-left:1px solid var(--ct-regla2)}
+ html.carta .pregunta .pTit{display:block;padding:0;margin:0 0 3px;background:none;border-radius:0;
+   color:var(--ct-3);font:500 calc(12.5px * var(--escala,1)) var(--ct-ui);letter-spacing:0;
+   text-transform:none}
+ html.carta .pregunta .pPreg{color:var(--ct-tinta)}
+ html.carta .pregunta .pOp{background:none;border:1px solid var(--ct-regla2);color:var(--ct-2)}
+ html.carta .pregunta .pOp:hover{background:var(--ct-hundido);border-color:var(--ct-regla2)}
+ html.carta .pregunta .pOp.puesta{background:var(--ct-hundido);border-color:var(--ct-luz)}
+ html.carta .pregunta .pOp b{color:var(--ct-tinta)}
+ html.carta .pregunta .pOp.puesta b{color:var(--ct-luz)}
+ html.carta .pregunta .pOp span,html.carta .pregunta .pNota{color:var(--ct-3)}
+ html.carta .pregunta .pOtra input{background:var(--ct-hundido);border:0;color:var(--ct-tinta)}
+ html.carta .pregunta .pManda,html.carta .pregunta .pMandar,
+ html.carta .pregunta .pOtra button{background:none;border:1px solid var(--ct-regla2);
+   color:var(--ct-tinta);border-radius:9px}
+ html.carta .pregunta .pManda:hover,html.carta .pregunta .pMandar:hover,
+ html.carta .pregunta .pOtra button:hover{background:var(--ct-hundido)}
+ html.carta .pregunta .pPlan{background:none;border-color:var(--ct-regla)}
+ html.carta .tareas{max-width:100%;margin:0;padding:2px 0 2px 14px;background:none;border:0;
+   border-left:1px solid var(--ct-regla2);border-radius:0}
+ html.carta .tareas .tTit{font:500 calc(12.5px * var(--escala,1)) var(--ct-ui);color:var(--ct-3);
+   letter-spacing:0;text-transform:none}
+ html.carta .tareas .tTit span{color:var(--ct-2);font:calc(11.5px * var(--escala,1)) var(--ct-dato)}
+ html.carta .tareas .tFila{color:var(--ct-2)}
+ html.carta .tareas .tFila.hecha{color:var(--ct-3)}
+ html.carta .tareas .tFila.haciendo{color:var(--ct-tinta)}
+ html.carta .tareas .tFila.haciendo .tIco{color:var(--ct-luz)}
+ html.carta .vacio{color:var(--ct-3)}
+
+ /* --- La bandeja de una carpeta: renglones con su estrella, no tarjetas. --- */
+ html.carta .cabeza,html.carta #cuerpo .correo,html.carta .ultimas{max-width:var(--ct-col);
+   margin-left:auto;margin-right:auto}
+ html.carta .cabeza{margin-bottom:calc(18px * var(--u))}
+ html.carta .cabeza b{font:italic 500 calc(30px * var(--escala,1))/1.12 var(--ct-nombre);
+   letter-spacing:-.01em}
+ html.carta .cabeza small{font:calc(11.5px * var(--escala,1)) var(--ct-dato);color:var(--ct-3)}
+ html.carta .cabeza #filtro{border:0;height:34px;padding:0 12px;border-radius:9px;
+   background:var(--ct-hundido);color:var(--ct-tinta);font:13px var(--ct-ui)}
+ html.carta .cabeza #filtro:focus{border:0;
+   box-shadow:0 0 0 1px color-mix(in srgb,var(--ct-luz) 55%,transparent)}
+ html.carta .correo,html.carta .correo.espera,html.carta .correo.trabajando,
+ html.carta .correo.fallada{gap:14px;padding:calc(13px * var(--u)) 6px;background:none;
+   border-left:0;border-bottom:1px solid var(--ct-regla)}
+ html.carta .correo:hover{background:rgba(var(--ct),.035)}
+ html.carta .correo .ini,html.carta .correo .ini.viva{position:relative;font-size:0;
+   width:calc(22px * var(--u));height:calc(22px * var(--u));background:none;box-shadow:none}
+ html.carta .correo .ini::before{content:'';box-sizing:border-box;border-radius:50%;
+   width:4px;height:4px;background:var(--ct-3)}
+ html.carta .correo .ini.viva::before{width:6px;height:6px;background:var(--ct-2)}
+ html.carta .correo.trabajando .ini::before,html.carta .correo.espera .ini::before,
+ html.carta .correo.fallada .ini::before{width:9px;height:9px}
+ html.carta .correo.trabajando .ini::before{background:var(--aviso)}
+ html.carta .correo.espera .ini::before{background:none;border:2px solid var(--ok)}
+ html.carta .correo.fallada .ini::before{background:none;border:2px solid var(--mal)}
+ html.carta .correo.trabajando .ini::after{inset:calc(50% - 8.5px)}
+ /* El "+" de empezar una charla y el lápiz de renombrar eran letras sueltas (✚ ✎), cada
+    una con su peso. Se dibujan con el mismo trazo que el resto de los botones. La letra
+    sigue en el HTML (tamaño cero): lo que se ve es el dibujo, pintado del color del texto. */
+ html.carta .correo .ini.mas{color:var(--ct-3)}
+ html.carta .correo .ini.mas::before{width:16px;height:16px;border-radius:0;
+   background:currentColor;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center/contain no-repeat}
+ html.carta .correo .lapiz:not(.despl){position:relative;flex:none;font-size:0;width:30px;
+   height:30px;padding:0;border-radius:8px;opacity:.55}
+ html.carta .correo .lapiz:not(.despl)::before{content:'';position:absolute;inset:0;margin:auto;
+   width:15px;height:15px;background:currentColor;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16z'/%3E%3Cpath d='m13.5 6.5 4 4'/%3E%3C/svg%3E") center/contain no-repeat}
+ /* El botón del subproyecto usa el mismo trazo, con una carpetita en vez del lápiz. */
+ html.carta .correo .lapiz.subp::before{mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3C/svg%3E") center/contain no-repeat}
+ html.carta .correo:hover .lapiz:not(.despl){opacity:1}
+ html.carta .correo .lapiz:not(.despl):hover{background:var(--ct-hundido)}
+ /* Lo que te espera queda en tinta plena y negrita hasta que lo abrís; el resto, un tono abajo. */
+ html.carta .correo .tit{font-size:calc(14.5px * var(--u));font-weight:450;color:var(--ct-2)}
+ html.carta .correo.espera .tit,html.carta .correo.trabajando .tit{color:var(--ct-tinta);font-weight:600}
+ html.carta .correo.fallada .tit{color:var(--mal-txt);font-weight:600}
+ html.carta .tit.nueva{color:var(--ct-tinta)}
+ html.carta .baj{font-size:calc(12.5px * var(--u));color:var(--ct-3)}
+ html.carta .dedonde{background:none;padding:0;margin-right:8px;color:var(--ct-3);font-weight:450;
+   font-size:calc(12.5px * var(--u))}
+ html.carta .dedonde::after{content:' ·'}
+ html.carta .lapiz{color:var(--ct-3)}
+ html.carta .lapiz:hover{color:var(--ct-tinta)}
+ html.carta .lapiz.despl,html.carta .op-arch,html.carta .devolver,html.carta .vCab .op{
+   background:none;border:1px solid var(--ct-regla2);border-radius:8px;color:var(--ct-2)}
+ html.carta .lapiz.despl:hover,html.carta .op-arch:hover,html.carta .devolver:hover,
+ html.carta .vCab .op:hover{background:var(--ct-hundido);border-color:var(--ct-regla2);
+   color:var(--ct-tinta)}
+ html.carta .ultimas{border-left-color:var(--ct-regla)}
+ html.carta .ult{color:var(--ct-2)}
+ html.carta .ult:hover{background:rgba(var(--ct),.035)}
+ html.carta .ult:hover .nom{color:var(--ct-tinta)}
+ html.carta .ult .cuando{font:11px var(--ct-dato);color:var(--ct-3)}
+
+ /* --- La pieza de escribir: una sola, centrada bajo la columna de lectura. ---
+    El texto arriba a todo el ancho; abajo, a la izquierda lo que TRAE algo al mensaje y a
+    la derecha lo de la charla y Enviar. Mismo orden de siempre, mismas funciones.
+    ⚠ Mide la columna de lectura más su propio relleno (17 px por lado), así lo que escribís
+    arranca en la misma vertical que el texto de la charla. */
+ html.carta .caja{--bh:calc(32px * var(--u));position:relative;flex-wrap:wrap;align-items:center;
+   justify-content:flex-start;gap:calc(2px * var(--u));justify-self:center;
+   width:min(calc(var(--ct-col) + 34px),calc(100% - 48px));
+   margin:0 0 calc(22px * var(--u));
+   padding:calc(4px * var(--u)) calc(8px * var(--u)) calc(8px * var(--u));
+   background:var(--ct-pieza);border:1px solid var(--ct-regla2);border-radius:17px;
+   transition:border-color .18s ease-out}
+ html.carta .caja:focus-within{border-color:color-mix(in srgb,var(--ct-luz) 46%,transparent)}
+ html.carta .caja textarea{order:-1;flex:1 0 100%;min-width:0;background:none;border:0;
+   border-radius:0;box-shadow:none;color:var(--ct-tinta);max-height:calc(200px * var(--u));
+   padding:calc(10px * var(--u)) calc(8px * var(--u)) calc(8px * var(--u));
+   font:calc(15px * var(--u))/1.5 var(--ct-ui)}
+ html.carta .caja textarea:focus{border:0;box-shadow:none}
+ html.carta .caja textarea::placeholder{color:var(--ct-3)}
+ html.carta .caja button,html.carta .caja button.archivo-accion,html.carta .caja button.avisar,
+ html.carta .caja button.compactar,html.carta .caja #atajosAqui button.at-boton{
+   height:var(--bh);padding:0 calc(10px * var(--u));background:none;border:0;border-radius:9px;
+   color:var(--ct-2);font:500 calc(13px * var(--u)) var(--ct-ui)}
+ html.carta .caja button:hover:not(:disabled),html.carta .caja #atajosAqui button.at-boton:hover{
+   background:var(--ct-hundido);color:var(--ct-tinta)}
+ html.carta .caja button.icono,html.carta .caja #atajosAqui button.at-boton{width:var(--bh);padding:0}
+ html.carta .caja .icn{width:calc(17px * var(--u));height:calc(17px * var(--u))}
+ html.carta .caja .grupo-iconos{align-items:center;gap:0;margin-right:auto}
+ html.carta .caja button.ajustes-modelo-boton{max-width:calc(280px * var(--u));
+   padding:0 calc(26px * var(--u)) 0 calc(10px * var(--u));background-color:transparent;
+   border:1px solid var(--ct-regla2);color:var(--ct-2);font-size:calc(12.5px * var(--u))}
+ html.carta .caja button.ajustes-modelo-boton.puesto{color:var(--ct-tinta);border-color:var(--ct-regla2)}
+ html.carta .caja button.ajustes-modelo-boton:hover{background-color:var(--ct-hundido)}
+ html.carta .caja .ctx{height:var(--bh);padding:0 calc(9px * var(--u));background:none;border:0;
+   border-radius:9px;color:var(--ct-3);font:calc(11.5px * var(--u)) var(--ct-dato)}
+ html.carta .caja .ctx.medio{color:var(--aviso-txt)}
+ html.carta .caja .ctx.mucho,html.carta .caja button.avisar.sel,
+ html.carta .caja button.compactar.pide,html.carta .caja button.compactar.conviene{
+   background:var(--aviso-bg);color:var(--aviso-txt)}
+ html.carta .caja button.enviar{margin-left:calc(4px * var(--u));padding:0 calc(16px * var(--u));
+   background:var(--acento);color:var(--acento-sobre,var(--fondo));border:0;border-radius:10px;
+   font-weight:600}
+ html.carta .caja button.enviar:hover:not(:disabled){
+   background:color-mix(in srgb,var(--acento) 86%,var(--fondo));
+   color:var(--acento-sobre,var(--fondo))}
+ /* ⚠ Parar está a la vista todo el tiempo que un agente trabaja, y el rojo es solo para lo
+    que está MAL (regla de Martín). Va neutro y recién se pone rojo cuando lo vas a apretar. */
+ html.carta .caja button.parar{margin-left:calc(4px * var(--u));background:none;
+   color:var(--ct-tinta);border:1px solid var(--ct-regla2);border-radius:10px}
+ html.carta .caja button.parar:hover:not(:disabled){background:var(--mal-bg);
+   border-color:var(--mal-bd);color:var(--mal-txt)}
+ html.carta .ajustes-modelo-menu{bottom:calc(var(--bh) + 14px);background:var(--ct-pieza);
+   border:1px solid var(--ct-regla2);border-radius:13px;box-shadow:none}
+ html.carta .ajustes-modelo-menu label{color:var(--ct-3)}
+ html.carta .caja select.modelo{height:calc(32px * var(--u));border:0;border-radius:9px;
+   background-color:var(--ct-hundido);color:var(--ct-tinta);font-size:calc(12.5px * var(--u))}
+ html.carta .menu-acciones{border-top-color:var(--ct-regla)}
+ html.carta #chapas{background:none;padding:0 0 10px;justify-self:center;
+   width:min(calc(var(--ct-col) + 34px),calc(100% - 48px))}
+ html.carta #chapas img{border-radius:10px}
+
+ /* --- Lo que escribe la sesión (marcado.js): títulos, listas, código y tablas. ---
+    Es lectura, así que manda la jerarquía: los títulos en tinta plena y con más aire arriba
+    que abajo, el código en la monoespaciada sobre un fondo apenas hundido y SIN recuadro,
+    y las tablas con una regla fina por renglón en vez de una grilla. */
+ html.carta .md-hueco{height:.8em}
+ html.carta .md-tit{margin:1.15em 0 .4em;color:var(--ct-tinta);font-weight:600;
+   letter-spacing:-.01em;line-height:1.25}
+ html.carta .md > .md-tit:first-child{margin-top:0}
+ html.carta .md-t1,html.carta .md-t2{font-size:1.2em}
+ html.carta .md-t3{font-size:1.07em}
+ html.carta .md-t4,html.carta .md-t5,html.carta .md-t6{color:var(--ct-2)}
+ html.carta .md b{color:var(--ct-tinta);font-weight:600}
+ html.carta .md-lis{margin:.4em 0;padding-left:1.25em}
+ html.carta .md-lis li{margin:.32em 0}
+ html.carta .md-lis li::marker{color:var(--ct-3)}
+ html.carta .md-cita{padding-left:14px;border-left:1px solid var(--ct-regla2);color:var(--ct-2)}
+ html.carta .md-raya{border-top-color:var(--ct-regla);margin:1em 0}
+ html.carta .md-cod{padding:.08em .4em;background:var(--ct-hundido);border:0;border-radius:5px;
+   color:var(--ct-tinta);font-family:var(--ct-dato);font-size:.86em}
+ html.carta .md-pre{margin:.7em 0;padding:.95em 1.1em;background:rgba(var(--ct),.05);border:0;
+   border-radius:11px;color:var(--ct-tinta);font-family:var(--ct-dato);font-size:.85em;
+   line-height:1.65}
+ html.carta .md-lnk{color:var(--ct-luz);text-decoration-thickness:1px;text-underline-offset:3px}
+ html.carta .md-tab{margin:.7em 0;font-size:.94em}
+ html.carta .md-tab th,html.carta .md-tab td{padding:.55em 1.6em .55em 0;border:0;
+   border-bottom:1px solid var(--ct-regla)}
+ html.carta .md-tab th{background:none;color:var(--ct-3);font-weight:500;font-size:.9em;
+   border-bottom-color:var(--ct-regla2)}
+ html.carta .md-bts{top:8px;right:8px}
+ html.carta .md-bt{background:var(--ct-pieza);border-color:var(--ct-regla2);color:var(--ct-2);
+   font-family:var(--ct-ui)}
+ html.carta .md-bt:hover{background:var(--ct-pieza);border-color:var(--ct-3);color:var(--ct-tinta)}
+
+ /* ======================================================================================
+    ⭐⭐ VIDRIO (2026-11-10) — la segunda piel del casco nuevo.
+    Con Carta celeste ya puesta, Martín: *"no me termina de cerrar, quiero más ejemplos"*.
+    De una segunda mano de cuatro bocetos eligió este: paneles de vidrio esmerilado
+    flotando sobre SU foto de fondo. Usa el mismo casco que Carta celeste (todo lo de
+    `html.carta` de arriba sigue valiendo) y acá solo se cambia la piel: por eso cada regla
+    empieza con `html.carta.vidrio`, que pesa más que la de la carta que reemplaza.
+    La firma es la PROFUNDIDAD: tres planos —la foto, los paneles, el contenido— y el color
+    que le pusiste a una carpeta, que la ilumina por dentro cuando está elegida.
+    ⚠ Lo que estaría mal sigue siendo que quede recargado: el vidrio va en CINCO piezas
+    (riel, barra, hoja, caja y columna derecha) y en ninguna más, y no hay brillos sueltos.
+    Qué se mueve y por qué está en el bloque de abajo ("MATERIAL Y MOVIMIENTO"), con su
+    regla: se mueve lo que responde a algo que hiciste o lo que te avisa algo.
+    ⚠ El desenfoque obedece a la perilla "vidrio" del 🎨 (`--vidrio`): en "Opaco" no hay
+    desenfoque y los paneles quedan como un velo liso.
+    ====================================================================================== */
+ html.carta.vidrio{--ct-2:rgba(var(--ct),.80);--ct-3:rgba(var(--ct),.60);
+   --ct-regla:rgba(var(--ct),.13);--ct-regla2:rgba(var(--ct),.20);
+   --ct-hundido:rgba(var(--ct),.10);--ct-pieza:color-mix(in srgb,var(--fondo) 84%,transparent);
+   --ct-nombre:var(--tipo-titulo,var(--tipo));--ct-dato:var(--tipo);
+   --vd-vidrio:rgba(255,255,255,.085);--vd-filo:rgba(255,255,255,calc(.18 * var(--vd-b,1)));
+   --vd-luz:inset 0 1px 0 rgba(255,255,255,calc(.3 * var(--vd-b,1)));
+   --vd-esmeril:blur(calc(18px * var(--vidrio,1))) saturate(1.5)}
+ html.carta.vidrio body{padding:14px;font-family:var(--ct-ui);isolation:isolate}
+ /* La hoja: un vidrio más oscuro detrás de la charla Y de la pieza de escribir, que en la
+    grilla son filas distintas. Se dibuja como un hijo más de la página, colocado a mano.
+    ⚠⚠ Va con `z-index:-1`, y por eso el `isolation` de arriba. Todo lo que lleva
+    `backdrop-filter` se pinta en la capa de ARRIBA de la página, por encima del texto
+    común: la primera versión dejó la hoja tapando la charla entera (se veían los puntos y
+    el código, que son elementos posicionados, y ni una letra). Con `-1` baja al fondo; y
+    sin el `isolation`, "el fondo" quedaba DEBAJO de la foto, que es el fondo del body. */
+ html.carta.vidrio body::before{content:'';position:relative;z-index:-1;
+   grid-column:2;grid-row:3 / 6;margin-top:14px;border-radius:26px;
+   background:color-mix(in srgb,var(--fondo) 46%,transparent);backdrop-filter:var(--vd-esmeril);
+   border:1px solid rgba(255,255,255,.07)}
+ html.carta.vidrio aside,html.carta.vidrio .caja,html.carta.vidrio body.derecha-abierta #derecha{
+   background:var(--vd-vidrio);backdrop-filter:var(--vd-esmeril);
+   border:1px solid var(--vd-filo);box-shadow:var(--vd-luz)}
+ html.carta.vidrio aside{margin-right:14px;border-radius:24px}
+ html.carta.vidrio body.derecha-abierta #derecha{margin:14px 0 0 14px;border-radius:24px}
+ /* Las dos barras (los botones y el menú arriba, las charlas abiertas abajo) van
+    TRANSPARENTES sobre un solo vidrio, que es `body::after`: está más abajo, en "MATERIAL Y
+    MOVIMIENTO", con el porqué (un vidrio por renglón dejaba una costura entre los dos).
+    Acá queda su relleno y un borde transparente, que les guarda el mismo píxel que ocupa
+    el filo del vidrio: si escondés una, la otra recupera el borde del lado que quedó libre. */
+ html.carta.vidrio #barraArriba,html.carta.vidrio.con-foto #barraArriba,
+ html.carta.vidrio #barra,html.carta.vidrio.con-foto #barra{background:none;
+   backdrop-filter:none;box-shadow:none;border:1px solid transparent}
+ html.carta.vidrio #barraArriba,html.carta.vidrio.con-foto #barraArriba{border-bottom:0;
+   padding:calc(8px * var(--u)) calc(14px * var(--u)) calc(2px * var(--u)) calc(8px * var(--u))}
+ html.carta.vidrio #barra,html.carta.vidrio.con-foto #barra{border-top:0;
+   padding-bottom:calc(6px * var(--u))}
+ html.carta.vidrio body.sin-arriba #barra{border-top:1px solid transparent;
+   padding-top:calc(6px * var(--u))}
+ html.carta.vidrio body:has(#barra[style*="display: none"]) #barraArriba{
+   border-bottom:1px solid transparent;padding-bottom:calc(8px * var(--u))}
+ html.carta.vidrio #tabs{align-items:center;gap:calc(4px * var(--u));padding:0 calc(8px * var(--u))}
+ html.carta.vidrio .tab{border-bottom:0;border-radius:11px;color:var(--ct-2);
+   padding:calc(7px * var(--u)) calc(13px * var(--u))}
+ html.carta.vidrio .tab:not(.sel):hover{background:rgba(255,255,255,.08) !important;color:var(--ct-tinta)}
+ html.carta.vidrio .tab.sel{background:rgba(255,255,255,.17) !important;color:var(--ct-tinta);
+   box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+ html.carta.vidrio #abrazo{display:none !important}
+ /* La pastilla del grupo va en blanco: el color de la carpeta, que en la carta la teñía,
+    sobre vidrio claro no se lee (un azul sobre un cielo azul). */
+ html.carta.vidrio .grupo{color:var(--ct-2) !important}
+ html.carta.vidrio .grupo.abierto,html.carta.vidrio .grupo:hover{color:var(--ct-tinta) !important}
+ /* ⭐ PERO el color que le pusiste a la carpeta no se pierde: lo lleva el VIDRIO de la
+    pastilla (pedido de Martín, 2026-11-10: "perdieron mucha identidad porque ahora no
+    tienen colores"). El nombre sigue en blanco, que era lo que teñido no se leía; el color
+    va en la superficie: relleno del tono medio y filo del tono vivo, los mismos dos que ya
+    calcula `tresTonos()` y que `pintarTabs()` deja escritos en el renglón (`--tn-m`,
+    `--tn-l`). Una pastilla sin color elegido queda exactamente como estaba.
+    ⚠ El `#tabs` del selector no está de más: la regla del casco que les devuelve una
+    superficie a las formas que no son la de fábrica lleva un id y `!important`, y sin el
+    id acá ganaba ella (o sea: con la forma "píldora" puesta, ni un color). */
+ html.carta.vidrio #tabs .grupo.pintada{
+   background:color-mix(in srgb,var(--tn-m) 62%,transparent) !important;
+   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tn-l) 46%,transparent),
+     inset 0 1px 0 rgba(255,255,255,.16)}
+ html.carta.vidrio #tabs .grupo.pintada:hover,
+ html.carta.vidrio #tabs .grupo.pintada.abierto{
+   background:color-mix(in srgb,var(--tn-m) 80%,transparent) !important;
+   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tn-l) 70%,transparent),
+     inset 0 1px 0 rgba(255,255,255,.22)}
+ html.carta.vidrio .menu-pantallas.mini .todo,html.carta.vidrio .ajustes-modelo-menu{
+   background:var(--ct-pieza);backdrop-filter:var(--vd-esmeril)}
+ /* El riel. Los nombres van en blanco; el color que le pusiste a una carpeta no se pierde:
+    es la LUZ de la fila cuando la elegís (`currentColor` es ese color, que sigue escrito
+    en el renglón; lo que se pinta de blanco es el nombre, no la fila). */
+ html.carta.vidrio #marcaCarta{font:600 calc(20px * var(--u))/1 var(--ct-nombre);letter-spacing:-.01em}
+ html.carta.vidrio #marcaCarta small{font:400 calc(12px * var(--u)) var(--ct-ui)}
+ html.carta.vidrio #cielo{display:none}
+ html.carta.vidrio #buscar{height:calc(36px * var(--u));border-radius:12px}
+ html.carta.vidrio .carpeta{height:calc(38px * var(--u));border-radius:13px}
+ html.carta.vidrio .carpeta .nom{color:var(--ct-tinta)}
+ html.carta.vidrio .carpeta:hover,html.carta.vidrio .carpeta.pintada:hover{
+   background:rgba(255,255,255,.07) !important}
+ html.carta.vidrio .carpeta.sel{border-radius:13px;font-weight:600;
+   background:rgba(255,255,255,.16) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+ html.carta.vidrio .carpeta.pintada.sel{border-radius:13px;
+   background:linear-gradient(90deg,color-mix(in srgb,currentColor 50%,transparent),
+     rgba(255,255,255,.13)) !important}
+ html.carta.vidrio .carpeta.deslizando{background:var(--ct-pieza) !important}
+ html.carta.vidrio .subcarpeta .nom{color:inherit}
+ /* Los anillos (te espera, falló) llevan el centro oscuro: sobre la parte clara de una foto
+    un anillo hueco se pierde, y es justo el que más importa ver. */
+ html.carta.vidrio .ast.espera,html.carta.vidrio .ast.fallada,
+ html.carta.vidrio .tab.espera .bola,html.carta.vidrio .tab.fallada .bola,
+ html.carta.vidrio .grupo.espera .bola,html.carta.vidrio .grupo.fallada .bola,
+ html.carta.vidrio .subcarpeta.e-espera .pto,html.carta.vidrio .subcarpeta.e-fallada .pto{
+   background:rgba(8,12,24,.55)}
+ html.carta.vidrio #buscar::placeholder,html.carta.vidrio .cabeza #filtro::placeholder{
+   color:var(--ct-3)}
+ /* La charla. La hoja ya da el apoyo que el texto necesita sobre la foto, así que las
+    respuestas vuelven a ir sueltas (la carta, con foto, les ponía una caja a cada una). */
+ html.carta.vidrio section#cuerpo{margin-top:14px}
+ html.carta.vidrio .carta-cab h1{font:600 calc(30px * var(--escala,1))/1.12 var(--ct-nombre);
+   letter-spacing:-.015em}
+ html.carta.vidrio .cabeza b{font:600 calc(28px * var(--escala,1))/1.12 var(--ct-nombre);
+   letter-spacing:-.015em}
+ html.carta.vidrio.con-foto .msg.claude,html.carta.vidrio.con-foto .carta-cab{background:none;
+   padding:0;border-radius:0}
+ html.carta.vidrio.con-foto .carta-cab{padding-bottom:calc(26px * var(--u))}
+ html.carta.vidrio.con-foto .con-color-ia .msg.claude{padding-left:16px}
+ html.carta.vidrio.con-foto .pasos{padding:2px 0 2px 14px;background:none;border-radius:0;
+   border-left:1px solid var(--ct-regla2)}
+ html.carta.vidrio.con-foto .msg.pensa{padding:0}
+ html.carta.vidrio .msg.vos{border-radius:17px 17px 5px 17px;box-shadow:inset 0 1px 0 rgba(255,255,255,.2);
+   background:var(--charla-vos,var(--burbuja-vos-puesta,rgba(255,255,255,.14)))}
+ html.carta.vidrio.con-foto.con-burbuja-ia .msg.claude{padding-left:16px}
+ html.carta.vidrio .md-cod,html.carta.vidrio .md-pre,html.carta.vidrio .paso{
+   font-family:'Cascadia Mono',Consolas,monospace}
+ html.carta.vidrio .md-pre{background:rgba(0,0,0,.26)}
+ html.carta.vidrio .caja{margin-bottom:calc(16px * var(--u));border-radius:22px;
+   background:rgba(255,255,255,.10)}
+ html.carta.vidrio .caja:focus-within{border-color:rgba(255,255,255,.44)}
+ html.carta.vidrio .caja button.enviar{border-radius:12px}
+
+ /* ======================================================================================
+    ⭐⭐ VIDRIO · MATERIAL Y MOVIMIENTO (2026-11-10, segunda vuelta).
+    Martín, con Vidrio ya andando: *"esta versión de vidrio me gusta muchísimo. Quiero más
+    animaciones y quiero que se vea más premium."* Son dos cosas distintas y van las dos acá:
+    · EL MATERIAL. El vidrio era un blanco parejo con un borde parejo: un rectángulo
+      translúcido y nada más. Ahora tiene luz de arriba (un brillo que se apaga hacia
+      abajo), filo claro arriba y oscuro abajo, grano fino —el esmerilado de verdad no es
+      liso, y el grano además tapa las bandas del desenfoque— y SOMBRA propia, que es lo
+      que lo despega de la foto. La sombra obedece a la perilla "Sombra" del 🎨
+      (`--sombra-k`, que escribe aspecto.js): en "Sin sombra" no hay ninguna.
+    · EL MOVIMIENTO. Una sola regla: se mueve lo que RESPONDE a algo que hiciste, o lo que
+      te está avisando algo. Nada se mueve de adorno. Lo único que se mueve solo son las
+      dos señales de "esta charla está trabajando" (el brillo que recorre "pensando" y la
+      luz que da la vuelta a la pieza de escribir) y el amarillo de la pregunta.
+    ⚠ Dos curvas y nada más: `--vd-sale` para lo que entra o contesta (arranca rápido y
+      frena) y `--vd-cajon` para lo que viaja de un lugar a otro. Nunca una que arranque
+      lento: se siente como que la pantalla tarda en enterarse.
+    ⚠ Todo el movimiento vive adentro de `@media (prefers-reduced-motion:no-preference)` y
+      obedece a la perilla "Movimiento" del 🎨: "Sin latidos" apaga las animaciones y deja
+      las transiciones; "Quieto" apaga las dos.
+    ⚠ Las entradas son `@keyframes` con SOLO el `from`: el final es el estado normal del
+      elemento. Por eso apagarlas (`animation:none`) deja todo a la vista y en su lugar; una
+      entrada que dependiera de su último cuadro dejaría la pantalla en blanco.
+    ⚠ La charla se rearma entera cada pocos segundos. Una animación puesta por clase
+      arrancaría de nuevo en cada repintado, así que las entradas las pone `vdEntrar()`
+      (abajo, en el script) UNA vez, y si un repintado cae en el medio la CONTINÚA desde
+      donde iba con un retardo negativo. Lo mismo el brillo de "pensando" (`--vd-reloj`).
+    ====================================================================================== */
+ @property --vd-ang{syntax:'<angle>';inherits:false;initial-value:0deg}
+ @property --vd-luz-c{syntax:'<color>';inherits:false;initial-value:rgba(255,255,255,.32)}
+ @property --vd-fundido{syntax:'<length>';inherits:false;initial-value:0px}
+ /* ⭐ Los números del material (cuánto tapa, de qué color, cuánto brilla el borde, cuánto
+    grano) se pueden cambiar desde el 🎨 (2026-11-10): vidrioFino() en aspecto.js escribe
+    --vd-vidrio, --vd-hoja, --vd-b y --vd-grano en el <html> SOLO si elegiste algo. Lo que
+    queda acá es lo de fábrica, de respaldo en cada var(): sin elegir nada, la pantalla es
+    exactamente la de antes. */
+ html.carta.vidrio{--vd-sale:cubic-bezier(.23,1,.32,1);--vd-cajon:cubic-bezier(.32,.72,0,1);
+   --vd-k:var(--sombra-k,.5);
+   --vd-luz:inset 0 1px 0 rgba(255,255,255,calc(.34 * var(--vd-b,1))),inset 0 -1px 0 rgba(0,0,0,.16);
+   --vd-peso:0 1px 2px rgba(0,0,0,calc(.34 * min(1,var(--vd-k)))),
+     0 calc(30px * var(--vd-k)) calc(80px * var(--vd-k)) calc(-26px * var(--vd-k))
+       rgba(0,0,0,min(.75,calc(1.1 * var(--vd-k))));
+   --vd-grano:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g' x='0' y='0' width='1' height='1'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.4 -.42'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)' opacity='.07'/%3E%3C/svg%3E")}
+
+ /* --- El material ------------------------------------------------------------------- */
+ html.carta.vidrio aside,html.carta.vidrio .caja,html.carta.vidrio body.derecha-abierta #derecha{
+   background-image:linear-gradient(180deg,rgba(255,255,255,calc(.075 * var(--vd-b,1))),rgba(255,255,255,0) 190px),var(--vd-grano);
+   box-shadow:var(--vd-luz),var(--vd-peso)}
+ html.carta.vidrio .caja{
+   background-image:linear-gradient(180deg,rgba(255,255,255,calc(.06 * var(--vd-b,1))),rgba(255,255,255,0)),var(--vd-grano)}
+ /* ⭐⭐ Las dos barras son UN SOLO vidrio (`body::after`), y ellas van transparentes encima.
+    Antes cada renglón era su propio vidrio y entre los dos se veía una COSTURA: el
+    desenfoque de fondo se calcula por elemento, cada uno borronea solo lo que tiene
+    detrás, y en la unión los dos borrones no coinciden (se notaba como un cambio de tono a
+    lo ancho, justo debajo de los botones). Con una sola pieza hay un solo borrón, una sola
+    luz de arriba y una sola sombra. Es el mismo recurso de la hoja: un hijo más de la
+    página, colocado a mano en la grilla y mandado al fondo. Que las barras vayan
+    transparentes está más arriba, con su relleno (buscar "TRANSPARENTES").
+    ⚠ Si escondés un renglón, su fila de la grilla mide cero y el vidrio se achica solo. */
+ html.carta.vidrio body::after{content:'';position:relative;z-index:-1;
+   grid-column:2 / 4;grid-row:1 / 3;border-radius:18px;
+   background:var(--barra,var(--vd-vidrio));
+   background-image:linear-gradient(180deg,rgba(255,255,255,calc(.075 * var(--vd-b,1))),rgba(255,255,255,0)),var(--vd-grano);
+   backdrop-filter:var(--vd-esmeril);border:1px solid var(--vd-filo);
+   box-shadow:var(--vd-luz),var(--vd-peso)}
+ html.carta.vidrio body.pleno::after,
+ html.carta.vidrio body.sin-arriba:has(#barra[style*="display: none"])::after{display:none}
+ /* La hoja: vidrio ahumado, con su luz de arriba y su sombra. */
+ html.carta.vidrio body::before{
+   background-color:var(--vd-hoja,color-mix(in srgb,var(--fondo) 50%,transparent));
+   background-image:linear-gradient(180deg,rgba(255,255,255,calc(.05 * var(--vd-b,1))),rgba(255,255,255,0) 170px),var(--vd-grano);
+   border-color:rgba(255,255,255,calc(.1 * var(--vd-b,1)));
+   box-shadow:inset 0 1px 0 rgba(255,255,255,calc(.16 * var(--vd-b,1))),inset 0 -1px 0 rgba(0,0,0,.2),var(--vd-peso)}
+ /* Lo que leés se DISUELVE en el borde de la hoja en vez de cortarse contra él. Abajo
+    siempre; arriba recién cuando bajaste (al principio de la charla no hay nada que
+    disolver, y el título quedaría mordido). `--vd-fundido` lo mueve el propio scroll. */
+ html.carta.vidrio section#cuerpo{
+   -webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,0) 0,#000 var(--vd-fundido),
+     #000 calc(100% - 26px),rgba(0,0,0,0) 100%);
+   mask-image:linear-gradient(to bottom,rgba(0,0,0,0) 0,#000 var(--vd-fundido),
+     #000 calc(100% - 26px),rgba(0,0,0,0) 100%)}
+ @keyframes vdFundido{to{--vd-fundido:30px}}
+ html.carta.vidrio .msg.vos{box-shadow:inset 0 1px 0 rgba(255,255,255,.2),
+   0 1px 2px rgba(0,0,0,calc(.28 * min(1,var(--vd-k)))),
+   0 10px 22px -14px rgba(0,0,0,min(.6,var(--vd-k)))}
+ html.carta.vidrio .md-pre{box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),
+   inset 0 1px 0 rgba(255,255,255,.05)}
+ html.carta.vidrio .tab.sel{box-shadow:inset 0 1px 0 rgba(255,255,255,.24),
+   0 1px 2px rgba(0,0,0,calc(.36 * min(1,var(--vd-k))))}
+ /* Enviar: el mismo color de acento de siempre, con luz arriba y un resplandor de SU
+    color abajo. El color no se toca: va en `background-color` y esto es una capa encima. */
+ html.carta.vidrio .caja button.enviar{
+   background-image:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,0));
+   box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 1px 2px rgba(0,0,0,.28),
+     0 8px 18px -8px color-mix(in srgb,var(--acento) 60%,transparent)}
+ html.carta.vidrio .caja:focus-within{border-color:rgba(255,255,255,.44);
+   background-color:rgba(255,255,255,.125);
+   box-shadow:var(--vd-luz),0 0 0 4px color-mix(in srgb,var(--acento) 13%,transparent),var(--vd-peso)}
+ html.carta.vidrio .ajustes-modelo-menu,html.carta.vidrio #menuTarjeta,
+ html.carta.vidrio .menu-pantallas.mini .todo{border-color:var(--vd-filo);
+   box-shadow:var(--vd-luz),var(--vd-peso)}
+ html.carta.vidrio #menuTarjeta{background:var(--ct-pieza);backdrop-filter:var(--vd-esmeril);
+   border-radius:14px}
+
+ /* --- Las luces: lo elegido es UNA pieza de luz que viaja, no un fondo que se prende ---
+    En las pestañas y en el riel. Cada lista se rearma entera al tocarla, así que la luz
+    no puede ser el fondo del renglón (nacería ya en su lugar): es un elemento aparte
+    (`#luzTab`, `#luzRiel`) que `moverLuz()` coloca primero donde estaba y después suelta.
+    ⚠ Solo con `con-luces`, que pone el script cuando esas funciones existen: si el script
+    fallara antes, lo elegido se sigue viendo con el fondo de siempre.
+    ⚠ En el riel la luz lleva el COLOR de la carpeta (`--vd-luz-c`, registrada como color
+    para que pasar de una carpeta azul a una violeta sea un fundido y no un salto). */
+ #luzTab,#luzRiel{display:none}
+ html.carta.vidrio.con-luces #tabs[data-ftab="redonda"] #luzTab{display:block;position:absolute;
+   z-index:0;pointer-events:none;border-radius:11px;background:rgba(255,255,255,.17);
+   box-shadow:inset 0 1px 0 rgba(255,255,255,.26),0 1px 2px rgba(0,0,0,calc(.36 * min(1,var(--vd-k))))}
+ html.carta.vidrio.con-luces #tabs[data-ftab="redonda"] .tab.sel{background:transparent !important;
+   box-shadow:none}
+ html.carta.vidrio.con-luces #carpetas{position:relative}
+ html.carta.vidrio.con-luces #luzRiel{display:block;position:absolute;z-index:0;pointer-events:none;
+   border-radius:13px;box-shadow:inset 0 1px 0 rgba(255,255,255,.3);
+   background:linear-gradient(90deg,color-mix(in srgb,var(--vd-luz-c) 50%,transparent),
+     rgba(255,255,255,.13))}
+ /* ⚠ Mientras se arrastra, se saca o vuelve una carpeta, los renglones se corren solos y
+    la luz quedaría en el hueco viejo: en ese rato se apaga y manda el fondo de siempre. */
+ html.carta.vidrio.con-luces #carpetas:not(:has(.deslizando,.acomodando,.se-va,.vuelve)) .carpeta.sel{
+   background:transparent !important;box-shadow:none}
+ html.carta.vidrio.con-luces #carpetas:has(.deslizando,.acomodando,.se-va,.vuelve) #luzRiel{opacity:0}
+
+ /* --- La luz de "está trabajando" en la pieza de escribir. Es un filo de 1,5 px del color
+    de "trabajando" (el del 🎨) que da la vuelta a la pieza. Se prende SOLA cuando la
+    charla que estás mirando tiene su renglón de "pensando", sin que el script avise nada. */
+ html.carta.vidrio .caja::before{content:'';position:absolute;inset:0;border-radius:inherit;
+   padding:1.5px;pointer-events:none;opacity:0;
+   background:conic-gradient(from var(--vd-ang),rgba(0,0,0,0) 0 58%,
+     color-mix(in srgb,var(--aviso) 80%,white) 82%,rgba(0,0,0,0) 100%);
+   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+   -webkit-mask-composite:xor;mask-composite:exclude}
+ /* Su resplandor: la misma luz, más ancha y desenfocada, por debajo. Es lo que hace que se
+    lea como una luz y no como una raya de color.
+    ⚠ Las dos van con `inset:0`, ADENTRO de la pieza: lo que sobresale lo pone el desenfoque,
+    que no ocupa lugar. La primera versión las sacaba 3 px para afuera y la pieza pasaba a
+    medir 3 px más que su ancho (lo cazó `ver_caja_zoom`, "nada se sale de la pantalla"). */
+ html.carta.vidrio .caja::after{content:'';position:absolute;inset:0;border-radius:inherit;
+   padding:5px;pointer-events:none;opacity:0;filter:blur(7px);
+   background:conic-gradient(from var(--vd-ang),rgba(0,0,0,0) 0 62%,var(--aviso) 82%,rgba(0,0,0,0) 100%);
+   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+   -webkit-mask-composite:xor;mask-composite:exclude}
+ @keyframes vdOrbita{to{--vd-ang:360deg}}
+ @keyframes vdBrillo{from{background-position:100% 0} to{background-position:0 0}}
+ /* En Vidrio el anillo del punto queda fijo: "pensando" ya lo dicen el brillo y la luz, y
+    tres cosas moviéndose por lo mismo era una de más. */
+ html.carta.vidrio .msg.pensa .pts i:first-child::after{animation:none;opacity:.38;transform:none}
+
+ /* --- Las entradas (solo el `from`: ver el aviso de arriba) --- */
+ @keyframes vdEntra{from{opacity:0;transform:translateY(10px)}}
+ @keyframes vdSube{from{opacity:0;transform:translateY(14px) scale(.985)}}
+ @keyframes vdBaja{from{opacity:0;transform:translateY(-12px)}}
+ @keyframes vdDeIzq{from{opacity:0;transform:translateX(-18px)}}
+ @keyframes vdDeDer{from{opacity:0;transform:translateX(20px)}}
+ @keyframes vdSaleMsg{from{opacity:0;transform:translateY(18px) scale(.95)}}
+
+ @media (prefers-reduced-motion:no-preference){
+   /* Al cargar la página (y al elegir Vidrio en el 🎨) las piezas llegan de a una: el
+      riel desde su costado, las barras desde arriba, la hoja y la pieza de escribir desde
+      abajo. `vd-llega` dura un segundo y medio: después, mostrar el riel o abrir la
+      columna derecha usa su entrada corta, no esta. */
+   html.carta.vidrio aside{animation:vdDeIzq .3s var(--vd-cajon) backwards}
+   html.carta.vidrio body.derecha-abierta #derecha{animation:vdDeDer .34s var(--vd-cajon) backwards}
+   html.carta.vidrio .caja{animation:vdSube .4s var(--vd-sale) 50ms backwards}
+   html.carta.vidrio.vd-llega aside{animation-duration:.7s;animation-timing-function:var(--vd-sale)}
+   html.carta.vidrio.vd-llega #barraArriba,html.carta.vidrio.vd-llega #barra,
+   html.carta.vidrio.vd-llega body::after{animation:vdBaja .7s var(--vd-sale) 70ms backwards}
+   html.carta.vidrio.vd-llega body::before,html.carta.vidrio.vd-llega section#cuerpo{
+     animation:vdSube .8s var(--vd-sale) 130ms backwards}
+   html.carta.vidrio.vd-llega .caja{animation-duration:.8s;animation-delay:200ms}
+   @supports (animation-timeline:scroll()){
+     html.carta.vidrio section#cuerpo{animation:vdFundido linear both;
+       animation-timeline:scroll(self);animation-range:0px 120px}
+     html.carta.vidrio.vd-llega section#cuerpo{
+       animation:vdFundido linear both,vdSube .8s var(--vd-sale) 130ms backwards;
+       animation-timeline:scroll(self),auto;animation-range:0px 120px,normal}
+   }
+   /* Entrar a una charla o a una carpeta: el título primero y lo de abajo atrás, en
+      escalera. El retardo de cada renglón lo escribe `vdEntrar()`. */
+   html.carta.vidrio #hilo.entrando,html.carta.vidrio .carta-cab.entrando,
+   html.carta.vidrio .cabeza.entrando,html.carta.vidrio #cuerpo .correo.entrando,
+   html.carta.vidrio .pregunta.entrando{animation:vdEntra .38s var(--vd-sale) backwards}
+   /* Lo que mandás sale de la pieza de escribir: sube desde abajo a la derecha. */
+   html.carta.vidrio .msg.vos.entrando{animation:vdSaleMsg .36s var(--vd-sale) backwards;
+     transform-origin:100% 100%}
+   /* "Pensando": un brillo que recorre las letras, y la luz que rodea la pieza. */
+   html.carta.vidrio:not(.movi-poco):not(.movi-nada) .msg.pensa{
+     background:linear-gradient(100deg,var(--ct-3) 38%,var(--ct-tinta) 50%,var(--ct-3) 62%)
+       0 0/300% 100% no-repeat;
+     -webkit-background-clip:text;background-clip:text;color:transparent;
+     animation:vdBrillo 2.6s linear infinite;animation-delay:calc(var(--vd-reloj,0) * -1ms)}
+   html.carta.vidrio .caja::before,html.carta.vidrio .caja::after{transition:opacity .6s ease}
+   html.carta.vidrio:not(.movi-poco):not(.movi-nada) body:has(#hilo > .msg.pensa) .caja::before{
+     opacity:1;animation:vdOrbita 3.4s linear infinite}
+   html.carta.vidrio:not(.movi-poco):not(.movi-nada) body:has(#hilo > .msg.pensa) .caja::after{
+     opacity:.55;animation:vdOrbita 3.4s linear infinite}
+   /* Las luces viajan. */
+   html.carta.vidrio.con-luces #luzTab{transition:left .32s var(--vd-cajon),
+     width .32s var(--vd-cajon),top .32s var(--vd-cajon),height .32s var(--vd-cajon)}
+   html.carta.vidrio.con-luces #luzRiel{transition:top .34s var(--vd-cajon),
+     height .34s var(--vd-cajon),--vd-luz-c .34s ease,opacity .15s ease}
+   /* Los menús salen de donde los abriste, y se van más rápido de lo que llegan. */
+   html.carta.vidrio .ajustes-modelo-menu,html.carta.vidrio #menuTarjeta{opacity:0;
+     transition:opacity .12s ease-out,transform .12s ease-out,display .12s allow-discrete}
+   html.carta.vidrio .ajustes-modelo-menu{transform-origin:100% 100%;
+     transform:translateY(6px) scale(.97)}
+   html.carta.vidrio #menuTarjeta{transform-origin:0 0;transform:translateY(-4px) scale(.97)}
+   html.carta.vidrio .ajustes-modelo.abierto .ajustes-modelo-menu,
+   html.carta.vidrio #menuTarjeta.abierto{opacity:1;transform:none;
+     transition:opacity .2s var(--vd-sale),transform .2s var(--vd-sale),display .2s allow-discrete}
+   @starting-style{
+     html.carta.vidrio .ajustes-modelo.abierto .ajustes-modelo-menu{opacity:0;
+       transform:translateY(6px) scale(.97)}
+     html.carta.vidrio #menuTarjeta.abierto{opacity:0;transform:translateY(-4px) scale(.97)}
+   }
+   /* Lo que contesta al mouse: un fundido corto, nunca un salto.
+      ⚠ `.carpeta` NO entra acá: una transición ahí pisa el arrastre (ver más arriba). */
+   html.carta.vidrio .caja{transition:border-color .2s ease-out,box-shadow .28s ease-out,
+     background-color .2s ease-out}
+   html.carta.vidrio .correo,html.carta.vidrio .ult,html.carta.vidrio .nodo{
+     transition:background-color .16s ease-out}
+   html.carta.vidrio .subcarpeta{transition:color .16s ease-out}
+   html.carta.vidrio .tab .x{transition:opacity .15s ease-out,background-color .15s ease-out,
+     color .15s ease-out}
+   html.carta.vidrio #buscar,html.carta.vidrio .cabeza #filtro{
+     transition:box-shadow .2s ease-out,background-color .2s ease-out}
+   html.carta.vidrio .caja button.enviar{transition:background-color .15s ease-out,
+     filter .15s ease-out,transform .16s var(--vd-sale)}
+   html.carta.vidrio .caja button.enviar:hover:not(:disabled){filter:brightness(1.07)}
+   html.carta.vidrio .pregunta .pOp{transition:background-color .15s ease-out,
+     border-color .15s ease-out,transform .16s var(--vd-sale)}
+   html.carta.vidrio .pregunta .pOp:active{transform:scale(.985)}
+ }
+
+ /* ======================================================================================
+    ⭐⭐ "TE PREGUNTA ALGO" (2026-11-10). Martín, con una captura de una charla frenada en
+    una pregunta: *"tengo que tener un nuevo color parpadeante cuando una sesión esté
+    preguntando algo. Con sonido si se puede."* En la lista de carpetas no había NADA que lo
+    dijera: una sesión que te pregunta figura "ocupada", igual que una que trabaja, y si no
+    la contestás a tiempo la pregunta se deniega sola.
+    ⚠⚠ El estado y su clase se llaman `preguntando`, NO `pregunta`: `.pregunta` ya es la
+    TARJETA de la pregunta adentro de la charla. La primera versión usó el mismo nombre y
+    las pestañas heredaron el diseño de la tarjeta (apiladas, enormes). Lo mostró una
+    captura, no las pruebas: medían clases y colores, no la forma.
+    Es un cuarto estado, con su propio color: AMARILLO, y es el único que PARPADEA (corte
+    seco, no un latido suave: el latido ya es de "trabajando"). Vale con cualquier estilo.
+    ⚠ En los estilos donde "trabajando" es ámbar los dos colores son vecinos; por eso en la
+    pestaña el punto lleva además un "?" adentro: no depende solo del color.
+    ⚠ Los selectores llevan `:root` adelante a propósito: las formas de Grok pintan
+    `.tab` con más peso que una clase suelta, y sin eso el amarillo no se vería.
+    ====================================================================================== */
+ /* ⚠ El amarillo NO está escrito acá: sale de `--pregunta` y sus peldaños (-txt, -bd, -bg),
+    que calcula aspecto.js igual que los de `--ok`, `--mal` y `--aviso`. Así se puede elegir
+    desde el 🎨 y el tema claro lo oscurece solo. La primera versión lo escribió a mano y la
+    regla `semaforo-en-variables` de `probar_no_romper` lo frenó, con razón. */
+ @keyframes parpadea{0%,58%{opacity:1} 59%,100%{opacity:.16}}
+ @keyframes parpadeaBorde{0%,58%{outline-color:var(--pregunta)} 59%,100%{outline-color:transparent}}
+ :root .tab.preguntando{background:var(--pregunta-bg);color:var(--pregunta-txt);
+   border-color:var(--pregunta-bd)}
+ :root .tab.preguntando .bola,:root .grupo.preguntando .bola{display:inline-flex;align-items:center;
+   justify-content:center;flex:none;border:0;border-radius:50%;margin-right:7px;
+   width:calc(15px * var(--ui,1));height:calc(15px * var(--ui,1));
+   background:var(--pregunta);color:var(--fondo);
+   font:700 calc(10.5px * var(--ui,1))/1 system-ui,sans-serif;
+   animation:parpadea 1.1s linear infinite}
+ :root .tab.preguntando .bola::after,:root .grupo.preguntando .bola::after{content:'?'}
+ :root .grupo.preguntando{color:var(--pregunta-txt);border-color:var(--pregunta-bd)}
+ /* La carpeta: un contorno que parpadea y el puntito en amarillo. ⚠ Es `outline` y no un
+    borde ni un `::before`: no ocupa lugar (las marcas siguen en columna) y los dos
+    pseudo-elementos de `.carpeta` ya los usa el arrastre. ⚠ Y no se le pone a una fila que
+    se está yendo o volviendo: esas tienen su propia animación y un `animationend` que la
+    espera para terminar de esconderla. */
+ .carpeta.con-pregunta:not(.se-va):not(.vuelve){outline:1.5px solid var(--pregunta);
+   outline-offset:-2px;animation:parpadeaBorde 1.1s linear infinite}
+ .carpeta .vive.preguntando{opacity:1;background:var(--pregunta);animation:parpadea 1.1s linear infinite}
+ .subcarpeta.e-pregunta{color:var(--pregunta-txt)}
+ .subcarpeta.e-pregunta .pto{background:var(--pregunta);animation:parpadea 1.1s linear infinite}
+ .correo.preguntando{border-left:3px solid var(--pregunta);background:var(--pregunta-bg)}
+ .correo.preguntando .tit{color:var(--pregunta-txt)}
+ .correo.preguntando .baj b{color:var(--pregunta);font-weight:600}
+ .correo.preguntando .ini{background:var(--pregunta);color:var(--fondo);box-shadow:none;
+   animation:parpadea 1.1s linear infinite}
+ /* Con las formas de Grok el estado es un puntito al final de la tarjeta, no una raya. */
+ html.estilo-grok .correo.preguntando{padding-left:12px;border-left:1px solid rgba(var(--grok-t),.05)}
+ html.estilo-grok .correo.preguntando .baj{color:rgba(var(--grok-t),.68)}
+ html.estilo-grok .correo.preguntando .ini{animation:none}
+ html.estilo-grok .correo.preguntando::after{content:'';flex:none;width:9px;height:9px;
+   border-radius:50%;background:var(--pregunta);animation:parpadea 1.1s linear infinite}
+ /* Con Carta celeste es una estrella más de la rampa: grande, amarilla y la única que
+    parpadea. Junto con el anillo de "pensando", es lo único que se mueve en la pantalla. */
+ html.carta .ast.preguntando{width:calc(9px * var(--u));height:calc(9px * var(--u));
+   background:var(--pregunta);animation:parpadea 1.1s linear infinite}
+ html.carta .tab.preguntando{background:none;border-color:transparent;color:var(--ct-tinta)}
+ html.carta .tab.preguntando .bola,html.carta .grupo.preguntando .bola{margin-right:calc(8px * var(--u))}
+ html.carta .subcarpeta.e-pregunta{color:var(--ct-tinta)}
+ html.carta .subcarpeta.e-pregunta .pto{width:calc(9px * var(--u));height:calc(9px * var(--u));
+   margin:0;background:var(--pregunta)}
+ html.carta .correo.preguntando{border-left:0;background:none}
+ html.carta .correo.preguntando .tit{color:var(--ct-tinta);font-weight:600}
+ html.carta .correo.preguntando .ini::before{width:9px;height:9px;background:var(--pregunta)}
+ @media (prefers-reduced-motion:reduce){
+   :root .tab.preguntando .bola,:root .grupo.preguntando .bola,.carpeta.con-pregunta,
+   .carpeta .vive.preguntando,.subcarpeta.e-pregunta .pto,.correo.preguntando .ini,
+   html.estilo-grok .correo.preguntando::after,html.carta .ast.preguntando{animation:none}
+ }
 </style>
 <!-- El markdown de Claude, dibujado (negritas, titulos, viñetas, codigo). Trae sus
      propios estilos: son los mismos que usa la pestaña de sesiones del celular. -->
@@ -894,6 +1980,32 @@
      Es la MISMA pieza que usa la app del celular. -->
 <script src="/estaticos/direccion.js"></script>
 </head><body>
+<!-- ⭐ Los iconos de línea de esta pantalla (2026-11-10): UNA familia, un solo trazo.
+     Se usan con <svg class="icn"><use href="#i-nombre"/></svg> y toman el color del
+     botón donde van. Reemplazan a los emojis y signos sueltos de la barra de escribir y
+     de la barra de arriba, que venían cada uno de una fuente y un peso distintos.
+     ⚠ Los de la barra de arriba tienen una parte RELLENA que se prende con `--rell`:
+     así "prendido / apagado" se ve en el dibujo y no solo en cuánto brilla. -->
+<svg style="display:none" aria-hidden="true">
+<symbol id="i-imagen" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="9" cy="9" r="1.8"/><path d="m21 15-3.6-3.6a2 2 0 0 0-2.8 0L6 20"/></symbol>
+<symbol id="i-buscar-archivo" viewBox="0 0 24 24"><path d="M10.7 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v4.1"/><circle cx="17" cy="17" r="3"/><path d="m21 21-1.9-1.9"/></symbol>
+<symbol id="i-rayo" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol>
+<symbol id="i-campana" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+<symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M4 7h8M16 7h4M4 17h3M11 17h9"/><circle cx="14" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+<symbol id="i-parar" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></symbol>
+<symbol id="i-compactar" viewBox="0 0 24 24"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></symbol>
+<symbol id="i-revisar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="m8.5 11 1.8 1.8 3.2-3.4"/></symbol>
+<symbol id="i-bifurcar" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.2"/><circle cx="18" cy="5" r="2.2"/><circle cx="12" cy="19" r="2.2"/><path d="M6 7.2v1.3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7.2"/><path d="M12 11.5v5.3"/></symbol>
+<symbol id="i-colores" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".6" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".6" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".6" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".6" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></symbol>
+<symbol id="i-globo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></symbol>
+<symbol id="i-col-izq" viewBox="0 0 24 24"><path style="fill:var(--rell,none);stroke:none" fill-opacity=".38" d="M9 4H5.5A2.5 2.5 0 0 0 3 6.5v11A2.5 2.5 0 0 0 5.5 20H9z"/><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></symbol>
+<symbol id="i-col-der" viewBox="0 0 24 24"><path style="fill:var(--rell,none);stroke:none" fill-opacity=".38" d="M15 4h3.5A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5H15z"/><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M15 4v16"/></symbol>
+<symbol id="i-barra-arriba" viewBox="0 0 24 24"><path style="fill:var(--rell,none);stroke:none" fill-opacity=".38" d="M3 9V6.5A2.5 2.5 0 0 1 5.5 4h13A2.5 2.5 0 0 1 21 6.5V9z"/><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18"/></symbol>
+<symbol id="i-fila-tabs" viewBox="0 0 24 24"><path style="fill:var(--rell,none);stroke:none" fill-opacity=".38" d="M3 10V6.5A2.5 2.5 0 0 1 5.5 4H9v6z"/><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 10h18"/><path d="M9 4v6M15 4v6"/></symbol>
+<symbol id="i-pleno" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/></symbol>
+<symbol id="i-salir-pleno" viewBox="0 0 24 24"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="m14 10 7-7"/><path d="m3 21 7-7"/></symbol>
+<symbol id="i-sonido" viewBox="0 0 24 24"><path style="fill:var(--rell,none)" fill-opacity=".38" d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6"/><path d="M18.2 6.5a8 8 0 0 1 0 11"/></symbol>
+</svg>
 <!-- Sin título ni bajada: la pantalla es esto y no hace falta que se presente cada vez
      (pedido de Martín, 2026-08-17).
      ⭐ Fila 1: el menú de pantallas (lo dibuja /estaticos/menu.js) y el ◧ que esconde la
@@ -912,33 +2024,45 @@
        ("no me convence"), después un solo botón para las dos, y al final esto — un botón
        por cosa. Lo que no quería era ELEGIR en un menú; los botones directos sí. -->
   <div class="izq">
-    <div id="btnLateral" class="botBarra" title="Esconder la barra lateral (Ctrl+B)">◧</div>
+    <div id="btnLateral" class="botBarra" role="button" tabindex="0" aria-label="Barra lateral" title="Esconder la barra lateral (Ctrl+B)"><svg class="icn"><use href="#i-col-izq"/></svg></div>
     <!-- ⚠ Este esconde ESTA barra ENTERA, no solo las pastillas de las pantallas: dejar
          la tira vacía con los botones adentro no le servía de nada ("yo quiero que se
          oculte la barra entera, no solo las pestañas"). Y por eso ya no es un ☰: la
          hamburguesa quiere decir "abrir un menú", justo lo contrario de lo que hace. -->
-    <div id="btnMenu" class="botBarra" title="Esconder esta barra (Esc para volver)">▭</div>
-    <div id="btnTabs" class="botBarra" title="Esconder la fila de conversaciones">⧉</div>
-    <div id="btnPleno" class="botBarra" title="Esconder las dos barras (Esc para volver)">⤢</div>
-    <div id="btnDerecha" class="botBarra" title="Mostrar la columna de la derecha: entorno, contexto, conectores (Ctrl+.)">◨</div>
+    <div id="btnMenu" class="botBarra" role="button" tabindex="0" aria-label="Esconder esta barra" title="Esconder esta barra (Esc para volver)"><svg class="icn"><use href="#i-barra-arriba"/></svg></div>
+    <div id="btnTabs" class="botBarra" role="button" tabindex="0" aria-label="Fila de conversaciones" title="Esconder la fila de conversaciones"><svg class="icn"><use href="#i-fila-tabs"/></svg></div>
+    <div id="btnPleno" class="botBarra" role="button" tabindex="0" aria-label="Esconder las dos barras" title="Esconder las dos barras (Esc para volver)"><svg class="icn"><use href="#i-pleno"/></svg></div>
+    <div id="btnDerecha" class="botBarra" role="button" tabindex="0" aria-label="Columna de la derecha" title="Mostrar la columna de la derecha: entorno, contexto, conectores (Ctrl+.)"><svg class="icn"><use href="#i-col-der"/></svg></div>
+    <!-- ⭐ La campanita de "te pregunta algo" (2026-11-10): prendida suena cuando una
+         sesión frena a preguntarte. Va acá, con los demás interruptores de la pantalla. -->
+    <div id="btnSonido" class="botBarra" role="button" tabindex="0" aria-label="Sonido cuando una sesión pregunta" title="Sonar cuando una sesión frena a preguntarte algo"><svg class="icn"><use href="#i-sonido"/></svg></div>
   </div>
   <nav id="menuPantallas"></nav>
 </div>
 <!-- Escondidas las barras, este es el único camino de vuelta: flota sobre la charla,
      arriba a la derecha. Sin él la pantalla se desarma y no se puede rearmar. -->
-<div id="salirPleno" title="Mostrar las barras de arriba (Esc)">⤡</div>
+<div id="salirPleno" role="button" tabindex="0" aria-label="Mostrar las barras de arriba" title="Mostrar las barras de arriba (Esc)"><svg class="icn"><use href="#i-salir-pleno"/></svg></div>
 <!-- El menú de una tarjetita (color y nombre), con el botón derecho encima. -->
 <div id="menuTarjeta"></div>
 <div id="barra">
   <div id="tabs"></div>
 </div>
+<!-- Vidrio: las piezas llegan de a una al cargar (se saca al segundo y medio). -->
+<script>document.documentElement.classList.add('vd-llega')</script>
 <script src="/estaticos/menu.js"></script>
 <script src="/estaticos/aspecto.js"></script>
 <script src="/estaticos/atajos.js"></script>
 <script src="/estaticos/entorno.js"></script>
+<!-- La terminal de la columna derecha (2026-11-10). Si el panel todavía no la sirve
+     (falta reiniciarlo), este archivo no carga y la pieza simplemente no aparece. -->
+<script src="/estaticos/terminal.js"></script>
 <main>
   <aside>
     <div id="paneProy">
+      <!-- ⭐ Solo con el estilo "Carta celeste": el nombre de la pantalla y la franja
+           "esta noche" con todas las charlas sobre un eje de tiempo (`pintarCielo`). -->
+      <div id="marcaCarta">Servidor IA <small></small></div>
+      <div id="cielo"></div>
       <div class="rubro">Proyectos</div>
       <input id="buscar" placeholder="Buscar carpeta…" autocomplete="off">
       <div id="carpetas"></div>
@@ -956,7 +2080,14 @@
     <div id="tirador" title="Arrastrá para ensanchar"></div>
   </aside>
   <section id="cuerpo"><div class="vacio">Cargando…</div></section>
-  <div id="derecha" class="entornoCaja"></div>
+  <!-- La columna de la derecha: un tirador para ensancharla, las pestañas (que aparecen
+       con más de una pieza) y las piezas. Entorno es la de siempre; las demás se anotan
+       con `Paneles.registrar()`. -->
+  <div id="derecha">
+    <div id="tiradorDer" title="Arrastrá para ensanchar · doble clic: ancho de fábrica"></div>
+    <div id="derTabs" role="tablist" aria-label="Piezas de la columna de la derecha"></div>
+    <div id="derEntorno" class="derPane entornoCaja" data-pieza="entorno"></div>
+  </div>
 </main>
 <div id="chapas"></div>
 <div class="caja" id="caja" style="display:none">
@@ -966,9 +2097,11 @@
        completo queda en el globito de ayuda. -->
   <span class="grupo-iconos" id="grupoTraer">
     <button class="archivo-accion icono" id="subirImagen" onclick="document.getElementById('archivo').click()"
-            title="Subir imagen: adjuntar una o varias imágenes">🖼</button>
+            aria-label="Subir imagen"
+            title="Subir imagen: adjuntar una o varias imágenes"><svg class="icn"><use href="#i-imagen"/></svg></button>
     <button class="archivo-accion icono" id="buscarArchivo" onclick="buscarArchivo()"
-            title="Buscar archivo: elegir cualquier archivo de la computadora y pegar su ruta en el mensaje">🔎</button>
+            aria-label="Buscar archivo"
+            title="Buscar archivo: elegir cualquier archivo de la computadora y pegar su ruta en el mensaje"><svg class="icn"><use href="#i-buscar-archivo"/></svg></button>
     <!-- ⚡ Skills y Comandos: los dibuja /estaticos/atajos.js en un solo botón. -->
     <span id="atajosAqui" style="display:inline-flex"></span>
   </span>
@@ -978,7 +2111,7 @@
        proceso `claude`, y así vale igual desde el celular. -->
   <span class="ajustes-modelo" id="ajustesModelo" style="display:none">
     <button type="button" class="ajustes-modelo-boton" id="ajustesModeloBoton"
-            aria-expanded="false" title="Todo lo de esta charla: cerebro, modelo, esfuerzo, compactar y revisar">⚙ Ajustes</button>
+            aria-expanded="false" title="Todo lo de esta charla: cerebro, modelo, esfuerzo, compactar y revisar"><svg class="icn"><use href="#i-ajustes"/></svg><span class="rot">Ajustes</span></button>
     <span class="ajustes-modelo-menu" id="ajustesModeloMenu">
       <!-- ⭐ Con qué CEREBRO corre esta charla: Claude o Codex (2026-08-19). En una pestaña
            sin estrenar elige con cuál NACE; en una nacida, cambiarlo la MUDA (2026-08-20):
@@ -1006,20 +2139,20 @@
            sueltas en la barra hasta el 2026-08-25. -->
       <span class="menu-acciones" id="menuAcciones">
         <button class="compactar" id="compactar" onclick="compactar()"
-                title="Resumir esta charla y seguir en una nueva, para que deje de arrastrar todo el contexto">⇲ Compactar</button>
+                title="Resumir esta charla y seguir en una nueva, para que deje de arrastrar todo el contexto"><svg class="icn"><use href="#i-compactar"/></svg><span class="rot">Compactar</span></button>
         <!-- ⭐ Revisar lo que cambiaste (2026-08-25): le pide a la charla abierta que mire
              los cambios sin commitear y diga qué está mal. Anda con los dos cerebros. -->
         <button class="compactar" id="revisar" data-cierra onclick="revisarCodigo()"
-                title="Pedirle a esta charla que revise los cambios que todavía no commiteaste">⌕ Revisar</button>
+                title="Pedirle a esta charla que revise los cambios que todavía no commiteaste"><svg class="icn"><use href="#i-revisar"/></svg><span class="rot">Revisar</span></button>
         <!-- ⭐ Bifurcar (2026-09-27): probar otro camino sin perder esta charla. Abre una
              pestaña que sigue con todo lo anterior y un id propio; la original no se toca. -->
         <button class="compactar" id="bifurcar" data-cierra onclick="bifurcar()"
-                title="Abrir una copia de esta charla para probar otro camino, sin tocar la original">⑂ Bifurcar</button>
+                title="Abrir una copia de esta charla para probar otro camino, sin tocar la original"><svg class="icn"><use href="#i-bifurcar"/></svg><span class="rot">Bifurcar</span></button>
         <!-- ⭐ El color propio de esta charla (2026-10-10): las dos burbujas y un tinte del
              fondo. Lo elegido acá se ve igual en el celular (colorcharla.js). -->
         <button class="compactar" id="colorCharla" data-cierra
                 onclick="ColorCharla.editor(activa, $('#ajustesModeloBoton'), cwdActiva())"
-                title="Elegir los colores de las burbujas y del fondo, de esta charla o de toda su carpeta">🎨 Colores</button>
+                title="Elegir los colores de las burbujas y del fondo, de esta charla o de toda su carpeta"><svg class="icn"><use href="#i-colores"/></svg><span class="rot">Colores</span></button>
       </span>
     </span>
   </span>
@@ -1032,13 +2165,17 @@
        Queda AFUERA del menú aunque sea chico: es una opción del envío y tiene que
        verse encendida de un vistazo, no escondida atrás de un clic. -->
   <button class="avisar icono" id="avisarTarea" onclick="alternarAviso()"
-          title="Avisame: tocar el timbre al celular cuando esta sesión termine el mensaje que mandes ahora">🔔</button>
-  <button id="enviar" onclick="mandar()">Enviar</button>
+          aria-label="Avisame cuando termine"
+          title="Avisame: tocar el timbre al celular cuando esta sesión termine el mensaje que mandes ahora"><svg class="icn"><use href="#i-campana"/></svg></button>
+  <button id="enviar" class="enviar" onclick="mandar()">Enviar</button>
   <button class="parar" id="parar" onclick="parar()" style="display:none"
-          title="Cortar lo que está pensando">⏹ Parar</button>
+          title="Cortar lo que está pensando"><svg class="icn"><use href="#i-parar"/></svg><span class="rot">Parar</span></button>
 </div>
 <script>
 const $ = s => document.querySelector(s);
+// ⭐ Cambiarle el texto a un botón que además tiene un dibujo (2026-11-10): el texto
+// vive en su `.rot`. Con `textContent` sobre el botón entero se borraría el icono.
+function rotular(b, txt){ const r = b.querySelector('.rot'); if (r) r.textContent = txt; else b.textContent = txt; }
 const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
 // Lo que escribe Claude se dibuja como markdown (`marcado.js`): antes se leian los
 // asteriscos y los numerales crudos. Si por lo que sea el archivo no cargó, mejor
@@ -1293,15 +2430,61 @@ const esHex = c => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
 function tresTonos(v){
   if (!esHex(v)) return TONOS[v] || null;
   const luz = (canal(v, 1) * 299 + canal(v, 3) * 587 + canal(v, 5) * 114) / 1000;
+  // ⭐ Sobre un fondo CLARO la cuenta se da vuelta (2026-11-10): fondo apenas teñido
+  // sobre blanco y la letra oscurecida. Los seis colores con nombre ya se adaptaban solos
+  // (van por las tintas del tema); los de la rueda no, y sobre papel quedaban como
+  // bandas negras. ⚠ En oscuro el resultado es EXACTAMENTE el de siempre.
+  if (document.documentElement.classList.contains('tema-claro'))
+    return [mezclar(v, '#ffffff', .15), mezclar(v, '#ffffff', .5),
+            mezclar(v, '#10141c', luz > 150 ? .4 : .7)];
   return [mezclar(v, '#0b0d12', .18), mezclar(v, '#0b0d12', .45),
           luz < 110 ? mezclar(v, '#ffffff', .45) : v];
 }
+// El color de una tarjeta pintada va escrito en el propio renglón, así que cuando el 🎨
+// pasa de oscuro a claro (o al revés) hay que volver a dibujarlas: si no, quedan con la
+// cuenta del tema anterior hasta la próxima vez que algo las repinte. Solo en el CAMBIO
+// de tema: el 🎨 avisa en cada retoque, y repintar por mover una perilla sería al pedo.
+let temaDeLasPintadas = document.documentElement.classList.contains('tema-claro');
+window.addEventListener('aspecto-aplicado', () => {
+  const ahora = document.documentElement.classList.contains('tema-claro');
+  if (ahora === temaDeLasPintadas) return;
+  temaDeLasPintadas = ahora;
+  try { pintarCarpetas(); pintarTabs(); } catch (e) {}
+});
 // El estilo de una tarjeta pintada, listo para meter en el HTML.
-function pinta(clave){
+// ⭐ Con `vars`, los tonos medio y vivo viajan además como variables (`--tn-m`, `--tn-l`):
+// las usa la pastilla de un proyecto en el estilo Vidrio, donde el `color` del renglón va
+// en blanco y el color de la carpeta se pinta en la superficie (2026-11-10).
+function pinta(clave, vars){
   const t = tresTonos(tonos[clave]);
-  return t ? ' style="background:' + t[0] + ';border-color:' + t[1] + ';color:' + t[2] + '"' : '';
+  return t ? ' style="background:' + t[0] + ';border-color:' + t[1] + ';color:' + t[2] +
+             (vars ? ';--tn-m:' + t[1] + ';--tn-l:' + t[2] : '') + '"' : '';
 }
 const nombreGrupo = n => apodos[n] || n;
+// ⭐ El nombre de una carpeta EN LA LISTA, sin el dibujito repetido (2026-11-10). El apodo
+// suele empezar con el mismo emoji que el ícono, porque la pestaña de arriba muestra solo
+// el apodo y ahí hace falta; en la lista, que ya dibuja el ícono, salía dos veces seguidas.
+// ⚠ Solo cambia lo que se MUESTRA en el renglón: el apodo guardado no se toca, y el cartel
+// del renglón (`title`) y la pestaña siguen diciendo el apodo entero.
+// El selector de variación (U+FE0F) no cuenta al comparar: "👁" y "👁️" son el mismo dibujo
+// escrito de dos formas, según de dónde se haya copiado.
+function sinIconoRepetido(nom, ico){
+  if (!ico) return nom;
+  const i = ico.replace(/\uFE0F/g, '');
+  if (!i) return nom;
+  let j = 0, k = 0;
+  while (j < nom.length && k < i.length) {
+    if (nom[j] === '\uFE0F') { j++; continue; }
+    if (nom[j] !== i[k]) return nom;
+    j++; k++;
+  }
+  if (k < i.length) return nom;
+  // Si lo que sigue es una unión (U+200D), el emoji del apodo era OTRO más largo que
+  // empieza igual (👁 contra 👁‍🗨): no se corta al medio.
+  if (nom[j] === '\u200D') return nom;
+  const resto = nom.slice(j).replace(/^\uFE0F/, '').trim();
+  return resto || nom;       // un apodo que es solo el dibujito se deja como está
+}
 aplicarFormas();     // la forma elegida vale desde el primer pintado
 
 async function archivar(sid, si){
@@ -1374,6 +2557,7 @@ async function cargar(){
   // refresca el nombre (empujando, cada 20 s quedaría una entrada nueva en el historial).
   fijarDireccion({empujar: false});
   pintarCarpetas(); pintarTabs(); pintar();
+  mirarPreguntas();      // sin esperarlo: es un extra, no puede demorar el refresco
 }
 
 // ⭐ Los borradores del servidor: lo que empezaste a escribir desde el celular aparece
@@ -1533,20 +2717,451 @@ function subsDe(p){
     vistas.add(t.sid);
     const s = p.sesiones.find(x => x.id === t.sid) || {};
     subs.push({sid: t.sid, nombre: s.nombre || t.nombre || '…', cwd: t.cwd || p.cwd,
-               cerebro: t.cerebro || s.cerebro || '', trabaja: !!s.ocupada});
+               cerebro: t.cerebro || s.cerebro || '', trabaja: !!s.ocupada, sub: s.sub || ''});
   });
   p.sesiones.forEach(s => {
     if (vistas.has(s.id) || !s.ocupada || esArchivada(s)) return;
-    subs.push({sid: s.id, nombre: s.nombre || '…', cwd: p.cwd, cerebro: s.cerebro || '', trabaja: true});
+    subs.push({sid: s.id, nombre: s.nombre || '…', cwd: p.cwd, cerebro: s.cerebro || '', trabaja: true,
+               sub: s.sub || ''});
   });
   return subs;
 }
 
+// --- ⭐ Subproyectos dentro de una carpeta (pedido de Martín, 2026-11-10) ---------------
+// En UMINDS conviven charlas de temas distintos. El subproyecto es una etiqueta NUESTRA
+// guardada en el servidor (`/movil/subproyecto`, campo `sub` de la lista): solo agrupa la
+// vista, no toca la carpeta ni la charla. ⚠ Si ninguna fila tiene subproyecto, `agruparSub`
+// devuelve null y quien la llama dibuja EXACTAMENTE como antes: esa es la regla.
+// Lo plegado es por carpeta + subproyecto y vale para la columna y la bandeja a la vez.
+var subproyPlegados = new Set();     // `var`: si algo pinta antes de llegar acá, no muere
+try { subproyPlegados = new Set(JSON.parse(localStorage.getItem('sesSubproyPlegados') || '[]')); } catch(e){}
+const claveSubproy = (carpeta, sub) => carpeta + '|' + sub;
+function plegarSubproy(clave){
+  subproyPlegados.has(clave) ? subproyPlegados.delete(clave) : subproyPlegados.add(clave);
+  localStorage.setItem('sesSubproyPlegados', JSON.stringify([...subproyPlegados]));
+}
+// Grupos con nombre en el orden en que aparecen (las filas ya vienen de la más nueva a la
+// más vieja, así que arriba queda el grupo con movimiento más reciente) y al final las que
+// no tienen ninguno.
+function agruparSub(filas){
+  if (!filas.some(s => s.sub)) return null;
+  const g = new Map();
+  filas.forEach(s => { const k = s.sub || ''; if (!g.has(k)) g.set(k, []); g.get(k).push(s); });
+  const out = [...g].filter(([k]) => k).map(([k, v]) => ({sub: k, filas: v}));
+  if (g.has('')) out.push({sub: '', filas: g.get('')});
+  return out;
+}
+const tituloSub = sub => sub || 'Sin subproyecto';
+// ⚠ La bandeja se repinta SOLO si es lo que está a la vista: `pintarLista` escribe en
+// `#cuerpo`, y con una charla abierta le pisaría el chat.
+function repintarBandeja(){ if (!activa && !verArchivo){ firma = ''; pintarLista(); } }
+// Los subproyectos que ya existen en una carpeta (archivadas incluidas: el grupo es suyo).
+const subproyectosDe = p => [...new Set(p.sesiones.map(s => s.sub).filter(Boolean))]
+  .sort((a, b) => a.localeCompare(b, 'es'));
+
+async function asignarSub(sid, sub){
+  // Sin comillas: el nombre viaja adentro de atributos del HTML.
+  sub = (sub || '').replace(/"/g, '').split(/\s+/).join(' ').trim().slice(0, 40);
+  // Se ve en el acto: se anota en la lista que ya está en memoria y se repinta; el
+  // servidor confirma en el refresco de siempre.
+  datos.proyectos.forEach(p => p.sesiones.forEach(s => {
+    if (s.id !== sid) return;
+    if (sub) s.sub = sub; else delete s.sub;
+  }));
+  repintarBandeja(); pintarCarpetas();
+  await fetch('/movil/subproyecto', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({sid, subproyecto: sub})}).catch(() => {});
+  firma = ''; cargar();
+}
+
+// El menú del botón ⊞ de cada fila: los subproyectos de la carpeta, uno nuevo, o sacarlo.
+// Es el mismo `#menuTarjeta` de las tarjetitas, con sus `.rub`, `.op` y `.sep`.
+function abrirMenuSub(e, sid){
+  e.preventDefault(); e.stopPropagation();
+  const p = datos.proyectos.find(x => x.sesiones.some(s => s.id === sid));
+  if (!p) return;
+  const s = p.sesiones.find(x => x.id === sid), actual = s.sub || '';
+  const existentes = subproyectosDe(p);
+  const m = $('#menuTarjeta');
+  m.innerHTML = '<div class="rub">Subproyecto en ' + esc(nombreGrupo(p.proyecto)) + '</div>' +
+    existentes.map(n => '<div class="op" data-sub="' + esc(n) + '">' +
+      (n === actual ? '✓ ' : '· ') + esc(n) + '</div>').join('') +
+    (existentes.length ? '<div class="sep"></div>' : '') +
+    '<div class="op" data-hace="nuevo">＋ Nuevo subproyecto…</div>' +
+    (actual ? '<div class="op" data-hace="sacar">✕ Sacarla de «' + esc(actual) + '»</div>' : '');
+  m.querySelectorAll('[data-sub]').forEach(o => o.onclick = () => {
+    cerrarMenuTarjeta(); if (o.dataset.sub !== actual) asignarSub(sid, o.dataset.sub);
+  });
+  m.querySelector('[data-hace="nuevo"]').onclick = () => {
+    cerrarMenuTarjeta();
+    const n = prompt('¿Cómo se llama el subproyecto?', '');
+    if (n !== null && n.trim()) asignarSub(sid, n);
+  };
+  const sacar = m.querySelector('[data-hace="sacar"]');
+  if (sacar) sacar.onclick = () => { cerrarMenuTarjeta(); asignarSub(sid, ''); };
+  m.classList.add('abierto');
+  const an = m.offsetWidth, al = m.offsetHeight;
+  m.style.left = Math.round(Math.max(8, Math.min(e.clientX, innerWidth - an - 8))) + 'px';
+  m.style.top = Math.round(Math.max(8, Math.min(e.clientY, innerHeight - al - 8))) + 'px';
+}
+
 // Qué subcarpetas se ven ahora: si no cambió, no hace falta rearmar la columna.
 let subsPintadas = '';
-const firmaSubs = () => JSON.stringify([activa, [...subPlegadas],
-  datos.proyectos.map(p => subsDe(p).map(s => s.sid + s.nombre + s.trabaja))]);
+const firmaSubs = () => JSON.stringify([activa, [...subPlegadas], [...subproyPlegados],
+  datos.proyectos.map(p => subsDe(p).map(s => s.sid + s.nombre + s.trabaja + '|' + s.sub))]);
 function refrescarSubs(){ if (firmaSubs() !== subsPintadas) pintarCarpetas(); }
+
+// ⭐⭐ "TE PREGUNTA ALGO" (2026-11-10): saber cuál charla frenó a preguntarte, marcarla y
+// tocar la campanita. Pedido de Martín con una captura: una sesión esperando una respuesta
+// suya y la lista de carpetas igual que siempre.
+//
+// ⚠⚠ De dónde sale el dato, que es lo que NO es obvio: la lista (`/movil/sesiones`) no dice
+// qué charla tiene una pregunta abierta — para ella está "ocupada", igual que una que
+// trabaja. La pregunta viaja adentro de `/movil/chat`, charla por charla. Entonces:
+//   · la charla que tenés ABIERTA ya lo sabe: `pintar()` lo anota en cada vuelta;
+//   · las demás se le preguntan al chat, pero SOLO las que están ocupadas y quietas (una
+//     que escribe no frenó a preguntar), de a cuatro y nunca más de una vez cada 9 s.
+// Lo prolijo sería que la lista traiga el dato (una línea en `listar()`, del lado del
+// panel): ese día `mirarPreguntas()` sobra entero. Hoy son uno o dos pedidos livianos por
+// refresco, y solo cuando hay alguna sesión ocupada y callada.
+let preguntan = {};              // sid -> la `hora` de su pregunta abierta
+const pregMirada = {};           // sid -> cuándo se le preguntó al chat por última vez
+// ¿La estás mirando? Si es la charla abierta, con la pestaña a la vista y la ventana al
+// frente, no hace falta avisarte nada: tenés la pregunta delante.
+const ojoPuesto = sid => sid === activa && document.visibilityState === 'visible' && document.hasFocus();
+const hayPregunta = sid => !!preguntan[sid] && !ojoPuesto(sid);
+function anotarPregunta(sid, hora){
+  const antes = preguntan[sid];
+  if (hora){
+    preguntan[sid] = hora;
+    if (antes === hora) return;
+    sonarPregunta(sid, hora);
+  } else if (antes) delete preguntan[sid];
+  else return;
+  // ⚠ Se repinta en el próximo respiro y no acá mismo: esto se llama desde ADENTRO de
+  // `pintar()`, y repintar en el medio sería pintar adentro de pintar.
+  setTimeout(repintarPreguntas, 0);
+}
+function repintarPreguntas(){
+  try { pintarCarpetas(); pintarTabs(); if (!activa){ firma = ''; pintar(); } } catch (e) {}
+}
+async function mirarPreguntas(){
+  const ahora = Date.now() / 1000, ocupadas = new Set(), cola = [];
+  datos.proyectos.forEach(p => p.sesiones.forEach(s => {
+    if (!s.ocupada) return;
+    ocupadas.add(s.id);
+    if (s.id === activa) return;                         // esa ya la mira `pintar()`
+    if (ahora - (s.ts || 0) < 4) return;                 // está escribiendo
+    if (ahora - (pregMirada[s.id] || 0) < 9) return;
+    cola.push({sid: s.id, cwd: p.cwd});
+  }));
+  // La que dejó de estar ocupada ya no pregunta nada (la contestaste, o venció sola).
+  Object.keys(preguntan).forEach(sid => {
+    if (!ocupadas.has(sid) && sid !== activa) anotarPregunta(sid, null);
+  });
+  for (const x of cola.slice(0, 4)){
+    pregMirada[x.sid] = ahora;
+    try {
+      const d = await (await fetch('/movil/chat?cwd=' + encodeURIComponent(x.cwd) +
+                                   '&sid=' + encodeURIComponent(x.sid))).json();
+      const q = d && d.pregunta;
+      anotarPregunta(x.sid, q && ((q.preguntas || []).length || q.plan) ? q.hora : null);
+    } catch (e) {}
+  }
+}
+// Irte a otra ventana o volver cambia si "la estás mirando": se redibuja.
+['focus', 'blur'].forEach(ev => window.addEventListener(ev, () => {
+  if (Object.keys(preguntan).length) repintarPreguntas();
+}));
+document.addEventListener('visibilitychange', () => {
+  if (Object.keys(preguntan).length) repintarPreguntas();
+});
+
+// ⭐ La campanita: dos notas cortas, hechas por el navegador (no hay archivo de audio que
+// servir ni que bajar). Suena UNA vez por pregunta.
+// ⚠ El navegador no deja sonar una página que nunca tocaste: por eso el audio se prepara
+// con tu primer clic o tecla. Si recargaste y no tocaste nada, la primera pregunta no suena
+// (el color sí).
+// ⚠ Con varias pestañas del navegador abiertas en Sesiones, TODAS ven la misma pregunta:
+// se anotan en `sesPregSonadas` (del navegador) y suena solo la primera que llega.
+let audioPreg = null;
+const sonidoPuesto = () => localStorage.getItem('sesSonidoPregunta') !== '0';
+function prepararSonido(){
+  try {
+    audioPreg = audioPreg || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioPreg.state === 'suspended') audioPreg.resume();
+  } catch (e) {}
+}
+['pointerdown', 'keydown'].forEach(ev =>
+  window.addEventListener(ev, prepararSonido, {once: true, capture: true}));
+function campanita(){
+  prepararSonido();
+  const c = audioPreg;
+  if (!c || c.state !== 'running') return false;
+  const t0 = c.currentTime;
+  [[659.25, 0], [880, .17]].forEach(([hz, d]) => {       // mi → la
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine'; o.frequency.value = hz;
+    g.gain.setValueAtTime(.0001, t0 + d);
+    g.gain.linearRampToValueAtTime(.17, t0 + d + .015);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + d + .45);
+    o.connect(g); g.connect(c.destination);
+    o.start(t0 + d); o.stop(t0 + d + .5);
+  });
+  return true;
+}
+function sonarPregunta(sid, hora){
+  if (!sonidoPuesto() || ojoPuesto(sid)) return;
+  setTimeout(() => {
+    let ya = {};
+    try { ya = JSON.parse(localStorage.getItem('sesPregSonadas') || '{}'); } catch (e) {}
+    if (ya[sid] === String(hora)) return;                // ya la cantó otra pestaña
+    if (!campanita()) return;
+    const queda = {};
+    Object.keys(ya).slice(-40).forEach(k => { queda[k] = ya[k]; });
+    queda[sid] = String(hora);
+    try { localStorage.setItem('sesPregSonadas', JSON.stringify(queda)); } catch (e) {}
+  }, Math.random() * 350);
+}
+function pintarSonido(){
+  const b = $('#btnSonido');
+  if (!b) return;
+  b.classList.toggle('off', !sonidoPuesto());
+  b.title = sonidoPuesto()
+    ? 'Suena cuando una sesión frena a preguntarte algo (tocá para silenciarlo)'
+    : 'Silenciado: una sesión que pregunta solo se marca en amarillo (tocá para que suene)';
+}
+if ($('#btnSonido')) $('#btnSonido').onclick = () => {
+  try { localStorage.setItem('sesSonidoPregunta', sonidoPuesto() ? '0' : '1'); } catch (e) {}
+  pintarSonido();
+  if (sonidoPuesto()) campanita();                       // al prenderlo, te muestra cómo suena
+};
+pintarSonido();
+
+// ⭐ En qué anda una charla: 'fallada', 'preguntando' (frenó a preguntarte), 'trabajando',
+// 'espera' (te contestó y no la
+// abriste) o '' (nada que avisar). Vivía adentro de `pintarLista`; salió afuera el
+// 2026-11-10 porque ahora lo preguntan también los puntos de cada carpeta y la franja
+// "esta noche". ⚠ UNA sola cuenta para todos: si la lista dijera una cosa y el punto
+// otra, ninguno de los dos serviría.
+const QUIETA_SEG = 45;                   // segundos sin escribir = ya terminó
+function estadoSesion(s, ahora){
+  if (falladas[s.id]) return 'fallada';
+  // Frenó a preguntarte algo: va ANTES que 'trabajando', porque para la lista esa sesión
+  // sigue "ocupada" y sin esto se vería igual que una que trabaja (ver `preguntan`).
+  if (hayPregunta(s.id)) return 'preguntando';
+  if (s.ocupada) return 'trabajando';
+  const quieta = (ahora - (s.ts || 0)) > QUIETA_SEG;
+  // ⭐ Un turno lanzado desde el panel o el celular VIVE SOLO MIENTRAS PIENSA: cuando
+  // contesta, el proceso muere. Así que si está vivo, está trabajando — aunque haga
+  // rato que no escribe, porque puede pasarse minutos adentro de una herramienta sin
+  // tocar el archivo. Antes se miraba solo el reloj y a los 45 s lo daba por
+  // terminado: una charla pensando hace 3 minutos figuraba "te está esperando"
+  // mientras en la pestaña se la veía pensando (2026-08-17).
+  // Lo único que puede estar vivo sin hacer nada es una ventana de Claude Code
+  // abierta en la compu (interactiva): esa sí se juzga por el reloj.
+  if (s.viva && !s.interactiva) return 'trabajando';
+  if (s.viva && !quieta) return 'trabajando';
+  if (s.ultimo !== 'claude') return '';
+  // ⭐ Si ya entraste a leerla DESPUÉS de que contestó, deja de esperarte: seguirá
+  // diciendo "te espera" cuando vos ya lo viste es ruido, y con la bandeja entera en
+  // verde el color dejaba de significar algo (pedido de Martín, 2026-08-17).
+  if ((visto[s.id] || 0) >= (s.ts || 0)) return '';
+  return 'espera';
+}
+
+// ⭐⭐ CARTA CELESTE (2026-11-10): lo que el estilo necesita que la pantalla le dibuje.
+// Son tres cosas y las tres están escondidas sin la clase `carta` en el <html>: los puntos
+// de cada carpeta, la franja "esta noche" y el encabezado de la charla. El resto del
+// rediseño es hoja de estilos (buscar "CARTA CELESTE" arriba).
+// El orden de importancia de un punto: lo que falló, lo que te pregunta algo, lo que te
+// espera, lo que trabaja, lo que está prendido y quieto, y al final lo dormido.
+const PESO_ESTADO = {fallada: 0, preguntando: 1, espera: 2, trabajando: 3, viva: 4, '': 5};
+const ROTULO_ESTADO = {fallada: 'falló', preguntando: 'te pregunta algo', espera: 'te espera',
+                       trabajando: 'trabajando', viva: 'prendida', '': 'dormida'};
+const estrellaDe = (s, ahora) => estadoSesion(s, ahora) || (s.viva ? 'viva' : '');
+// Los puntos de UNA carpeta. ⚠ Hasta tres, y los más importantes primero: el lugar que
+// ocupan es fijo (si no, las marcas de al lado dejan de estar en columna), así que cuando
+// hay más charlas se muestran las que importan y la cuenta completa queda en la bandeja.
+function estrellasDe(p){
+  const ahora = Date.now() / 1000;
+  return p.sesiones.filter(s => !esArchivada(s) && !s.tapada).map(s => estrellaDe(s, ahora))
+    .sort((a, b) => PESO_ESTADO[a] - PESO_ESTADO[b]).slice(0, 3)
+    .map(e => '<span class="ast ' + e + '" title="' + ROTULO_ESTADO[e] + '"></span>').join('');
+}
+// ⭐ "Esta noche": todas las charlas de la bandeja sobre un eje de tiempo. La posición es
+// cuánto hace que se movió por última vez, en escala logarítmica (ahora · 1 h · 6 h · ayer):
+// lo de los últimos minutos tiene lugar para verse separado y lo de ayer se junta al fondo.
+// ⚠ Una que está TRABAJANDO va en "ahora" aunque haga rato que no escribe: puede pasarse
+// minutos adentro de una herramienta, y dibujarla atrás diría que está quieta.
+// ⚠ No se repinta si no cambió nada (`firmaCielo`): el refresco cae cada pocos segundos y
+// rearmar el HTML le reiniciaría el anillo a cada punto que trabaja.
+const xCielo = min => 3 + 94 * Math.min(1, Math.log1p(min) / Math.log1p(2880));
+let firmaCielo = '';
+function pintarCielo(){
+  const el = $('#cielo');
+  if (!el || !document.documentElement.classList.contains('carta')) return;
+  const ahora = Date.now() / 1000, todas = [];
+  datos.proyectos.forEach(p => p.sesiones.forEach(s => {
+    if (esArchivada(s) || s.tapada) return;
+    const e = estrellaDe(s, ahora);
+    todas.push({s, p, e, min: e === 'trabajando' ? 0 : Math.max(0, (ahora - (s.ts || 0)) / 60)});
+  }));
+  const cuantas = k => todas.filter(x => x.e === k).length;
+  // Las de más de dos días y sin nada que avisar no entran: serían un montón en el borde.
+  const vis = todas.filter(x => x.e || x.min <= 2880).sort((a, b) => a.min - b.min);
+  // Las que tienen algo que decir no se pisan entre sí: cada una se corre un poco.
+  let ultima = -9;
+  vis.forEach(x => {
+    x.x = xCielo(x.min);
+    if (!x.e || x.e === 'viva') return;
+    if (x.x - ultima < 5.4) x.x = Math.min(99, ultima + 5.4);
+    ultima = x.x;
+  });
+  // Lo importante se dibuja ÚLTIMO, o sea encima.
+  vis.sort((a, b) => PESO_ESTADO[b.e] - PESO_ESTADO[a.e]);
+  const n1 = cuantas('trabajando'), n2 = cuantas('espera'), n3 = cuantas('fallada');
+  const n0 = cuantas('preguntando');
+  const partes = [];
+  if (n0) partes.push('<b>' + n0 + '</b> ' + (n0 === 1 ? 'te pregunta' : 'te preguntan'));
+  if (n1) partes.push('<b>' + n1 + '</b> trabajando');
+  if (n2) partes.push('<b>' + n2 + '</b> ' + (n2 === 1 ? 'te espera' : 'te esperan'));
+  if (n3) partes.push('<b>' + n3 + '</b> ' + (n3 === 1 ? 'falló' : 'fallaron'));
+  const html = '<span class="eje"></span>' + vis.slice(-70).map(x =>
+      '<span class="ast ' + x.e + '" style="left:' + x.x.toFixed(1) + '%" data-sid="' + esc(x.s.id) +
+        '" data-cwd="' + esc(x.s.cwd || x.p.cwd || '') + '" data-nom="' + esc(x.s.nombre || '') +
+        '" data-cer="' + esc(x.s.cerebro || '') + '" title="' + esc(nombreGrupo(x.p.proyecto)) +
+        ' · ' + esc(x.s.nombre || '') + ' · ' + ROTULO_ESTADO[x.e] + '"></span>').join('') +
+    '<i style="left:0">ahora</i><i style="left:' + xCielo(60).toFixed(1) + '%">1 h</i>' +
+    '<i style="left:' + xCielo(360).toFixed(1) + '%">6 h</i>' +
+    '<i style="left:' + xCielo(1440).toFixed(1) + '%">ayer</i>' +
+    '<div class="res">' + (partes.join(' · ') || 'Todo en calma') + '</div>';
+  const cuenta = todas.length + (todas.length === 1 ? ' charla' : ' charlas');
+  if (html + cuenta === firmaCielo) return;
+  firmaCielo = html + cuenta;
+  el.innerHTML = html;
+  const chico = document.querySelector('#marcaCarta small');
+  if (chico) chico.textContent = cuenta;
+  // Un punto es la charla: tocarlo la abre, igual que su renglón de la bandeja.
+  el.onclick = e => {
+    const a = e.target.closest('.ast');
+    if (a) abrirSesion(a.dataset.cwd, a.dataset.sid, a.dataset.nom, false, a.dataset.cer);
+  };
+}
+// El encabezado de la charla abierta: el nombre en cursiva (es lo que estás mirando) y un
+// renglón abajo con la carpeta y en qué anda (`enQue`: 'trabajando', 'te pregunta algo' o
+// nada). Las pestañas siguen diciendo lo mismo; esto es el título de la página que leés.
+function cabeceraCarta(t, enQue){
+  const g = grupoDe(t), ico = iconos[g];
+  return '<div class="carta-cab"><h1>' + (ico ? '<span class="em">' + esc(ico) + '</span>' : '') +
+    '<span>' + esc(t.nombre || 'Charla nueva') + '</span></h1><p>' +
+    esc(sinIconoRepetido(nombreGrupo(g), ico)) + (t.cerebro === 'codex' ? ' · Codex' : '') +
+    (enQue ? ' · ' + enQue : '') + '</p></div>';
+}
+// Al poner o sacar el estilo hay que redibujar el riel: los puntos y la franja se arman
+// solo con el estilo puesto.
+let cartaPuesta = document.documentElement.classList.contains('carta');
+window.addEventListener('aspecto-aplicado', () => {
+  const ahora = document.documentElement.classList.contains('carta');
+  if (ahora === cartaPuesta) return;
+  cartaPuesta = ahora; firmaCielo = '';
+  try { pintarCarpetas(); } catch (e) {}
+});
+
+// ⭐⭐ VIDRIO · MOVIMIENTO (2026-11-10). Martín: *"quiero más animaciones y que se vea más
+// premium"*. El movimiento en sí es hoja de estilos (buscar "MATERIAL Y MOVIMIENTO"); acá
+// está lo único que la hoja sola no puede hacer, que son dos cosas:
+//  · que lo elegido VIAJE de un renglón a otro (las "luces"), siendo que la lista se
+//    rearma entera en cada toque y el renglón nuevo nace ya en su lugar;
+//  · que una entrada no arranque de nuevo cada vez que la charla se repinta.
+// ⚠ Sin estado suelto en `const`: estas funciones se llaman desde el arranque de la
+// página, antes de llegar a esta línea, y una `const` de acá todavía no existiría.
+function moverLuz(id, el, clave, color){
+  const luz = document.getElementById(id);
+  const antes = moverLuz.donde = moverLuz.donde || {};
+  if (!luz) return;
+  if (!el || !document.documentElement.classList.contains('vidrio')){
+    luz.style.opacity = '0'; delete antes[id]; return;
+  }
+  const a = antes[id];
+  const b = {clave, x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight,
+             color: color || ''};
+  const poner = p => {
+    luz.style.left = p.x + 'px'; luz.style.top = p.y + 'px';
+    luz.style.width = p.w + 'px'; luz.style.height = p.h + 'px';
+    if (p.color) luz.style.setProperty('--vd-luz-c', p.color);
+    else luz.style.removeProperty('--vd-luz-c');
+  };
+  // ⭐ Solo VIAJA cuando cambió lo elegido. Si es lo mismo de antes y se corrió de lugar
+  // (plegaste un grupo, cambió el ancho de la ventana) se acomoda sin viaje: una luz
+  // persiguiendo a su renglón por un cambio que no hiciste se lee como un error.
+  luz.style.transition = 'none';
+  luz.style.opacity = '';
+  if (a && a.clave !== clave){
+    poner(a);
+    void luz.offsetWidth;            // el navegador anota la posición vieja…
+    luz.style.transition = '';       // …y recién ahí se suelta hacia la nueva
+    poner(b);
+  } else {
+    poner(b);
+    void luz.offsetWidth;
+    luz.style.transition = '';
+  }
+  antes[id] = b;
+}
+function acomodarLuzTab(){
+  moverLuz('luzTab', document.querySelector('#tabs .tab.sel'), activa || '');
+}
+function acomodarLuzRiel(){
+  const el = document.querySelector('#carpetas .carpeta.sel');
+  // El color de la carpeta viene escrito en el renglón (lo pone `pinta()`).
+  moverLuz('luzRiel', el, proy || '', el && el.classList.contains('pintada') ? el.style.color : '');
+}
+function acomodarLuces(){ acomodarLuzTab(); acomodarLuzRiel(); }
+document.documentElement.classList.add('con-luces');
+addEventListener('resize', acomodarLuces);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(acomodarLuces);
+
+// ⭐ Una entrada que sobrevive al repintado. `nueva` la arranca; después, cada repintado
+// que caiga adentro de la ventana le vuelve a poner la clase con un retardo NEGATIVO, que
+// es la forma de decirle al navegador "esta animación empezó hace tanto": sigue de largo
+// en vez de arrancar otra vez. `paso` es la escalera entre un elemento y el siguiente.
+function vdEntrar(clave, nueva, els, paso){
+  const horas = vdEntrar.horas = vdEntrar.horas || {};
+  const ahora = performance.now();
+  if (nueva) horas[clave] = ahora;
+  const pasado = ahora - (horas[clave] === undefined ? -1e9 : horas[clave]);
+  if (pasado > 900) return;
+  [...els].forEach((el, i) => {
+    if (!el) return;
+    el.classList.add('entrando');
+    el.style.animationDelay = Math.round(Math.min(i, 12) * (paso || 0) - pasado) + 'ms';
+  });
+}
+// (Con `var` a propósito, por el mismo aviso de arriba: si algo pinta antes de llegar
+// acá, una `let` todavía no existiría y la página moriría con un error.)
+var saleArmada = false;        // acabás de mandar: tu burbuja entra con su animación
+var pregEntrada = 0;           // la pregunta que ya hizo su entrada (su hora)
+var listaVista = null;         // la bandeja que ya hizo su entrada (carpeta + archivadas)
+
+// Las piezas llegan de a una al cargar, y otra vez si elegís Vidrio desde el 🎨.
+// ⚠ Un solo reloj, que cada llamada vuelve a poner en cero: si el aspecto llega tarde (el
+// panel tardó en contestar) la marca no se saca a mitad de la llegada.
+function vdLlegar(){
+  const cl = document.documentElement.classList;
+  cl.add('vd-llega');
+  clearTimeout(vdLlegar.reloj);
+  vdLlegar.reloj = setTimeout(() => cl.remove('vd-llega'), 1500);
+}
+addEventListener('load', vdLlegar);
+var vidrioPuesto = document.documentElement.classList.contains('vidrio');
+window.addEventListener('aspecto-aplicado', () => {
+  const ahora = document.documentElement.classList.contains('vidrio');
+  if (ahora && !vidrioPuesto) vdLlegar();
+  vidrioPuesto = ahora;
+  // Cambió la letra, el tamaño o el estilo: las luces se vuelven a medir.
+  try { acomodarLuces(); } catch (e) {}
+});
 
 function pintarCarpetas(){
   iconoPestana();      // cambiaste el ícono de una carpeta: la pestaña lo sigue
@@ -1571,13 +3186,15 @@ function pintarCarpetas(){
     const clave = claveGrupo(p.proyecto);        // ⭐ la MISMA llave que su pastilla
     const ico = iconos[p.proyecto];
     const subs = subsDe(p), plegada = subPlegadas.has(p.proyecto);
+    const pregunta = p.sesiones.some(s => hayPregunta(s.id));   // alguna frenó a preguntarte
     return '<div class="carpeta ' + (p.proyecto===proy?'sel':'') +
         (tonos[clave]?' pintada':'') + (p.proyecto===marcarVuelve?' vuelve':'') +
+        (pregunta ? ' con-pregunta' : '') +
         '" data-proy="' + esc(p.proyecto) + '"' + pinta(clave) +
         ' title="' + esc(nombreGrupo(p.proyecto)) + ' · botón derecho para cambiarla' +
         (navegEfectivo(p.proyecto) ? ' · tiene navegador' : '') + '">' +
       '<span>' + (ico ? esc(ico) : (p.vivo?'📂':'📁')) + '</span>' +
-      '<span class="nom">' + esc(nombreGrupo(p.proyecto)) + '</span>' +
+      '<span class="nom">' + esc(sinIconoRepetido(nombreGrupo(p.proyecto), ico)) + '</span>' +
       // ⭐ Marca chica de "esta carpeta maneja un navegador". Va apagada y NO en rojo:
       // el rojo es solo para lo que está mal (regla de Martín), y esto es un estado
       // normal. Se distingue del puntito de "tiene algo vivo" porque es un dibujito.
@@ -1587,25 +3204,51 @@ function pintarCarpetas(){
       // "me da toc esto"): cada una tiene su lugar fijo y quedan en columna de arriba a
       // abajo. Si una faltaba, las de al lado se corrían y ningún renglón coincidía.
       (navegEfectivo(p.proyecto)
-        ? '<span class="naveg" title="Sus conversaciones manejan un navegador">🌐</span>'
+        ? '<span class="naveg" title="Sus conversaciones manejan un navegador">' +
+          '<svg class="icn"><use href="#i-globo"/></svg></span>'
         : '<span class="hueco h-naveg"></span>') +
       // Con ícono propio, "tiene algo vivo" lo cuenta el puntito: el 📂 ya no está.
-      (ico && p.vivo ? '<span class="vive" title="Tiene una conversación viva"></span>'
+      (pregunta ? '<span class="vive preguntando" title="Una charla te pregunta algo"></span>'
+       : ico && p.vivo ? '<span class="vive" title="Tiene una conversación viva"></span>'
                      : '<span class="hueco h-vive"></span>') +
-      '<span class="num">' + p.sesiones.filter(enBandeja).length + '</span>' +
+      // El cero lleva su marca: con un estilo puesto se apaga (catorce ceros en fila no
+      // dicen nada) y vuelve al pasar el mouse. El lugar lo sigue ocupando.
+      // ⭐ Carta celeste: una estrella por charla (hasta tres) en vez del número.
+      '<span class="estrellas">' + estrellasDe(p) + '</span>' +
+      '<span class="num' + (p.sesiones.some(enBandeja) ? '' : ' cero') + '">' +
+        p.sesiones.filter(enBandeja).length + '</span>' +
       (subs.length ? '<span class="plegar" data-plegar="' + esc(p.proyecto) + '" title="' +
         (plegada ? 'Mostrar' : 'Esconder') + ' sus charlas activas">' +
         (plegada ? '▸' : '▾') + '</span>' : '<span class="hueco h-plegar"></span>') + '</div>' +
       // Las subcarpetas: van como renglones aparte, SIN `data-proy`, así el arrastre
       // y los clics de carpeta no las toman por una carpeta más.
-      (plegada ? '' : subs.map(s =>
+      (plegada ? '' : subsHtml(p, subs));
+  };
+  const subRenglon = s =>
         '<div class="subcarpeta' + (s.sid === activa ? ' sel' : '') + (s.trabaja ? ' trabaja' : '') +
+          // El mismo semáforo de las pestañas, para que el punto pueda decirlo.
+          (falladas[s.sid] ? ' e-fallada' : hayPregunta(s.sid) ? ' e-pregunta'
+           : (pendientes[s.sid] && activa !== s.sid) ? ' e-espera' : '') +
           '" data-subsid="' + esc(s.sid) + '" data-cwd="' + esc(s.cwd) + '" data-nom="' +
           esc(s.nombre) + '" data-cer="' + esc(s.cerebro) + '" title="' + esc(s.nombre) +
           (s.trabaja ? ' · trabajando' : '') + ' · botón del medio: otra pestaña">' +
-          '<span class="pto"></span><span class="nom">' + esc(s.nombre) + '</span></div>').join(''));
+          '<span class="pto"></span><span class="nom">' + esc(s.nombre) + '</span></div>';
+  // ⭐ Con subproyectos, las activas cuelgan de un título por grupo (plegable). Sin
+  // ninguno, los mismos renglones de siempre.
+  const subsHtml = (p, subs) => {
+    const grupos = agruparSub(subs);
+    if (!grupos) return subs.map(subRenglon).join('');
+    return grupos.map(g => {
+      const k = claveSubproy(p.proyecto, g.sub), pleg = subproyPlegados.has(k);
+      return '<div class="subgrupo" data-subpleg="' + esc(k) + '" title="' +
+          (pleg ? 'Mostrar' : 'Esconder') + ' las de este subproyecto">' +
+          '<span>' + (pleg ? '▸' : '▾') + '</span><span class="nom">' + esc(tituloSub(g.sub)) +
+          '</span><span class="num">' + g.filas.length + '</span></div>' +
+        (pleg ? '' : g.filas.map(subRenglon).join(''));
+    }).join('');
   };
   $('#carpetas').innerHTML =
+    '<div id="luzRiel"></div>' +
     '<div class="carpeta ' + (proy===TODAS?'sel':'') + '" data-proy="' + esc(TODAS) + '">' +
       '<span>✉</span><span class="nom">Todas</span><span class="num">' + cuantas + '</span></div>' +
     visibles.map(fila).join('') +
@@ -1622,6 +3265,7 @@ function pintarCarpetas(){
             '<span class="vol">↩ devolver</span></div>').join('') : '')
       : '');
   marcarVuelve = '';
+  pintarCielo();
   document.querySelectorAll('.carpeta[data-proy]').forEach(c => {
     c.onclick = e => {
       // ⚠ Si el clic viene de terminar un arrastre, NO entra al proyecto: soltar la
@@ -1651,6 +3295,11 @@ function pintarCarpetas(){
       guardarSubPlegadas(); pintarCarpetas();
     };
   });
+  document.querySelectorAll('#carpetas .subgrupo[data-subpleg]').forEach(x => {
+    x.onmousedown = e => e.stopPropagation();
+    x.onclick = e => { e.stopPropagation(); plegarSubproy(x.dataset.subpleg);
+                       pintarCarpetas(); repintarBandeja(); };
+  });
   // Una subcarpeta es la charla misma: clic entra, botón del medio (o Ctrl) abre otra
   // pestaña del navegador — lo mismo que en la bandeja.
   document.querySelectorAll('.subcarpeta[data-subsid]').forEach(x => {
@@ -1668,7 +3317,7 @@ function pintarCarpetas(){
   if (ver) ver.onclick = () => { viendoOcultas = !viendoOcultas; pintarCarpetas(); };
   engancharArrastreCarpetas();
   if (!visibles.length && !escondidas.length)
-    $('#carpetas').innerHTML = '<div style="color:var(--c616977,#616977);padding:8px 18px;font-size:12.5px">' +
+    $('#carpetas').innerHTML = '<div style="color:var(--c7d8592,#7d8592);padding:8px 18px;font-size:12.5px">' +
       'Ninguna carpeta con ese nombre. Podés agregarla abajo.</div>';
   // Hay ~20 proyectos y la barra tiene scroll propio: marcar la carpeta no alcanza
   // si quedó abajo de todo. Se la acerca SOLO cuando cambió la marcada — el
@@ -1678,6 +3327,7 @@ function pintarCarpetas(){
     const el = $('.carpeta.sel');
     if (el) el.scrollIntoView({block:'nearest'});
   }
+  acomodarLuzRiel();
 }
 
 // --- ⭐⭐ Arrastrar una carpeta para moverla de lugar ------------------------------
@@ -1734,7 +3384,7 @@ function arrancarArrastreCarpeta(ev, fila, cont){
   movioCarpeta = true;
   // Las charlas colgadas no viajan con la carpeta: se esconden mientras dura el
   // arrastre y vuelven solas con el repintado de `soltar`.
-  cont.querySelectorAll('.subcarpeta').forEach(x => x.remove());
+  cont.querySelectorAll('.subcarpeta, .subgrupo').forEach(x => x.remove());
   fila.classList.add('deslizando');
   const movibles = () => [...cont.querySelectorAll('.carpeta[data-proy]')]
     .filter(f => f.dataset.proy !== TODAS);
@@ -2409,17 +4059,22 @@ function pintarTabs(){
   // absoluta), así que no ocupa lugar, pero al final rompía el "el ＋ es el último de la
   // fila" — que sí es una regla de la pantalla. Adelante no molesta a nadie: el arrastre
   // recorre los grupos hacia ADELANTE con `nextElementSibling`.
-  $('#tabs').innerHTML = '<div id="abrazo"></div>' + grupos.map(g => {
+  $('#tabs').innerHTML = '<div id="abrazo"></div><div id="luzTab"></div>' + grupos.map(g => {
     const desplegado = g.nombre === grupoAbierto;
     // Plegado, la pastilla resume lo que pasa adentro con el mismo semáforo de siempre:
     // rojo si algo falló, verde si alguna te contestó, amarillo si alguna trabaja.
     const espera = g.tabs.some(({t}) => pendientes[t.sid] && activa !== t.sid);
     const fallo = g.tabs.some(({t}) => falladas[t.sid]);
     const trabajando = g.tabs.some(({t}) => enVuelo[t.sid] || viva(t.sid));
-    const señal = fallo ? 'fallada' : espera ? 'espera' : trabajando ? 'trabajando' : '';
+    const pregunta = g.tabs.some(({t}) => hayPregunta(t.sid));
+    const señal = fallo ? 'fallada' : pregunta ? 'preguntando' : espera ? 'espera'
+                : trabajando ? 'trabajando' : '';
+    // `pintada` = le elegiste un color a esa carpeta. Es lo que mira el estilo Vidrio para
+    // teñir la pastilla (ver `.grupo.pintada`); en los demás estilos no cambia nada.
+    const estilo = pinta(claveGrupo(g.nombre), true);
     const pastilla =
-      '<div class="grupo ' + (desplegado ? 'abierto ' : '') + señal +
-        '" draggable="true" data-grupo="' + esc(g.nombre) + '"' + pinta(claveGrupo(g.nombre)) +
+      '<div class="grupo ' + (desplegado ? 'abierto ' : '') + (estilo ? 'pintada ' : '') + señal +
+        '" draggable="true" data-grupo="' + esc(g.nombre) + '"' + estilo +
         ' title="' + esc(nombreGrupo(g.nombre)) + ' · ' + g.tabs.length +
           (g.tabs.length === 1 ? ' conversación abierta' : ' conversaciones abiertas') +
           ' · botón derecho para cambiarla">' +
@@ -2439,12 +4094,15 @@ function pintarTabs(){
       // cuando tenés varias abiertas.
       const esp = pendientes[t.sid] && activa !== t.sid;
       const fal = !!falladas[t.sid];
+      // Amarillo que parpadea: frenó a preguntarte algo y no la estás mirando.
+      const prg = !fal && hayPregunta(t.sid);
       return '<div class="tab ' + (activa===t.sid?'sel':'') +
-        (fal ? ' fallada' : esp ? ' espera' : '') + (recienTab===t.sid ? ' recien' : '') +
+        (fal ? ' fallada' : prg ? ' preguntando' : esp ? ' espera' : '') + (recienTab===t.sid ? ' recien' : '') +
         '" draggable="true"' + pinta(t.sid) +
         ' data-i="' + i + '" data-sid="' + esc(t.sid) + '"' +
         ' title="' + esc(t.nombre) + ' · botón derecho para cambiarla">' +
-        (enVuelo[t.sid] ? '<span class="viva late">●</span>'
+        (prg ? '<span class="bola"></span>'
+          : enVuelo[t.sid] ? '<span class="viva late">●</span>'
           : (fal || esp) ? '<span class="bola"></span>'
           : (viva(t.sid)?'<span class="viva">●</span>':'')) +
         // La misma señal en chiquito: en la pestaña la chapa entera no entra.
@@ -2454,6 +4112,13 @@ function pintarTabs(){
         '<span class="x" data-cerrar="' + i + '">✕</span></div>';
     }).join('');
   }).join('') +
+    // "↩ Volver a abrir": solo el medio minuto después de "Cerrar todas" (`cerrarTodas`).
+    // ⚠ No lleva `data-i`: no es una charla, igual que el ＋, y va ANTES de él porque el ＋
+    // es siempre el último de la fila.
+    (cerradasRecien ? '<div class="tab volver" id="tabVolver" title="Volver a abrir las ' +
+        'pestañas que cerraste recién, en el mismo orden">↩ Volver a abrir ' +
+        (cerradasRecien.tabs.length === 1 ? 'la que cerraste'
+                                          : 'las ' + cerradasRecien.tabs.length) + '</div>' : '') +
     // El ＋ va SIEMPRE, aunque no haya ninguna pestaña abierta: es el atajo para
     // arrancar una charla sin tener que ir hasta la carpeta y buscar la fila de
     // "Empezar una conversación" (pedido de Martín, 2026-08-17).
@@ -2476,6 +4141,7 @@ function pintarTabs(){
     engancharArrastre(el);
   });
   $('#tabMas').onclick = nuevaCharla;
+  if ($('#tabVolver')) $('#tabVolver').onclick = reabrirCerradas;
   acomodarAbrazo();
   // ⚠ Abrir o cerrar una pestaña cambia lo que ocupa la fila SIN cambiar su tamaño, así
   // que el ResizeObserver del menú no se entera: hay que avisarle a mano.
@@ -2489,6 +4155,8 @@ function pintarTabs(){
 // DENTRO de `#tabs`, que es lo que corresponde para algo posicionado ahí adentro, y así
 // la caja no se descoloca cuando la fila está corrida con la rueda.
 function acomodarAbrazo(){
+  // La luz de la pestaña elegida (Vidrio) se mide en los mismos momentos que la caja.
+  acomodarLuzTab();
   const caja = document.getElementById('abrazo');
   if (!caja) return;
   const pastilla = document.querySelector('#tabs .grupo.abierto');
@@ -2552,7 +4220,11 @@ function abrirMenuTarjeta(e, el){
     '</div><div class="sep"></div>' +
     '<div class="op" data-hace="nombre">✎ Cambiarle el nombre</div>' +
     '<div class="op" data-hace="cerrar">✕ ' +
-      (esGrupo ? 'Cerrar las de este proyecto' : 'Cerrar esta conversación') + '</div>';
+      (esGrupo ? 'Cerrar las de este proyecto' : 'Cerrar esta conversación') + '</div>' +
+    // ⭐ "Cerrar todas las pestañas" (pedido de Martín, 2026-11-10). Va apartada con una
+    // raya: es la única del menú que se lleva TODO, y pegada a la de arriba se erraba.
+    '<div class="sep"></div>' +
+    '<div class="op" data-hace="cerrar-todas">✕ Cerrar todas las pestañas</div>';
 
   const marcar = el => {
     m.querySelectorAll('.tono').forEach(o => o.classList.toggle('sel', o === el));
@@ -2598,6 +4270,10 @@ function abrirMenuTarjeta(e, el){
   m.querySelector('[data-hace="cerrar"]').onclick = () => {
     cerrarMenuTarjeta();
     if (esGrupo) cerrarGrupo(nombre); else cerrar(+idx);
+  };
+  m.querySelector('[data-hace="cerrar-todas"]').onclick = () => {
+    cerrarMenuTarjeta();
+    cerrarTodas();
   };
 
   m.classList.add('abierto');
@@ -2647,6 +4323,63 @@ function cerrarGrupo(nombre){
   cargar();
 }
 
+// ⭐ "Cerrar todas las pestañas" (pedido de Martín, 2026-11-10): botón derecho sobre
+// cualquier tarjeta de la barra. Es la ✕ de una pastilla pero para todas: no borra nada,
+// las conversaciones siguen enteras en la lista y las que están trabajando siguen.
+// ⭐ Y se puede DESHACER: es un solo clic que se lleva quince pestañas, así que en vez de
+// preguntar "¿seguro?" cada vez, durante medio minuto queda en la barra un "↩ Volver a
+// abrir" que las devuelve en el mismo orden (`reabrirCerradas`). Volver a armar la barra a
+// mano, charla por charla, es justo el castigo que no tiene que tener un clic errado.
+let cerradasRecien = null, cerradasReloj = 0;
+const CERRADAS_SEG = 30;
+
+function cerrarTodas(){
+  if (!abiertas.length) return;
+  soltarBorrador();          // lo que estabas escribiendo se guarda antes de soltar la charla
+  olvidarCerradas();         // si había una tanda anterior esperando, esta la reemplaza
+  cerradasRecien = {tabs: abiertas.slice(), grupo: grupoAbierto, activa: activa};
+  cerradasReloj = setTimeout(() => { olvidarCerradas(); pintarTabs(); }, CERRADAS_SEG * 1000);
+  abiertas = [];
+  grupoAbierto = '';
+  // Igual que cerrar una pestaña suelta: lo que se quiere ver después es la bandeja.
+  activa = null; proy = TODAS; recienAbierta = true;
+  fijarDireccion();
+  firma=''; guardar(); pintarCarpetas(); pintarTabs(); pintar();
+  cargar();
+}
+
+// Se venció el rato de deshacer (o llegó otra tanda). ⚠ Recién ACÁ se tira el borrador de
+// una charla sin estrenar, que es lo que `cerrar()` hace en el acto: ese id se muere con
+// su pestaña, pero mientras se pueda volver atrás la pestaña no está muerta.
+function olvidarCerradas(){
+  clearTimeout(cerradasReloj);
+  const c = cerradasRecien;
+  cerradasRecien = null;
+  if (!c) return;
+  let tiro = false;
+  c.tabs.forEach(t => {
+    if (t.sid.startsWith('nueva-') && !abiertas.some(x => x.sid === t.sid) && t.sid in borradores){
+      delete borradores[t.sid]; tiro = true;
+    }
+  });
+  if (tiro) guardarBorradores();
+}
+
+function reabrirCerradas(){
+  const c = cerradasRecien;
+  if (!c) return;
+  clearTimeout(cerradasReloj);
+  cerradasRecien = null;
+  // Lo que hayas abierto en el medio se queda: las de antes vuelven adelante, en su orden.
+  const eran = new Set(c.tabs.map(t => t.sid));
+  abiertas = c.tabs.concat(abiertas.filter(t => !eran.has(t.sid)));
+  // Si seguís en la bandeja, volvés a la charla que estabas leyendo. Si ya abriste otra,
+  // no se te saca de ahí: vuelven las pestañas y nada más.
+  if (!activa && c.activa){ irTab(c.activa); return; }      // `irTab` guarda y pinta todo
+  if (!activa) grupoAbierto = c.grupo;
+  firma=''; guardar(); pintarCarpetas(); pintarTabs(); pintar();
+}
+
 // --- Mover las pestañas arrastrándolas, como en el navegador -------------------
 // Pedido de Martín (2026-08-17). ⭐ La clave es que MIENTRAS arrastrás no se rearma el
 // HTML: se mueve el NODO de lugar con `insertBefore`, y recién al soltar se reordena
@@ -2663,7 +4396,8 @@ let arrastrando = false;
 // seco, que es lo que Martín describió como "muy áspero" (2026-08-17).
 function deslizando(cambio){
   // Las pastillas de proyecto entran en el mismo baile: también se corren de lugar.
-  const tabs = [...document.querySelectorAll('#tabs .tab, #tabs .grupo')];
+  // (y la luz de la elegida, que viaja con su pestaña)
+  const tabs = [...document.querySelectorAll('#tabs .tab, #tabs .grupo, #luzTab')];
   const antes = tabs.map(t => t.getBoundingClientRect().left);
   cambio();
   acomodarAbrazo();          // la caja del grupo viaja con él
@@ -2891,6 +4625,7 @@ function irTab(sid){
   delete falladas[sid];          // ya viste que falló: la marca roja cumplió su trabajo
   visto[sid] = Date.now() / 1000;
   fijarDireccion();              // la barra de direcciones sigue a la charla que abrís
+  pintarYa = true;               // la charla se dibuja ya, con lo último visto (`chatVisto`)
   firma=''; guardar(); pintarCarpetas(); pintarTabs(); pintar();
   // Va DESPUÉS de `pintar()`: es ahí donde la caja de escribir se muestra, y con la caja
   // escondida el alto del texto mide cero y quedaba de un renglón con cinco escritos.
@@ -2977,6 +4712,8 @@ async function pintar(){
   }
   // Con un archivo abierto, la derecha lo muestra a él. La caja de escribir se deja
   // igual: mirás el archivo y le escribís a la conversación sin cerrar nada.
+  // Saliste de la bandeja: la próxima vez que vuelvas, entra de nuevo.
+  if (verArchivo || activa) listaVista = null;
   if (verArchivo) return pintarArchivo();
   return activa ? pintarSesion() : pintarLista();
 }
@@ -3047,29 +4784,8 @@ function pintarLista(){
   // resuelve el hecho de ABRIRLA, que es lo que de verdad significa "ya lo vi": con el
   // tope puesto, una respuesta de anoche se apagaba sola sin que nadie la leyera, que
   // es justo lo que él vino a preguntar ("aparecen como vistas y yo no abrí ninguna").
-  const QUIETA = 45;                       // segundos sin escribir = ya terminó
   const ahora = Date.now() / 1000;
-  const estado = s => {
-    if (falladas[s.id]) return 'fallada';
-    if (s.ocupada) return 'trabajando';
-    const quieta = (ahora - (s.ts || 0)) > QUIETA;
-    // ⭐ Un turno lanzado desde el panel o el celular VIVE SOLO MIENTRAS PIENSA: cuando
-    // contesta, el proceso muere. Así que si está vivo, está trabajando — aunque haga
-    // rato que no escribe, porque puede pasarse minutos adentro de una herramienta sin
-    // tocar el archivo. Antes se miraba solo el reloj y a los 45 s lo daba por
-    // terminado: una charla pensando hace 3 minutos figuraba "te está esperando"
-    // mientras en la pestaña se la veía pensando (2026-08-17).
-    // Lo único que puede estar vivo sin hacer nada es una ventana de Claude Code
-    // abierta en la compu (interactiva): esa sí se juzga por el reloj.
-    if (s.viva && !s.interactiva) return 'trabajando';
-    if (s.viva && !quieta) return 'trabajando';
-    if (s.ultimo !== 'claude') return '';
-    // ⭐ Si ya entraste a leerla DESPUÉS de que contestó, deja de esperarte: seguirá
-    // diciendo "te espera" cuando vos ya lo viste es ruido, y con la bandeja entera en
-    // verde el color dejaba de significar algo (pedido de Martín, 2026-08-17).
-    if ((visto[s.id] || 0) >= (s.ts || 0)) return '';
-    return 'espera';
-  };
+  const estado = s => estadoSesion(s, ahora);
   // ⚠ El estado VA en la firma. Antes la firma miraba solo nombre/vivo/detalle, y una
   // conversación que pasaba de "trabajando" a "te está esperando" no cambiaba ninguno
   // de esos: la lista se creía igual y no se repintaba, así que quedaba en verde
@@ -3077,14 +4793,20 @@ function pintarLista(){
   // ⚠ El borrador VA en la firma, como el estado: escribir media frase y volver a la
   // bandeja tiene que prender la chapa, y sin esto la lista se creía igual y no repintaba.
   // Van 60 letras y no el texto entero: es una firma, no el dato.
+  // ⭐ Subproyectos (2026-11-10): adentro de una carpeta, si alguna charla tiene
+  // subproyecto, la bandeja se parte en grupos plegables. Si ninguna tiene, `grupos`
+  // es null y la lista sale exactamente como antes. En "Todas" y en las archivadas no
+  // se agrupa: ahí se mezcla o se rescata, no se ordena por subproyecto.
+  const grupos = (!todas && !viendoArchivadas) ? agruparSub(filas) : null;
   const f = JSON.stringify(['lista', proy, q, viendoArchivadas, cuantasGuardadas, perdida,
                             filas.map(s => s.id + s.nombre + s.viva + s.detalle + s.ultimo + estado(s)
-                                           + (s.cerebro || '') + (s.sigue_en || '')
+                                           + (s.cerebro || '') + (s.sigue_en || '') + '|' + (s.sub || '')
                                            + borradorDe(s.id, s.borrador).slice(0, 60)),
-                            datos.proyectos.map(x => x.proyecto + x.sesiones.filter(v=>v.viva).length)]);
+                            datos.proyectos.map(x => x.proyecto + x.sesiones.filter(v=>v.viva).length),
+                            grupos ? [...subproyPlegados] : 0]);
   if (f === firma) return;
   firma = f;
-  const html = filas.map(s =>
+  const filaCorreo = s =>
     '<div class="correo ' + estado(s) + '" data-sid="' + s.id + '" data-nom="' + esc(s.nombre) +
       '" data-cwd="' + esc(s.cwd) + '" data-cer="' + esc(s.cerebro || '') + '">' +
       '<div class="ini ' + (s.viva?'viva':'') + '">' + esc((s.nombre||'?')[0].toUpperCase()) + '</div>' +
@@ -3106,10 +4828,14 @@ function pintarLista(){
         // cada carpeta, que es lo que pidió Martín señalando la bandeja.
         (hayBorrador(s.id, s.borrador)
           ? ' <span class="borra"><span class="plu">✎</span>Borrador</span>' : '') + '</div>' +
+      // El separador va solo si hay algo antes: sin detalle, el renglón arrancaba con
+      // un punto suelto ("· trabajando").
       '<div class="baj">' + esc(s.detalle||'') +
-        (estado(s)==='fallada' ? ' · <b>falló</b> · ' + esc(falloQue(falladas[s.id]))
-         : estado(s)==='espera' ? ' · <b>te está esperando</b>'
-         : estado(s)==='trabajando' ? ' · <b>trabajando</b>' : '') +
+        (estado(s) && s.detalle ? ' · ' : '') +
+        (estado(s)==='fallada' ? '<b>falló</b> · ' + esc(falloQue(falladas[s.id]))
+         : estado(s)==='preguntando' ? '<b>te pregunta algo</b>'
+         : estado(s)==='espera' ? '<b>te está esperando</b>'
+         : estado(s)==='trabajando' ? '<b>trabajando</b>' : '') +
         // Y lo que dejaste escrito, para no tener que entrar a ver de qué era.
         (hayBorrador(s.id, s.borrador)
           ? ' · <span class="bpre">' + esc(vistaBorrador(s.id, s.borrador)) + '</span>' : '') +
@@ -3117,8 +4843,18 @@ function pintarLista(){
       // Mirando las archivadas, en vez del lápiz va el botón de devolver: es lo único
       // que se viene a hacer acá.
       (viendoArchivadas ? '<div class="devolver" data-dev="' + s.id + '">↩ Devolver</div>'
-                        : '<div class="lapiz" data-ren="' + s.id + '">✎</div>') +
-      '</div>').join('');
+                        : '<div class="lapiz subp" data-subp="' + s.id + '" title="Subproyecto">⊞</div>' +
+                          '<div class="lapiz" data-ren="' + s.id + '">✎</div>') +
+      '</div>';
+  const html = !grupos ? filas.map(filaCorreo).join('')
+    : grupos.map(g => {
+        const k = claveSubproy(p.proyecto, g.sub);
+        const pleg = subproyPlegados.has(k);
+        return '<div class="subgrupo" data-subpleg="' + esc(k) + '">' +
+               '<span>' + (pleg ? '▸' : '▾') + '</span><span class="nom">' + esc(tituloSub(g.sub)) +
+               '</span><span class="num">' + g.filas.length + '</span></div>' +
+               (pleg ? '' : g.filas.map(filaCorreo).join(''));
+      }).join('');
   // El botón de las archivadas solo aparece cuando hay alguna: si no, es un cartel
   // que no hace nada. Con el clic derecho se archiva y se desarchiva.
   const botonGuardadas = (cuantasGuardadas || viendoArchivadas)
@@ -3192,6 +4928,8 @@ function pintarLista(){
     el.onclick = e => {
       const ren = e.target.dataset.ren;
       if (ren !== undefined) { renombrar(ren, el.dataset.nom); return; }
+      const subp = e.target.dataset.subp;
+      if (subp !== undefined) { abrirMenuSub(e, subp); return; }
       const dev = e.target.dataset.dev;
       if (dev !== undefined) { archivar(dev, false); return; }   // ↩ vuelve a la bandeja
       // La chapa "sigue en otra" te lleva a la continuación, no a la charla vieja.
@@ -3229,6 +4967,15 @@ function pintarLista(){
       el.oncontextmenu = e => { e.preventDefault();
                                 archivar(el.dataset.sid, !viendoArchivadas); };
   });
+  document.querySelectorAll('#cuerpo .subgrupo[data-subpleg]').forEach(x => {
+    x.onclick = () => { plegarSubproy(x.dataset.subpleg); repintarBandeja(); pintarCarpetas(); };
+  });
+  // ⭐ Al LLEGAR a una carpeta los renglones entran en escalera. Solo al llegar: esta
+  // lista se rearma con cada refresco y con cada letra del filtro.
+  const claveLista = proy + '|' + (viendoArchivadas ? 'a' : '');
+  vdEntrar('lista', claveLista !== listaVista,
+           document.querySelectorAll('#cuerpo > .cabeza, #cuerpo > .correo'), 26);
+  listaVista = claveLista;
 }
 
 // La pantalla del ＋: todas las carpetas, y adentro de cada una sus últimas cinco
@@ -3320,7 +5067,54 @@ if (window.Pasos) Pasos.iniciar({
   repintar: () => { firma = ''; pintarSesion(); },
 });
 
+// ⭐⭐ La charla se dibuja AL INSTANTE con lo último que se supo de ella (2026-11-10, pedido
+// de Martín: "cuando mando un prompt tarda en cambiar, necesito que sea inmediato"). Antes
+// CADA repintado esperaba la respuesta de `/movil/chat` para dibujar algo: mandabas un
+// mensaje y tu burbuja no aparecía hasta que volvía el pedido; cambiabas de pestaña y
+// seguías viendo la charla anterior. El celular ya guardaba lo último visto; la compu no.
+// `chatVisto` guarda la última respuesta por charla. Quien quiere el dibujo ya (cambiar de
+// pestaña, mandar) prende `pintarYa`: `pintarSesion` dibuja de memoria en el mismo instante
+// y enseguida pide lo fresco, que repinta solo si algo cambió.
+// ⚠ El repintado de cada 3 s NO usa la memoria: siempre pide. La memoria es para no
+// esperar, nunca para dejar de mirar el disco.
+const chatVisto = {};
+let pintarYa = false;
+
+// Trae en segundo plano la charla de cada pestaña abierta, para que la primera vez que la
+// toques ya esté. ⚠ De a UNA y sin apuro: el celular las pedía todas juntas y con 31
+// pestañas tardaba 22 s en llenarse por el tope de 6 conexiones del navegador.
+let precargando = false;
+async function precargarChats(){
+  if (precargando) return;
+  precargando = true;
+  try {
+    for (const t of abiertas.slice()){
+      if (!t.cwd || t.sid.startsWith('nueva-') || chatVisto[t.sid] || t.sid === activa) continue;
+      try { chatVisto[t.sid] = await pedirChat(t.cwd, t.sid); } catch(e){}
+    }
+  } finally { precargando = false; }
+}
+
+// ⭐ UN solo pedido en vuelo por charla, lo pida quien lo pida (2026-11-10). El repintado de
+// cada 3 s no es el único que pide el chat: también la lista cuando se refresca, las marcas
+// al abrir, el texto en vivo al terminar un bloque. Con el panel lento cada uno largaba el
+// suyo y se apilaban. Ahora el segundo que llega espera la respuesta del que ya salió.
+// ⚠ Con vencimiento (20 s): un pedido que no vuelve nunca no puede dejar la charla muda.
+const chatEnVuelo = {};
+function pedirChat(cwd, sid){
+  const clave = cwd + '|' + sid, v = chatEnVuelo[clave];
+  if (v && Date.now() - v.desde < 20000) return v.pedido;
+  const pedido = fetch('/movil/chat?cwd=' + encodeURIComponent(cwd) + '&sid=' + sid)
+    .then(r => r.json())
+    .finally(() => { if ((chatEnVuelo[clave] || {}).pedido === pedido) delete chatEnVuelo[clave]; });
+  chatEnVuelo[clave] = {pedido, desde: Date.now()};
+  return pedido;
+}
+
 async function pintarSesion(){
+  // Se consume acá arriba: si esta pasada sale por una de las guardas de abajo, el pedido
+  // de "dibujá ya" no puede quedar prendido para una pasada que no lo pidió.
+  const yaMismo = pintarYa; pintarYa = false;
   // ⚠ Mientras mirás un archivo, la derecha es del archivo. Sin esta guarda, el
   // repintado de cada 3 segundos te tapaba el archivo con la conversación.
   if (verArchivo) return;
@@ -3342,11 +5136,18 @@ async function pintarSesion(){
   // selector no aparecía nunca en una charla recién nacida.
   // ⭐ Una copia sin estrenar (bifurcar) muestra la charla ORIGINAL: es lo que va a seguir.
   const leerDe = nueva ? (t.desde || '') : t.sid;
-  if (!nueva || enVuelo[t.sid] || t.desde){
+  // De memoria: lo último visto de esa charla, o nada si es una pestaña sin estrenar.
+  const deMemoria = !yaMismo ? null
+                  : leerDe ? chatVisto[leerDe] : {mensajes: []};
+  if (deMemoria){
+    d = deMemoria;
+    // Y enseguida lo fresco: esta pasada no esperó al panel, la que sigue sí.
+    setTimeout(() => { if (activa === t.sid) pintarSesion(); }, 0);
+  } else if (!nueva || enVuelo[t.sid] || t.desde){
     try {
-      d = await (await fetch('/movil/chat?cwd=' + encodeURIComponent(t.cwd) +
-                             '&sid=' + leerDe)).json();
+      d = await pedirChat(t.cwd, leerDe);
     } catch(e){ return; }
+    if (leerDe) chatVisto[leerDe] = d;
   }
   if (activa !== t.sid) return;              // te fuiste a otra pestaña mientras cargaba
   // Solo una ventana de Claude Code abierta de verdad bloquea la escritura: un
@@ -3432,6 +5233,7 @@ async function pintarSesion(){
   if (preg && preg.hora !== pregHora){ pregHora = preg.hora; pregElecciones = {}; }
   pregActual = preg;
   const pregVisible = preg && preg.hora !== pregRespondida;
+  anotarPregunta(t.sid, pregVisible ? preg.hora : null);
   // ⭐ La lista de tareas de la sesión (TodoWrite): viene adentro de /movil/chat y
   // se dibuja al final del hilo, tildándose en vivo mientras trabaja (2026-08-20).
   const tar = (d.tareas && (d.tareas.lista || []).length) ? d.tareas : null;
@@ -3452,6 +5254,7 @@ async function pintarSesion(){
     (nueva && t.desde ? '<div class="aviso">⑂ Copia de «' + esc(t.desdeNombre || 'la charla') +
       '»: lo que escribas acá sigue en una charla NUEVA con todo lo de abajo. ' +
       'La original queda como está.</div>' : '') +
+    cabeceraCarta(t, pregVisible ? 'te pregunta algo' : (pensa || d.ocupada) ? 'trabajando' : '') +
     '<div id="hilo">' + cuerpo +
     (ev && !yaLlego ? '<div class="msg vos' + (conFoto ? ' con-foto' : '') + '">' + fotosHtml(fotosVuelo[t.sid]) +
       (conFoto && ev === '(imagen)' ? '' : esc(ev)) + '</div>' : '') +
@@ -3493,7 +5296,23 @@ async function pintarSesion(){
   // Al ENTRAR a una pestaña la charla aparece con un desvanecido corto en vez de
   // aparecer de golpe. Solo al entrar: hacerlo en cada repintado de 3 s sería un
   // parpadeo permanente mientras leés.
-  if (entrando && $('#hilo')) $('#hilo').classList.add('entrando');
+  // ⭐ Con `vdEntrar` (2026-11-10): `irTab` pide las marcas y repinta apenas llegan, y
+  // ese segundo pintado cortaba la entrada por la mitad.
+  vdEntrar('hilo', entrando, [c.querySelector('.carta-cab'), $('#hilo')], 45);
+  // Lo que acabás de mandar entra desde la pieza de escribir (es la burbuja en vuelo,
+  // la que va justo antes del texto en vivo).
+  const enVueloEl = (ev && !yaLlego && $('#envivo')) ? $('#envivo').previousElementSibling : null;
+  if (enVueloEl && enVueloEl.classList.contains('vos')){
+    vdEntrar('sale', saleArmada, [enVueloEl]); saleArmada = false;
+  }
+  // La pregunta entra UNA vez, cuando aparece; no en cada repintado.
+  if (pregVisible){
+    vdEntrar('preg', preg.hora !== pregEntrada, [c.querySelector('.pregunta')]);
+    pregEntrada = preg.hora;
+  }
+  // El brillo de "pensando" sigue de largo aunque el renglón se rearme.
+  const pensaEl = c.querySelector('.msg.pensa');
+  if (pensaEl) pensaEl.style.setProperty('--vd-reloj', Math.round(performance.now()));
   // ⭐ Las marcas se vuelven a pintar DESPUÉS de cada repintado: el hilo se rearma entero
   // cada 3 s, así que nada que esté pegado al DOM sobrevive. Los números están en el
   // servidor (`marcas.js` + `/marcas`), el dibujo se rehace acá.
@@ -3896,7 +5715,7 @@ function pintarBotonAjustes(){
   // de fábrica el botón se pinta igual.
   const rotulo = activos.map(s => corto(s.selectedOptions[0]?.textContent || ''))
                         .filter(Boolean).slice(0, 2).join(' · ');
-  bot.textContent = '⚙ ' + (rotulo || 'Ajustes');
+  rotular(bot, rotulo || 'Ajustes');
   bot.classList.toggle('puesto', activos.some(s => s.classList.contains('puesto')));
 }
 
@@ -4061,13 +5880,13 @@ async function compactar(directo){
   if (!t || t.sid.startsWith('nueva-') || enVuelo[t.sid]) return;
   if (directo !== true && Date.now() > compactarPide){
     compactarPide = Date.now() + 5000;
-    b.classList.add('pide'); b.textContent = '⇲ ¿compacto?';
+    b.classList.add('pide'); rotular(b, '¿compacto?');
     setTimeout(() => { if (Date.now() > compactarPide){
-      b.classList.remove('pide'); b.textContent = '⇲ Compactar'; } }, 5100);
+      b.classList.remove('pide'); rotular(b, 'Compactar'); } }, 5100);
     return;
   }
   compactarPide = 0;
-  b.classList.remove('pide'); b.disabled = true; b.textContent = '⇲ resumiendo…';
+  b.classList.remove('pide'); b.disabled = true; rotular(b, 'resumiendo…');
   const viejo = t.sid;
   enVuelo[viejo] = 'compactando la charla'; arranque[viejo] = Date.now();
   firma=''; pintarSesion(); pintarTabs();
@@ -4089,7 +5908,7 @@ async function compactar(directo){
     }
   } catch(e){ alert('No pude compactarla: ' + e); }
   delete enVuelo[viejo]; delete arranque[viejo];
-  b.disabled = false; b.textContent = '⇲ Compactar';
+  b.disabled = false; rotular(b, 'Compactar');
   firma=''; pintarTabs(); pintarSesion(); cargar(); refrescarModelo();
 }
 
@@ -4099,6 +5918,8 @@ if (window.Atajos) Atajos.montar({
   // Va con el rayo solo, como en el celular: es uno de los tres del grupo "traer algo
   // al mensaje" y el nombre entero queda en el globito de ayuda.
   etiqueta: '⚡',
+  // En la compu el rayo es un icono de línea, de la misma familia que los de al lado.
+  icono: '<svg class="icn"><use href="#i-rayo"/></svg>',
   sesion: () => {
     const t = abiertas.find(x => x.sid === activa) || {};
     return {sid: t.sid && !t.sid.startsWith('nueva-') ? t.sid : '', cwd: t.cwd || ''};
@@ -4128,7 +5949,7 @@ async function parar(){
   const t = abiertas.find(x => x.sid === activa);
   if (!t) return;
   const b = $('#parar');
-  b.disabled = true; b.textContent = 'parando…';
+  b.disabled = true; rotular(b, 'parando…');
   parados[t.sid] = true;
   paradoEn[t.sid] = Date.now();
   try {
@@ -4140,7 +5961,7 @@ async function parar(){
                                 cwd: t.cwd})})).json();
     if (!r.paro) alert('Ya había terminado: no quedaba nada corriendo.');
   } catch(e){ alert('No pude pararlo: ' + e); }
-  b.disabled = false; b.textContent = '⏹ Parar';
+  b.disabled = false; rotular(b, 'Parar');
   delete enVuelo[t.sid]; delete arranque[t.sid];
   firma=''; pintarTabs(); pintarSesion(); cargar();
 }
@@ -4442,6 +6263,8 @@ async function mandar(forzado){
   delete paradoEn[clave];
   enVuelo[clave] = txt || '(imagen)'; arranque[clave] = Date.now();
   vecesVuelo[clave] = cuentaTuya(hiloVisto[clave], txt);
+  saleArmada = true;
+  pintarYa = true;               // tu burbuja aparece ya, sin esperar al panel
   firma=''; pintarSesion(); pintarTabs();
   const f = new FormData();
   f.append('cwd', t.cwd);
@@ -4641,9 +6464,15 @@ async function mirarNovedades(){
     const n = r[t.sid];
     if (!n || n.ultimo !== 'claude') continue;
     if (t.sid === activa){ visto[t.sid] = n.ts; continue; }   // la estás mirando
-    if (n.ts > (visto[t.sid] || 0)){ pendientes[t.sid] = true; cambio = true; }
+    if (n.ts > (visto[t.sid] || 0)){
+      // Esa charla dijo algo nuevo: lo guardado de ella ya es viejo. Se tira para que la
+      // precarga lo traiga de nuevo y, al entrar, lo que se vea al instante sea lo último.
+      if (!pendientes[t.sid]) delete chatVisto[t.sid];
+      pendientes[t.sid] = true; cambio = true;
+    }
   }
   if (cambio){ guardar(); pintarTabs(); }
+  precargarChats();
 }
 
 // ⭐ El marcador de texto: seleccionás adentro de una charla, botón derecho, y sale el
@@ -4812,7 +6641,17 @@ if (window.Direccion) Direccion.alVolver(async estado => {
 cargar();
 mirarNovedades();
 setInterval(mirarNovedades, 8000);
-setInterval(() => { if (activa) pintarSesion(); }, 3000);   // el en vivo de la charla
+// ⭐ El en vivo de la charla, de a UN pedido por vez (2026-11-10). Antes cada 3 s salía un
+// pedido nuevo aunque el anterior no hubiera vuelto: con el panel lento se apilaban, cada
+// uno lo hacía más lento todavía, y la pantalla quedaba mostrando algo viejo. Ahora el tic
+// se saltea mientras haya uno en vuelo. ⚠ Con vencimiento (20 s): un pedido que no vuelve
+// nunca —se cortó la red del celular, se reinició el panel— no puede dejar la charla muda.
+let sondeoDesde = 0;
+setInterval(() => {
+  if (!activa || (sondeoDesde && Date.now() - sondeoDesde < 20000)) return;
+  sondeoDesde = Date.now();
+  Promise.resolve(pintarSesion()).catch(() => {}).finally(() => { sondeoDesde = 0; });
+}, 3000);
 // La bandeja se actualiza sola cada 8 s: veinte era demasiado, mandabas un mensaje,
 // volvías a "Todas" y todavía figuraba como antes (2026-08-17).
 setInterval(() => {
@@ -5125,7 +6964,15 @@ function verLateral(oculto){
   document.body.classList.toggle('lateral-oculto', oculto);
   localStorage.setItem('sesLateralOculto', oculto ? '1' : '0');
   $('#btnLateral').title = (oculto ? 'Mostrar' : 'Esconder') + ' la barra lateral (Ctrl+B)';
+  // Faltaba: era el único de la fila que no se apagaba cuando su columna estaba escondida.
+  $('#btnLateral').classList.toggle('off', oculto);
 }
+// Los botones de la barra de arriba son <div>: con esto se llega con Tab y se aprietan
+// con Enter o con la barra espaciadora, igual que un botón de verdad.
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches &&
+      e.target.matches('.botBarra, #salirPleno')){ e.preventDefault(); e.target.click(); }
+});
 verLateral(lateralOculto());
 $('#btnLateral').onclick = () => verLateral(!lateralOculto());
 
@@ -5134,13 +6981,195 @@ $('#btnLateral').onclick = () => verLateral(!lateralOculto());
 // abierta: cerrada no cuesta nada. Lo abierto/cerrado de cada tarjeta queda guardado.
 const derAbierta = () => document.body.classList.contains('derecha-abierta');
 let derClave = '', derHora = 0, derPidiendo = false;
+
+// ⭐⭐ Las PIEZAS de la columna de la derecha, y su ancho (2026-11-10). Martín quiere acá la
+// terminal y el navegador, "como en Claude Code"; esto es el lugar donde van a vivir.
+//   Paneles.registrar({id, titulo, anchoMin, alMostrar(caja), alOcultar()})  → la caja
+//   Paneles.mostrar(id)   Paneles.actual()   Paneles.caja(id)
+// · Una pieza a la vista por vez. Las pestañas aparecen con más de una pieza anotada.
+// · `alMostrar` se llama cuando la pieza queda A LA VISTA de verdad (su pestaña elegida Y
+//   la columna abierta), y `alOcultar` cuando deja de estarlo por cualquiera de los dos
+//   motivos: es lo que le permite a una pieza cara (una terminal, una filmación) no gastar
+//   nada mientras nadie la mira.
+// · `anchoMin` ensancha la columna la primera vez que hace falta; desde que arrastrás el
+//   tirador, manda tu ancho y no se vuelve a tocar solo.
+const Paneles = (() => {
+  const piezas = [];
+  const ANCHO_FABRICA = 300, ANCHO_PISO = 260, CHARLA_PISO = 420;
+  let actual = localStorage.getItem('sesDerPestana') || 'entorno';
+  let ancho = +localStorage.getItem('sesDerAncho') || 0;      // 0 = nunca lo arrastraste
+  let aLaVista = null;                                         // la pieza que hoy se ve
+
+  // Hasta dónde puede crecer: que a la charla le queden por lo menos CHARLA_PISO px.
+  function tope(){
+    const riel = document.querySelector('aside');
+    const izq = riel ? riel.getBoundingClientRect().width : 0;
+    return Math.max(ANCHO_PISO, innerWidth - izq - CHARLA_PISO);
+  }
+  function ponerAncho(px){
+    const a = Math.round(Math.max(ANCHO_PISO, Math.min(tope(), px)));
+    document.documentElement.style.setProperty('--der-ancho', a + 'px');
+    return a;
+  }
+  if (ancho) ponerAncho(ancho);
+
+  function pintarTabs(){
+    const t = $('#derTabs');
+    t.classList.toggle('varias', piezas.length > 1);
+    t.innerHTML = piezas.map(p => '<button type="button" role="tab" data-pieza="' + esc(p.id) + '"' +
+      (p.id === actual ? ' class="sel" aria-selected="true"' : ' aria-selected="false"') +
+      '>' + esc(p.titulo) + '</button>').join('');
+  }
+  // Quién queda a la vista después de un cambio (de pestaña, o de abrir/cerrar la columna),
+  // avisándole al que se va y al que llega. Una sola función para los dos casos: así no
+  // puede pasar que una pieza quede "mostrada" con la columna cerrada.
+  function acomodar(){
+    const debe = derAbierta() ? (piezas.find(p => p.id === actual) || null) : null;
+    if (debe === aLaVista) return;
+    const antes = aLaVista;
+    aLaVista = debe;
+    if (antes && antes.alOcultar){ try { antes.alOcultar(); } catch (e) { console.error(e); } }
+    if (debe){
+      if (debe.anchoMin && !ancho){
+        const hoy = parseFloat(getComputedStyle(document.documentElement)
+                                 .getPropertyValue('--der-ancho')) || ANCHO_FABRICA;
+        if (hoy < debe.anchoMin) ponerAncho(debe.anchoMin);
+      }
+      if (debe.alMostrar){ try { debe.alMostrar(debe.caja); } catch (e) { console.error(e); } }
+    }
+  }
+  function mostrar(id){
+    if (!piezas.some(p => p.id === id)) return;
+    actual = id;
+    localStorage.setItem('sesDerPestana', id);
+    piezas.forEach(p => { p.caja.hidden = p.id !== id; });
+    pintarTabs();
+    acomodar();
+  }
+  function registrar(p){
+    if (piezas.some(x => x.id === p.id)) return Paneles.caja(p.id);
+    let caja = document.querySelector('#derecha > .derPane[data-pieza="' + p.id + '"]');
+    if (!caja){
+      caja = document.createElement('div');
+      caja.className = 'derPane';
+      caja.dataset.pieza = p.id;
+      $('#derecha').appendChild(caja);
+    }
+    piezas.push(Object.assign({}, p, {caja}));
+    // Si la pestaña guardada es de una pieza que todavía no se anotó, se muestra lo que hay.
+    const elegida = piezas.some(x => x.id === actual) ? actual : piezas[0].id;
+    piezas.forEach(x => { x.caja.hidden = x.id !== elegida; });
+    pintarTabs();
+    acomodar();
+    return caja;
+  }
+  $('#derTabs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-pieza]');
+    if (b) mostrar(b.dataset.pieza);
+  });
+
+  // El tirador. ⚠ Con `setPointerCapture`: una terminal o una imagen debajo del puntero se
+  // quedarían con el movimiento del mouse y el arrastre se cortaría solo.
+  const tirador = $('#tiradorDer');
+  tirador.addEventListener('pointerdown', e => {
+    if (e.button) return;
+    e.preventDefault();
+    tirador.setPointerCapture(e.pointerId);
+    tirador.classList.add('tirando');
+    const col = $('#derecha');
+    const margen = parseFloat(getComputedStyle(col).marginLeft) || 0;
+    const caja = col.getBoundingClientRect();
+    // Dónde lo agarraste adentro del tirador: sin esto el borde salta hasta el puntero en
+    // el primer movimiento (3 o 4 px de tirón, que se notan).
+    const agarre = e.clientX - caja.left;
+    let nuevo = 0;
+    const mover = ev => { nuevo = ponerAncho(caja.right - ev.clientX + agarre + margen); };
+    const soltar = () => {
+      tirador.removeEventListener('pointermove', mover);
+      tirador.removeEventListener('pointerup', soltar);
+      tirador.removeEventListener('pointercancel', soltar);
+      tirador.classList.remove('tirando');
+      if (nuevo){ ancho = nuevo; localStorage.setItem('sesDerAncho', nuevo); }
+    };
+    tirador.addEventListener('pointermove', mover);
+    tirador.addEventListener('pointerup', soltar);
+    tirador.addEventListener('pointercancel', soltar);
+  });
+  // Doble clic: vuelve al ancho de fábrica (y las piezas vuelven a poder pedir el suyo).
+  tirador.addEventListener('dblclick', () => {
+    ancho = 0;
+    localStorage.removeItem('sesDerAncho');
+    ponerAncho(Math.max(ANCHO_FABRICA, (aLaVista && aLaVista.anchoMin) || 0));
+  });
+  // Achicaste la ventana: la columna no puede dejar a la charla sin lugar.
+  addEventListener('resize', () => {
+    const hoy = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--der-ancho'));
+    if (hoy) ponerAncho(hoy);
+  });
+
+  // ⤢ Agrandar: la columna toma todo lo que puede (dejándole a la charla su piso), y otra
+  // vez la devuelve a como estaba. No toca el ancho guardado: es un rato, no una preferencia.
+  let antesDeAgrandar = 0;
+  function agrandar(){
+    const hoy = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--der-ancho')) || ANCHO_FABRICA;
+    if (antesDeAgrandar && hoy >= tope() - 2){ ponerAncho(antesDeAgrandar); antesDeAgrandar = 0; return; }
+    antesDeAgrandar = hoy;
+    ponerAncho(tope());
+  }
+
+  return {registrar, mostrar, acomodar, agrandar,
+          actual: () => (aLaVista ? aLaVista.id : ''),
+          elegida: () => actual,
+          caja: id => (piezas.find(p => p.id === id) || {}).caja || null};
+})();
+
 function verDerecha(abierta){
   document.body.classList.toggle('derecha-abierta', abierta);
   localStorage.setItem('sesDerecha', abierta ? '1' : '0');
   $('#btnDerecha').classList.toggle('off', !abierta);
   $('#btnDerecha').title = (abierta ? 'Esconder' : 'Mostrar') +
     ' la columna de la derecha: entorno, contexto, conectores (Ctrl+.)';
-  if (abierta) refrescarDerecha(true);
+  // Les avisa a las piezas quién quedó a la vista (o que ya no se ve ninguna).
+  Paneles.acomodar();
+}
+// La pieza de siempre. Se refresca al quedar a la vista; mientras se mira otra, no pide nada.
+Paneles.registrar({id: 'entorno', titulo: 'Entorno', alMostrar: () => refrescarDerecha(true)});
+
+// ⭐ La TERMINAL (pieza 1 de "lo que tiene Claude Code", 2026-11-10). Una terminal de verdad
+// en la carpeta de la charla, adentro de la columna. El dibujo es `terminal.js` (`Consola`)
+// y el PowerShell vive en el panel (`app/voz/terminales.py`).
+// ⚠ Si el panel todavía no la sirve, `terminal.js` no carga, `Consola` no existe y acá no
+// pasa nada: la columna queda como estaba y el ▶ sigue abriendo su ventana de siempre.
+if (window.Consola){
+  Consola.iniciar({
+    // La carpeta de la charla abierta; sin charla, la de la carpeta que estás mirando.
+    ubicacion: () => {
+      const t = abiertas.find(x => x.sid === activa);
+      if (t) return {cwd: t.cwd || ''};
+      const p = datos.proyectos.find(x => x.proyecto === proy);
+      return {cwd: (p && p.cwd) || ''};
+    },
+    traer: () => { verDerecha(true); Paneles.mostrar('terminal'); },
+    agrandar: () => Paneles.agrandar(),
+    // "Mandar a la charla" y "Arreglalo con la sesión": el texto se SUMA a lo que haya en la
+    // caja y ahí queda, sin mandarse (el Enter es tuyo). Sin charla abierta no hay caja.
+    alChat: texto => {
+      const c = $('#texto');
+      if (!activa || !c || c.disabled) return false;
+      const antes = c.value.replace(/\s+$/, '');
+      c.value = (antes ? antes + '\n\n' : '') + texto;
+      c.dispatchEvent(new Event('input', {bubbles: true}));   // que el borrador lo guarde
+      ajustarCaja();
+      c.focus();
+      c.setSelectionRange(c.value.length, c.value.length);
+      return true;
+    },
+  });
+  Paneles.registrar({id: 'terminal', titulo: 'Terminal', anchoMin: 560,
+                     alMostrar: Consola.mostrar, alOcultar: Consola.ocultar});
+  // El ▶ de los bloques de código ESCRIBE el comando en la terminal (el Enter es tuyo) en
+  // vez de abrir una ventana de PowerShell. `marcado.js` pregunta acá antes de seguir.
+  window.MD_CORRER = (cmd, cwd) => Consola.escribir(cmd, cwd);
 }
 verDerecha(localStorage.getItem('sesDerecha') === '1');
 $('#btnDerecha').onclick = () => verDerecha(!derAbierta());
@@ -5159,9 +7188,10 @@ if (window.Entorno) Entorno.iniciar({ubicacion: ubicDerecha, alCambiar: () => re
 
 async function refrescarDerecha(ya){
   if (!window.Entorno || !derAbierta() || derPidiendo || document.visibilityState === 'hidden') return;
+  if (Paneles.actual() !== 'entorno') return;       // se está mirando otra pieza
   const u = ubicDerecha();
-  if (!u){ $('#derecha').innerHTML = '<div class="notaDer">Abrí una charla para ver su entorno.</div>';
-           $('#derecha').dataset.html = ''; return; }
+  if (!u){ $('#derEntorno').innerHTML = '<div class="notaDer">Abrí una charla para ver su entorno.</div>';
+           $('#derEntorno').dataset.html = ''; return; }
   const clave = u.cwd + '|' + u.sid;
   // Mientras trabaja se refresca seguido (la foto del navegador cambia); quieta, cada tanto.
   const cada = (u.sid && (ocupadaSes[u.sid] || enVuelo[u.sid])) ? 3000 : 10000;
@@ -5170,7 +7200,7 @@ async function refrescarDerecha(ya){
   try {
     const r = await Entorno.pedir(u);
     derClave = clave; derHora = Date.now();
-    Entorno.pintar($('#derecha'), r, u);
+    Entorno.pintar($('#derEntorno'), r, u);
   } catch(e){} finally { derPidiendo = false; }
 }
 setInterval(() => refrescarDerecha(false), 1500);
@@ -5178,6 +7208,8 @@ setInterval(() => refrescarDerecha(false), 1500);
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
   if ((e.key || '').toLowerCase() !== 'b') return;
+  // Adentro de la terminal Ctrl+B es de la terminal (mover el cursor, tmux…), no de la página.
+  if (e.target && e.target.closest && e.target.closest('.xterm')) return;
   e.preventDefault();
   verLateral(!lateralOculto());
 });

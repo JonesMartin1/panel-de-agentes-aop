@@ -90,6 +90,11 @@ PESTANAS_MOVIL = RAIZ / "pestanas_movil.json"
 # Los nombres que Martin le pone a las sesiones desde el celular. Es un alias
 # NUESTRO: el titulo de adentro de Claude no se toca (es de sus archivos).
 NOMBRES_SESIONES = RAIZ / "nombres_sesiones.json"
+# El SUBPROYECTO de cada sesion ({sid: "Descalzo"}), pedido de Martin el 2026-11-10 para
+# ordenar las carpetas donde conviven temas distintos (UMINDS). Es SOLO una etiqueta para
+# agrupar la vista, igual que los nombres: no cambia el cwd, ni la carpeta, ni nada de
+# los archivos de Claude. Vacio = sin subproyecto (la entrada se borra).
+SUBPROYECTOS_SESIONES = RAIZ / "subproyectos_sesiones.json"
 # Carpetas que Martin sumo a mano a la lista de proyectos (las que todavia no
 # tienen conversaciones no aparecen solas).
 CARPETAS_SESIONES = RAIZ / "carpetas_sesiones.json"
@@ -237,6 +242,10 @@ PIZARRA_IMAGENES = RESULTADOS / "pizarra_imagenes"
 # 2026-09-27: "no perder los prompts que yo mando"). Solo se agrega, nunca se reescribe.
 # Adentro de resultados/ porque lleva nombres de clientes y datos de los proyectos.
 MIS_MENSAJES = RESULTADOS / "mis_mensajes.jsonl"
+# Los trabajos en segundo plano de las sesiones (2026-10-27): antes vivian solo en
+# memoria y un reinicio del panel los borraba. Adentro de resultados/ porque guarda las
+# respuestas, que traen datos de los proyectos.
+TRABAJOS_DB = RESULTADOS / "trabajos.sqlite"
 # ⭐ Las capturas que saca una sesion con navegador, sacadas de su charla para mostrarlas en
 # el hilo (2026-10-20, "que conteste como Claude Desktop"). Adentro de resultados/ porque
 # son fotos de paginas reales, con datos de clientes. Es un cache: se puede borrar entero,

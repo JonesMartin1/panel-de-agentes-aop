@@ -152,7 +152,7 @@ def main():
         revisar("el primer toque NO compacta nada", len(compactados), 0)
         revisar("el primer toque pregunta",
                 pag.evaluate("() => document.querySelector('#compactar').textContent"),
-                "⇲ ¿compacto?")
+                "¿compacto?")
         pag.click("#compactar")
         pag.wait_for_timeout(1500)
         revisar("el segundo toque sí manda el pedido",
@@ -168,7 +168,9 @@ def main():
                 SID_NUEVO)
         revisar("el botón vuelve a su texto",
                 pag.evaluate("() => document.querySelector('#compactar').textContent"),
-                "⇲ Compactar")
+                "Compactar")
+        revisar("y conserva su dibujo",
+                pag.evaluate("() => !!document.querySelector('#compactar svg.icn')"), True)
 
         # --- Una pestaña sin estrenar --------------------------------------------
         # Todavía no existe la conversación: no hay qué compactar ni dónde guardar el

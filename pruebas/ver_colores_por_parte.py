@@ -248,14 +248,15 @@ def main():
         # entero daba 16 y el chequeo fallaba sin que estas siete tuvieran nada malo.
         dentro = "#aspectoPanel .sec[data-sec=partes] "
         filas = pag.eval_on_selector_all(dentro + ".parte", "n => n.length")
-        revisar("hay una fila por parte", filas == 7, f"{filas} filas")
+        # Ocho desde el 2026-11-10: se sumó "Te pregunta algo", el cuarto color de estado.
+        revisar("hay una fila por parte", filas == 8, f"{filas} filas")
         nombres = pag.eval_on_selector_all(
             dentro + ".parte .nom", "n => n.map(e => e.textContent)")
         revisar("y cada una dice de que parte es", "Barra de arriba" in nombres,
                 ", ".join(nombres))
         ruedas = pag.eval_on_selector_all(
             dentro + ".rueda[data-rueda]", "n => n.length")
-        revisar("cada parte tiene su rueda", ruedas == 7, f"{ruedas} ruedas")
+        revisar("cada parte tiene su rueda", ruedas == 8, f"{ruedas} ruedas")
         # El ↺ solo aparece donde hay un color elegido: si estuviera siempre, seria un
         # boton que no hace nada en seis de las siete filas.
         quitar = pag.eval_on_selector_all("#aspectoPanel .parte .quitar", "n => n.length")

@@ -119,10 +119,14 @@ def main():
         #    dibujito solo (pedido de Martín: *"sería mejor que se compacten por
         #    categoría"*). El nombre entero tiene que quedar en el globito de ayuda: sin
         #    eso, un botón con un emoji y nada más no se entiende.
-        revisar("Subir imagen es solo el dibujito", pag.inner_text("#subirImagen"), "🖼")
+        # ⭐ 2026-11-10: el dibujito ya no es un emoji sino un icono de línea (un <svg>),
+        #    así que "solo el dibujito" se mide como: tiene el icono y ninguna letra.
+        SOLO_DIBUJO = """(s) => { const b = document.querySelector(s);
+            return !!b.querySelector('svg.icn use') && b.textContent.trim() === ''; }"""
+        revisar("Subir imagen es solo el dibujito", pag.evaluate(SOLO_DIBUJO, "#subirImagen"), True)
         revisar("y el nombre está en el globito",
                 "Subir imagen" in pag.get_attribute("#subirImagen", "title"), True)
-        revisar("Buscar archivo es solo el dibujito", pag.inner_text("#buscarArchivo"), "🔎")
+        revisar("Buscar archivo es solo el dibujito", pag.evaluate(SOLO_DIBUJO, "#buscarArchivo"), True)
         revisar("y su nombre también está en el globito",
                 "Buscar archivo" in pag.get_attribute("#buscarArchivo", "title"), True)
         revisar("los tres van juntos en el mismo grupo",
@@ -310,7 +314,7 @@ def main():
         pag.wait_for_timeout(400)
         revisar("/compact aprieta el botón Compactar (que pregunta)",
                 pag.evaluate("() => document.querySelector('#compactar').textContent"),
-                "⇲ ¿compacto?")
+                "¿compacto?")
         revisar("y no escribió nada en la caja",
                 pag.evaluate("() => document.querySelector('#texto').value"), "")
         pag.wait_for_timeout(5300)          # que el "¿compacto?" se caiga solo

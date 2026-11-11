@@ -67,8 +67,12 @@ class ProcFalso:
         return salida
 
 
-def por_el_portero(perfil, sitios, pedidos):
+def por_el_portero(perfil, sitios, pedidos, bid=""):
     """Pasa esos pedidos de herramienta por el portero DE VERDAD y mira que hizo.
+
+    ⚠ `bid` es el id de navegador que "se leyo del disco" para ese perfil. Va fijado
+    desde aca y vacio por defecto: `PERFIL` existe de verdad en la maquina de Martin y
+    tiene su id, asi que sin esto los chequeos darian distinto segun donde se corran.
 
     ⭐ Corre `_turno`, que es donde vive el portero, en vez de imitarlo: si mañana el
     `elif` que lo invoca cambia de condicion, esta prueba se entera. Los pedidos entran
@@ -91,16 +95,88 @@ def por_el_portero(perfil, sitios, pedidos):
     abiertos = []
     # ⚠ `_descartar_restos` se tapa porque vacia la cola al empezar el turno, que es
     # justo donde estan los pedidos. No es lo que se esta probando.
-    antes = (sm.abrir_chrome_perfil, sm._descartar_restos)
+    antes = (sm.abrir_chrome_perfil, sm._descartar_restos, sm.id_navegador_de)
     sm.abrir_chrome_perfil = lambda p: abiertos.append(p) or True
     sm._descartar_restos = lambda v: None
+    sm.id_navegador_de = lambda p: bid if p else ""
     try:
         sm._turno(viva, "probando")
     finally:
-        sm.abrir_chrome_perfil, sm._descartar_restos = antes
+        sm.abrir_chrome_perfil, sm._descartar_restos, sm.id_navegador_de = antes
         with sm._CANDADO_CURSO:
             sm.EN_CURSO.pop(viva.clave(), None)
     return proc.respuestas(), abiertos
+
+
+# --- Una base LevelDB de mentira pero con el formato de VERDAD -------------------------
+# ⚠ Hasta el 2026-11-10 el perfil de prueba era un archivo con el texto pegado a mano, o
+# sea que la prueba solo media el caso facil. El id de un Chrome con uso vive en tablas
+# comprimidas, y ahi fue donde fallo en la maquina de Martin sin que esto se enterara.
+def _vi(n):
+    sal = bytearray()
+    while n >= 0x80:
+        sal.append((n & 0x7F) | 0x80)
+        n >>= 7
+    sal.append(n)
+    return bytes(sal)
+
+
+def _snappy(b):
+    """Compresor Snappy minimo: alcanza para que lo repetido salga como referencia."""
+    sal, lit, i = bytearray(_vi(len(b))), bytearray(), 0
+
+    def volcar():
+        for k in range(0, len(lit), 60):
+            trozo = lit[k:k + 60]
+            sal.append((len(trozo) - 1) << 2)
+            sal.extend(trozo)
+        lit.clear()
+
+    while i < len(b):
+        j = b.rfind(b[i:i + 4], 0, i) if i + 4 <= len(b) else -1
+        if j < 0:
+            lit.append(b[i])
+            i += 1
+            continue
+        n = 4
+        while i + n < len(b) and n < 64 and j + n < i and b[j + n] == b[i + n]:
+            n += 1
+        volcar()
+        sal.append(((n - 1) << 2) | 2)
+        sal.extend((i - j).to_bytes(2, "little"))
+        i += n
+    volcar()
+    return bytes(sal)
+
+
+def _bloque_ldb(pares):
+    cuerpo = b"".join(b"\x00" + _vi(len(k)) + _vi(len(v)) + k + v for k, v in pares)
+    return cuerpo + (0).to_bytes(4, "little") + (1).to_bytes(4, "little")
+
+
+def tabla_leveldb(pares, sec=7):
+    """Una `.ldb` con esas (llave, valor): un bloque de datos COMPRIMIDO y su indice."""
+    internos = [(k + ((sec << 8) | 1).to_bytes(8, "little"), v)
+                for k, v in sorted(pares)]
+    datos = _snappy(_bloque_ldb(internos))
+    archivo = datos + b"\x01" + b"\x00" * 4
+    meta_en = len(archivo)
+    meta = _bloque_ldb([])
+    archivo += meta + b"\x00" + b"\x00" * 4
+    ind_en = len(archivo)
+    indice = _bloque_ldb([(internos[-1][0], _vi(0) + _vi(len(datos)))])
+    archivo += indice + b"\x00" + b"\x00" * 4
+    pie = _vi(meta_en) + _vi(len(meta)) + _vi(ind_en) + _vi(len(indice))
+    return archivo + pie.ljust(40, b"\x00") + bytes.fromhex("57fb808b247547db")
+
+
+def registro_leveldb(operaciones, sec=20):
+    """Un `.log` con esas operaciones: (llave, valor), o (llave, None) para un borrado."""
+    lote = sec.to_bytes(8, "little") + len(operaciones).to_bytes(4, "little")
+    for k, v in operaciones:
+        lote += (b"\x00" + _vi(len(k)) + k if v is None
+                 else b"\x01" + _vi(len(k)) + k + _vi(len(v)) + v)
+    return b"\x00" * 4 + len(lote).to_bytes(2, "little") + b"\x01" + lote
 
 
 def comando_de(perfil, sitios):
@@ -310,6 +386,53 @@ def correr(callar=False):
              resp and resp[0].get("behavior") == "deny", resp)
 
     if not callar:
+        print("\nCUAL navegador: nada pasa hasta elegir el del proyecto")
+    # ⭐⭐ 2026-11-10. Medido contra el CLI: una sesion que no eligio hereda en silencio
+    # el ultimo navegador que eligio CUALQUIER otra. El portero lo cierra.
+    MIO = "dddddddd-0000-0000-0000-000000000000"
+    AJENO = "eeeeeeee-0000-0000-0000-000000000000"
+    NAV = "mcp__claude-in-chrome__"
+    resp, abrio = por_el_portero(PERFIL, [], [
+        (NAV + "navigate", {"url": "http://localhost:8750/"})], bid=MIO)
+    chequear("navegar sin haber elegido el navegador se niega",
+             resp and resp[0].get("behavior") == "deny", resp)
+    chequear("y la negativa trae el id que tiene que elegir",
+             resp and MIO in (resp[0].get("message") or ""), resp)
+    chequear("y no abre ninguna ventana por un pedido negado", abrio == [], abrio)
+    chequear("en el rastro eso figura como negado, no como hecho",
+             resp and sm._estado_resultado(
+                 {"is_error": True, "content": resp[0].get("message") or ""}) == "negado")
+    resp, _ = por_el_portero(PERFIL, [], [
+        (NAV + "select_browser", {"deviceId": AJENO}),
+        (NAV + "navigate", {"url": "http://localhost:8750/"})], bid=MIO)
+    chequear("elegir OTRO Chrome se niega",
+             resp and resp[0].get("behavior") == "deny", resp)
+    chequear("y despues de eso sigue sin poder navegar",
+             len(resp) == 2 and resp[1].get("behavior") == "deny", resp)
+    resp, abrio = por_el_portero(PERFIL, [], [
+        (NAV + "select_browser", {"deviceId": MIO}),
+        (NAV + "navigate", {"url": "http://localhost:8750/"}),
+        (NAV + "computer", {"action": "left_click"})], bid=MIO)
+    chequear("eligiendo el suyo, todo lo que sigue pasa",
+             len(resp) == 3 and all(x.get("behavior") == "allow" for x in resp), resp)
+    chequear("y ahi si se abre su ventana, una sola", abrio == [PERFIL], abrio)
+    resp, _ = por_el_portero(PERFIL, [], [
+        (NAV + "navigate", {"url": "http://localhost:8750/"})], bid=MIO)
+    chequear("un proceso NUEVO tiene que elegir de nuevo (no hereda la eleccion)",
+             resp and resp[0].get("behavior") == "deny", resp)
+    resp, _ = por_el_portero(PERFIL, [], [
+        (NAV + "list_connected_browsers", {}),
+        (NAV + "switch_browser", {})], bid=MIO)
+    chequear("mirar que navegadores hay no necesita haber elegido",
+             resp and resp[0].get("behavior") == "allow", resp)
+    chequear("emparejar a mano (pantalla en TODOS los Chrome) se niega",
+             len(resp) == 2 and resp[1].get("behavior") == "deny", resp)
+    resp, _ = por_el_portero(PERFIL, [], [
+        (NAV + "navigate", {"url": "http://localhost:8750/"})], bid="")
+    chequear("sin id leido del disco el candado NO frena (queda la instruccion)",
+             resp and resp[0].get("behavior") == "allow", resp)
+
+    if not callar:
         print("\nPerfiles INTERNOS de Chrome (uno por agencia, y no se cruzan)")
     # ⭐⭐ Martin tiene un perfil de Chrome por agencia y son INTERNOS: cuelgan de la
     # carpeta de datos del personal. Tratarlos como carpeta de datos hace que se lea el
@@ -328,11 +451,23 @@ def correr(callar=False):
     # el mismo sintoma que el defecto que se busca).
     ID_PERSONAL = "aaaaaaaa-0000-0000-0000-000000000000"
     ID_AGENCIA = "bbbbbbbb-0000-0000-0000-000000000000"
-    for ident, donde in ((ID_PERSONAL, raiz / "Default"), (ID_AGENCIA, interno)):
-        d = donde / "Local Extension Settings" / sm.EXT_CLAUDE_CHROME
-        d.mkdir(parents=True)
-        (d / "000001.log").write_bytes(
-            b'x"bridgeDeviceId"\x00\x01"' + ident.encode() + b'"y')
+    ID_VIEJO = "cccccccc-0000-0000-0000-000000000000"
+    alm_personal = raiz / "Default" / "Local Extension Settings" / sm.EXT_CLAUDE_CHROME
+    alm_agencia = interno / "Local Extension Settings" / sm.EXT_CLAUDE_CHROME
+    alm_personal.mkdir(parents=True)
+    alm_agencia.mkdir(parents=True)
+    # El personal: el id recien escrito, todavia en el registro (el caso facil).
+    (alm_personal / "000003.log").write_bytes(registro_leveldb(
+        [(b"bridgeDeviceId", b'"' + ID_PERSONAL.encode() + b'"')]))
+    # ⭐ La agencia: en una tabla COMPRIMIDA y con la llave vecina que empieza igual, que
+    # es como queda en un Chrome con uso. Ahi el texto de la llave no esta escrito entero.
+    tabla = tabla_leveldb([
+        (b"bridgeDefaultDisplayName", b'"MI-LAPTOP"'),
+        (b"bridgeDeviceId", b'"' + ID_AGENCIA.encode() + b'"'),
+        (b"otraCosa", b'"un uuid que no es: ' + ID_VIEJO.encode() + b'"')])
+    (alm_agencia / "000005.ldb").write_bytes(tabla)
+    chequear("(la tabla de prueba esta comprimida de verdad: la llave no se lee a ojo)",
+             b"bridgeDeviceId" not in tabla and b"bridgeDe" in tabla)
     chequear("un perfil interno se distingue de una carpeta de datos",
              sm.es_perfil_interno(interno) and not sm.es_perfil_interno(raiz))
     chequear("el id del perfil de la agencia NO es el del personal",
@@ -341,6 +476,26 @@ def correr(callar=False):
     chequear("y es el suyo de verdad",
              sm.id_navegador_de(str(interno)) == ID_AGENCIA,
              sm.id_navegador_de(str(interno)))
+    chequear("el id se lee de una tabla comprimida",
+             sm.id_navegador_de(str(interno)) == ID_AGENCIA,
+             sm.id_navegador_de(str(interno)))
+    # Lo mas nuevo gana: el registro pisa a la tabla, y un borrado tambien cuenta.
+    otro = raiz / "Profile 3"
+    alm_otro = otro / "Local Extension Settings" / sm.EXT_CLAUDE_CHROME
+    alm_otro.mkdir(parents=True)
+    (otro / "Preferences").write_text("{}", encoding="utf-8")
+    (alm_otro / "000005.ldb").write_bytes(tabla_leveldb(
+        [(b"bridgeDeviceId", b'"' + ID_VIEJO.encode() + b'"')], sec=7))
+    chequear("un id viejo en la tabla se lee mientras no haya otro",
+             sm.id_navegador_de(str(otro)) == ID_VIEJO, sm.id_navegador_de(str(otro)))
+    (alm_otro / "000006.log").write_bytes(registro_leveldb(
+        [(b"bridgeDeviceId", b'"' + ID_AGENCIA.encode() + b'"')], sec=20))
+    chequear("si la extension se re-emparejo, gana el id NUEVO y no el viejo",
+             sm.id_navegador_de(str(otro)) == ID_AGENCIA, sm.id_navegador_de(str(otro)))
+    (alm_otro / "000006.log").write_bytes(registro_leveldb(
+        [(b"bridgeDeviceId", None)], sec=30) + b"\x00" * 3)
+    chequear("si lo ultimo fue borrarlo, no hay id (no revive el viejo)",
+             sm.id_navegador_de(str(otro)) == "", sm.id_navegador_de(str(otro)))
     chequear("se lanza con --profile-directory",
              sm._partes_chrome(str(interno)) == (str(raiz), "Profile 9"),
              sm._partes_chrome(str(interno)))
@@ -408,6 +563,26 @@ def correr(callar=False):
     return r
 
 
+def _leer_a_lo_bruto(carpeta, llave):
+    """Como se leia antes: el texto de la llave buscado en los bytes crudos."""
+    import re
+    for f in Path(carpeta).iterdir():
+        m = re.search(llave.encode() + rb'.{0,12}?("[0-9a-f-]{36}")', f.read_bytes(),
+                      re.S)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _cualquier_id(original):
+    def flojo(viva, herramienta, entrada):
+        if herramienta.endswith("select_browser"):
+            viva.navegador_elegido = sm.id_navegador_de(viva.perfil)
+            return True, ""
+        return original(viva, herramienta, entrada)
+    return flojo
+
+
 # Cada mutacion repone un defecto a proposito y dice que chequeos TIENEN que caerse.
 MUTACIONES = [
     ("el prompt del navegador con un salto de linea",
@@ -443,6 +618,20 @@ MUTACIONES = [
      # El centinela de verdad es que el id sea EL SUYO.
      ["y es el suyo de verdad", "se lanza con --profile-directory",
       "un perfil interno se distingue de una carpeta de datos"]),
+    # ⚠ El defecto del 2026-11-10 hecho mutacion: buscar el id rastreando los bytes.
+    ("buscar el id con una expresion regular en vez de leer la base",
+     lambda: setattr(sm.almacen_chrome, "leer_llave", _leer_a_lo_bruto),
+     ["el id se lee de una tabla comprimida"]),
+    ("dejar usar el navegador sin haber elegido el del proyecto",
+     lambda: setattr(sm, "_permiso_cual_navegador", lambda viva, h, e: (True, "")),
+     ["navegar sin haber elegido el navegador se niega",
+      "elegir OTRO Chrome se niega",
+      "un proceso NUEVO tiene que elegir de nuevo (no hereda la eleccion)",
+      "emparejar a mano (pantalla en TODOS los Chrome) se niega"]),
+    ("aceptar cualquier id en select_browser",
+     lambda: setattr(sm, "_permiso_cual_navegador", _cualquier_id(
+         sm._permiso_cual_navegador)),
+     ["elegir OTRO Chrome se niega", "y despues de eso sigue sin poder navegar"]),
     ("'ninguno' se toma como una ruta en vez de como el apagado",
      lambda: setattr(sm, "SIN_NAVEGADOR", "__nunca__"),
      ["'ninguno' apaga SOLO esa carpeta"]),
@@ -488,7 +677,9 @@ def mutar():
                      "_firma_navegador", "_permitidas_de", "_asegurar_chrome",
                      "_permiso_navegador", "AJUSTES_CHROME",
                      "_regla_cual_navegador", "id_navegador_de",
-                     "SIN_NAVEGADOR", "es_perfil_interno")}
+                     "SIN_NAVEGADOR", "es_perfil_interno",
+                     "_permiso_cual_navegador")}
+        leer_de_verdad = sm.almacen_chrome.leer_llave
         # ⚠ `_permiso_navegador` usa `url_permitida` y `_urls_de` por nombre de modulo,
         # y `_arrancar_viva` usa `_permitidas_de` igual: reemplazarlos alcanza para que
         # el defecto entre por el camino de verdad y no por una imitacion.
@@ -503,6 +694,7 @@ def mutar():
         finally:
             for n, v in guardado.items():
                 setattr(sm, n, v)
+            sm.almacen_chrome.leer_llave = leer_de_verdad
         falta = [t for t in deben_fallar if t not in cayo]
         if falta:
             mal += 1

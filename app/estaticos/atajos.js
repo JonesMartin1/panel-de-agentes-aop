@@ -298,8 +298,13 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
     /* `etiqueta` existe por el teléfono: en el ancho de la barra de escribir del
        celular "⚡ Skills y comandos" no entra y empuja la caja de texto. Ahí va solo
        el rayo, y el nombre completo queda en el title. */
-    boton.textContent = op.etiqueta || '⚡ Skills y comandos';
+    /* `icono` (2026-11-10) es para la compu: ahi el rayo es un icono de linea, de la misma
+       familia que los botones de al lado. Es marcado que escribe la pagina, no texto de
+       nadie de afuera; sin `icono` todo sigue como antes. */
+    if (op.icono) boton.innerHTML = op.icono;
+    else boton.textContent = op.etiqueta || '⚡ Skills y comandos';
     boton.title = 'Skills y comandos disponibles para esta charla';
+    boton.setAttribute('aria-label', 'Skills y comandos');
     op.contenedor.appendChild(boton);
 
     boton.onclick = () => abrir(boton, async (menu, acomodar) => {

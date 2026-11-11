@@ -120,7 +120,11 @@ with sync_playwright() as p:
     pag.wait_for_timeout(2500)
     revisar("** y no vuelve a encenderse con el dato viejo", not pag.evaluate(PENSANDO))
     revisar("el botón Parar vuelve a su texto",
-            pag.evaluate("() => document.querySelector('#parar').textContent"), "⏹ Parar")
+            pag.evaluate("() => document.querySelector('#parar').textContent"), "Parar")
+    # 2026-11-10: el cuadradito de Parar es un icono aparte del texto. Si alguien vuelve a
+    # escribirle `textContent` al botón entero, el icono desaparece y esto lo caza.
+    revisar("y conserva su dibujo",
+            pag.evaluate("() => !!document.querySelector('#parar svg.icn')"), True)
 
     # Si la charla vuelve a moverse DE VERDAD (dato nuevo, posterior al corte), la
     # pantalla tiene que volver a mostrarla trabajando: esto no puede sordear la charla.
