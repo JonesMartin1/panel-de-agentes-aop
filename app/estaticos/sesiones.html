@@ -50,6 +50,7 @@
  .tab .x:hover{color:var(--mal-txt);background:color-mix(in srgb,currentColor 16%,transparent)}
  /* El punto de una sesion VIVA = esta trabajando: amarillo, como en la lista. */
  .tab .viva{color:var(--aviso);font-size:10px;margin-right:5px}
+ .tab .viva.der{margin-right:0;margin-left:5px}
  /* El ＋ de arrancar una charla: mismo alto que las pestañas, pero se lee como botón. */
  .tab.mas{color:var(--c8ecbff,#8ecbff);background:var(--c131a26,#131a26);font-size:calc(15px * var(--ui,1));padding:calc(8px * var(--ui,1)) calc(13px * var(--ui,1));font-weight:600}
  .tab.mas:hover{background:var(--c1a2536,#1a2536);color:var(--ccfe6ff,#cfe6ff)}
@@ -140,6 +141,24 @@
  /* El que pegaste va primero y marcado: es tuyo, no uno más de la lista. */
  #menuTarjeta .tono.pegado{border-color:var(--acento)}
  #menuTarjeta .nada-hay{color:var(--c6f7b8c,#6f7b8c);font-size:12px;padding:9px 5px 4px;line-height:1.4}
+ /* "Agregar una carpeta": el campo y el 📂 Elegir… en un renglón; abajo, qué está pasando
+    (el error, en el color de error y nada más). Más ancho que el menú de siempre: una
+    ruta de Windows no entra en 252 px. */
+ #menuTarjeta:has(.sumarCaja){width:340px}
+ #menuTarjeta .sumarCaja{display:flex;gap:6px;padding:0 2px}
+ #menuTarjeta .sumarCaja input{flex:1;min-width:0;box-sizing:border-box;background:var(--c1b2130,#1b2130);
+   border:1px solid var(--c2a3342,#2a3342);border-radius:8px;color:var(--ce8ecf1,#e8ecf1);font:12.5px inherit;
+   font-family:inherit;padding:7px 9px;outline:none}
+ #menuTarjeta .sumarCaja input:focus{border-color:var(--acento)}
+ #menuTarjeta .sumarCaja input::placeholder{color:var(--c7d8592,#7d8592)}
+ #menuTarjeta .sumarCaja button,#menuTarjeta .sumarAcc button{flex:none;cursor:pointer;border-radius:8px;
+   padding:6px 10px;font:12.5px inherit;font-family:inherit;color:var(--ce8ecf1,#e8ecf1);
+   background:var(--c1b2130,#1b2130);border:1px solid var(--c2a3342,#2a3342)}
+ #menuTarjeta .sumarCaja button:hover,#menuTarjeta .sumarAcc button:hover{border-color:var(--c4a5769,#4a5769)}
+ #menuTarjeta .sumarCaja button:disabled{opacity:.55;cursor:progress}
+ #menuTarjeta .sumarAyuda{color:var(--c6f7b8c,#6f7b8c);font-size:11.5px;padding:8px 5px 2px;line-height:1.4}
+ #menuTarjeta .sumarAyuda.mal{color:var(--mal-txt)}
+ #menuTarjeta .sumarAcc{padding:6px 2px 0}
  #menuTarjeta .volver{color:var(--c6f7b8c,#6f7b8c);font-size:11px;padding:6px 5px 0;cursor:pointer}
  #menuTarjeta .volver:hover{color:var(--ce8ecf1,#e8ecf1)}
  #menuTarjeta .op{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;
@@ -203,6 +222,15 @@
  /* Un respiro entre grupos: pegados, la pastilla del siguiente parecía otra pestaña. */
  #tabs .grupo:not(:first-child){margin-left:14px}
  .grupo .flecha{font-size:10px;opacity:.75}
+ /* El ícono de la carpeta en cada pestaña suelta (`tabSuelta`). */
+ #tabs .tab .ico-carp{flex:none;font-size:.95em;line-height:1;margin-right:1px}
+ /* El proyecto adelante del nombre de la pestaña: más chico y apagado, para que se lea
+    primero la charla. */
+ #tabs .tab .proyTab{flex:none;font-size:.82em;opacity:.6;margin-right:2px;white-space:nowrap}
+ /* De paso: abierta desde la lista pero no elegida para quedar arriba. */
+ #tabs .tab.de-paso .nom{font-style:italic;opacity:.75}
+ #tabs .tab .fijar{flex:none;font-size:.8em;line-height:1;padding:2px 3px;border-radius:5px;cursor:pointer;opacity:.45;filter:grayscale(1);transition:opacity .15s,filter .15s}
+ #tabs .tab .fijar:hover{opacity:1;filter:none;background:rgba(127,127,127,.18)}
  /* Se arrastran para cambiarlas de orden, igual que las pestañas — y el grupo entero se
     va con su pastilla, con las charlas que tenga desplegadas adentro. */
  .grupo.moviendo{opacity:.42}
@@ -405,9 +433,15 @@
  .carpeta.guardadas{color:var(--c7d8592,#7d8592);font-size:12.5px;border-top:1px solid var(--c1b2130,#1b2130);
                     margin-top:6px;padding-top:11px}
  .carpeta.guardadas:hover{color:var(--cc9d2de,#c9d2de)}
- .carpeta.devolver{padding-left:30px;color:var(--c8b93a1,#8b93a1);font-size:12.5px}
- .carpeta.devolver .vol{flex:none;color:var(--c7d8592,#7d8592);font-size:12px}
- .carpeta.devolver:hover .vol{color:var(--acento,var(--c8ecbff,#8ecbff))}
+ /* ⚠ La fila de una carpeta escondida se llama `.escondida`, NO `.devolver` (2026-11-12):
+    `.devolver` es el BOTÓN ↩ de las charlas archivadas, y su estilo (caja, borde, fondo)
+    se le pegaba a cada fila — trece cajitas con letra grande, "esto se ve horrible".
+    Ahora es una carpeta más, apagada: su ícono en gris, y el ↩ solo al pasar. */
+ .carpeta.escondida{padding-left:30px;color:var(--c8b93a1,#8b93a1);font-size:12.5px}
+ .carpeta.escondida .icoEsc{flex:none;font-size:15px;line-height:1;filter:grayscale(.7);opacity:.55}
+ .carpeta.escondida .vol{flex:none;color:var(--c7d8592,#7d8592);font-size:12px;opacity:0;transition:opacity .15s}
+ .carpeta.escondida:hover .vol,.carpeta.escondida:focus-visible .vol{opacity:1;color:var(--acento,var(--c8ecbff,#8ecbff))}
+ .carpeta.escondida:hover .icoEsc{opacity:.85;filter:none}
  /* --- ⭐ La identidad visual de cada carpeta (2026-08-18) ------------------------
     Pintada, la carpeta lleva su color propio. ⚠ El color va en el `style` del
     elemento, así que le gana a la marca de "estás parado acá" (`.sel`): por eso una
@@ -446,7 +480,20 @@
  .subgrupo .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  .subgrupo .num{letter-spacing:0}
  #cuerpo .subgrupo{margin:16px 0 6px;padding:0 4px;font-size:10.5px}
+ .subgrupo .masSub,.subgrupo .menuSub{flex:none;font-size:13px;line-height:1;letter-spacing:0;padding:2px 6px;border-radius:6px;opacity:.55;transition:opacity .15s,background-color .15s}
+ .subgrupo .masSub:hover,.subgrupo .menuSub:hover{opacity:1;background:rgba(127,127,127,.2)}
+ /* Arrastrando una charla: la que llevás se apaga y el grupo de destino se marca. */
+ #cuerpo .correo.llevada{opacity:.4}
+ #cuerpo .subgrupo.soltar-aca{color:var(--ce8ecf1,#e8ecf1);background:rgba(127,127,127,.18);border-radius:8px;box-shadow:inset 0 0 0 1px rgba(127,127,127,.45)}
  .lapiz.subp{font-size:13px}
+ /* Subproyecto a gusto: su color (puntito), el 📌 de fija, y la rayita que dice dónde cae
+    el que estás moviendo. */
+ .subgrupo .ptoSub{flex:none;width:7px;height:7px;border-radius:50%}
+ .subgrupo .pinSub{flex:none;font-size:.95em;letter-spacing:0;filter:saturate(.7)}
+ .subgrupo[draggable="true"]{cursor:grab}
+ .subgrupo.llevada{opacity:.4}
+ .subgrupo.soltar-antes{box-shadow:inset 0 2px 0 rgba(142,203,255,.85)}
+ .subgrupo.soltar-despues{box-shadow:inset 0 -2px 0 rgba(142,203,255,.85)}
  .carpeta .vive{flex:none;width:6px;height:6px;border-radius:50%;background:var(--c5eead4,#5eead4);
                 opacity:.85}
  #buscar{width:calc(100% - 28px);margin:0 14px 10px;padding:7px 11px;border-radius:9px;
@@ -520,6 +567,7 @@
       display:flex;align-items:center;justify-content:center;font-weight:700}
  .ini.viva{background:var(--c2b2109,#2b2109);color:var(--aviso-txt);box-shadow:0 0 0 2px var(--aviso-bd)}
  .ini.mas{background:var(--c14304a,#14304a)}
+ .subvaciaB{padding:10px 18px 10px 40px;color:var(--c7d8592,#7d8592);font-size:12.5px;font-style:italic}
  .med{flex:1;min-width:0}
  .tit{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  .baj{color:var(--c7c8797,#7c8797);font-size:12.5px}
@@ -1057,7 +1105,7 @@
     Rampa FIJA de magnitudes: chico y apagado = dormida; mediano = prendida y quieta;
     grande y lleno = trabajando (con su anillo, lo único que se mueve); anillo hueco = te
     espera (verde) o falló (rojo). El color sigue siendo el semáforo de siempre. */
- .ast,.estrellas,#marcaCarta,#cielo,.carta-cab{display:none}
+ .ast,.estrellas,#marcaCarta,#cielo,.carta-cab,.cab-fija{display:none}
  html.carta .ast{display:inline-block;flex:none;position:relative;box-sizing:border-box;
    border-radius:50%;width:calc(4px * var(--u));height:calc(4px * var(--u));background:var(--ct-3)}
  html.carta .ast.viva{width:calc(6px * var(--u));height:calc(6px * var(--u));background:var(--ct-2)}
@@ -1127,6 +1175,7 @@
    flex:none;position:relative;box-sizing:border-box;font-size:0;border-radius:50%;
    width:calc(9px * var(--u));height:calc(9px * var(--u));margin-right:calc(8px * var(--u));
    background:var(--aviso);animation:none}
+ html.carta .tab .der{margin-right:0;margin-left:calc(8px * var(--u))}
  html.carta .tab.espera .bola,html.carta .grupo.espera .bola{background:none;border:2px solid var(--ok)}
  html.carta .tab.fallada .bola,html.carta .grupo.fallada .bola{background:none;border:2px solid var(--mal)}
  html.carta .tab .x{opacity:0;color:var(--ct-3);border-radius:6px;
@@ -1243,7 +1292,10 @@
  html.carta .carpeta.sumar,html.carta .carpeta.guardadas{border-top:0;padding-top:0;
    margin-top:calc(6px * var(--u));color:var(--ct-3);font-size:calc(13px * var(--u))}
  html.carta .carpeta.sumar:hover,html.carta .carpeta.guardadas:hover{color:var(--ct-tinta)}
- html.carta .carpeta.devolver{color:var(--ct-2);font-size:calc(13px * var(--u))}
+ html.carta .carpeta.escondida{color:var(--ct-3);font-size:calc(13px * var(--u));gap:10px}
+ html.carta .carpeta.escondida .nom{font:inherit;color:inherit}
+ html.carta .carpeta.escondida:hover{color:var(--ct-tinta)}
+ html.carta .carpeta.escondida:hover .vol{color:var(--ct-tinta)}
  html.carta #paneArch{border-top:1px solid var(--ct-regla)}
  html.carta .rubro.cab{margin:calc(12px * var(--u)) 14px calc(6px * var(--u)) calc(22px * var(--u))}
  html.carta .rubro.cab .nom{font-size:calc(12px * var(--u));font-weight:500;letter-spacing:0;
@@ -1279,6 +1331,121 @@
  html.carta.titulo-propio .cabeza b{font-style:normal;font-weight:600}
  html.carta .carta-cab p{margin:9px 0 0;color:var(--ct-3);
    font:calc(12.5px * var(--escala,1)) var(--ct-ui)}
+ /* ⭐ El nombre se toca para editarlo y el ⋯ abre el menú de la charla (2026-11-11). Sin
+    subrayados ni cajas: se insinúa al pasar el mouse, como el resto de la carta. */
+ html.carta #cuerpo [data-editar]{cursor:text;border-radius:8px;
+   transition:background-color .15s,box-shadow .15s}
+ html.carta #cuerpo [data-editar]:hover{background:rgba(var(--ct),.07);
+   box-shadow:0 0 0 6px rgba(var(--ct),.07)}
+ /* ⚠ `button.mas`, no `.mas` a secas (2026-11-12): el ícono de "Empezar una conversación"
+    de la bandeja también se llama `.ini.mas`, y esta letra de 18 px le devolvía tamaño al
+    "✚" que va escondido — se veían dos "+" pegados ("+➕", captura de Martín). */
+ html.carta #cuerpo button.mas{flex:none;margin-left:auto;width:30px;height:30px;padding:0;border:0;
+   border-radius:9px;background:none;color:var(--ct-3);cursor:pointer;
+   font:600 18px/1 var(--ct-ui);letter-spacing:.04em;opacity:.7}
+ html.carta #cuerpo button.mas:hover{opacity:1;color:var(--ct-tinta);background:rgba(var(--ct),.08)}
+ html.carta #cuerpo .nomEdit{flex:1;min-width:0;margin:-4px -8px;padding:4px 8px;
+   font:inherit;letter-spacing:inherit;color:var(--ct-tinta);background:rgba(var(--ct),.07);
+   border:1px solid rgba(var(--ct),.22);border-radius:10px;outline:none}
+ html.carta #cuerpo .nomEdit:focus{border-color:var(--acento)}
+ /* La barrita fija: 0 de alto y pegada arriba del hilo (lo de abajo la deja siempre a la
+    vista y le reserva su lugar con un margen). */
+ /* El top negativo come el relleno de arriba del hilo (30px * --u): sticky se frena en el
+   borde del relleno, y con top:0 la barrita quedaba flotando 30 px abajo del borde. */
+html.carta #cuerpo > .cab-fija{display:block;position:sticky;top:calc(6px - 30px * var(--u));
+   height:0;z-index:6;max-width:var(--ct-col);margin-left:auto;margin-right:auto}
+ html.carta .cab-fija .cab-caja{position:absolute;left:-14px;right:-14px;top:0;
+   display:flex;align-items:center;gap:10px;padding:7px 8px 7px 16px;border-radius:14px;
+   background:color-mix(in srgb,var(--fondo) 88%,transparent);
+   backdrop-filter:blur(14px);border:1px solid rgba(var(--ct),.1);
+   box-shadow:0 8px 24px rgba(0,0,0,.25);
+   opacity:0;transform:translateY(-6px);pointer-events:none;
+   transition:opacity .18s ease,transform .18s ease}
+ html.carta #cuerpo.cab-pegada .cab-fija .cab-caja{opacity:1;transform:none;pointer-events:auto}
+ html.carta .cab-fija .em{flex:none;font-size:15px}
+ html.carta .cab-fija .nom{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+   white-space:nowrap;color:var(--ct-tinta);font:600 calc(15px * var(--escala,1))/1.3 var(--ct-nombre)}
+ html.carta .cab-fija .sub{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+   white-space:nowrap;color:var(--ct-3);font:calc(12px * var(--escala,1)) var(--ct-ui)}
+ /* El proyecto adelante del nombre: mismo renglón, más apagado, y se achica él primero. */
+ html.carta .cab-fija .proyCab{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+   white-space:nowrap;color:var(--ct-3);font:calc(13px * var(--escala,1)) var(--ct-ui)}
+ html.carta .cab-fija .nomEdit{font:600 calc(15px * var(--escala,1))/1.3 var(--ct-nombre);margin:-2px -6px;
+   padding:2px 6px}
+ @media (prefers-reduced-motion:reduce){html.carta .cab-fija .cab-caja{transition:none}}
+ /* ⭐ La barrita está SIEMPRE (Martín, 2026-11-11, con una captura de ella flotando sobre
+    el hilo: "me gusta cómo queda acá, que siempre esté ahí nomás"). Se probó el nombre en
+    la barra de arriba y no lo quiso. Como la barrita ya dice el nombre, el título grande
+    sobra; su lugar lo ocupa el margen, para que el primer mensaje no quede abajo de ella. */
+ html.carta #cuerpo > .cab-fija{margin-bottom:calc(58px + 10px * var(--u))}
+ html.carta #cuerpo > .cab-fija .cab-caja{opacity:1;transform:none;pointer-events:auto}
+ html.carta #cuerpo > .cab-fija + .carta-cab{display:none}
+ /* El color y la forma de su pestaña (los pone `teñirCab()` y `aplicarFormas()`): lo que
+    elegís en el ⋯ de la barrita se tiene que ver EN la barrita. */
+ html.carta #cuerpo > .cab-fija .cab-caja.pintada{
+   background-color:color-mix(in srgb,var(--tn-f) 94%,transparent);border-color:var(--tn-m)}
+ html.carta #cuerpo > .cab-fija .cab-caja.pintada .nom{color:var(--tn-l)}
+ html.carta #cuerpo[data-ftab="cuadrada"] > .cab-fija .cab-caja{border-radius:0}
+ html.carta #cuerpo[data-ftab="pildora"] > .cab-fija .cab-caja{border-radius:999px;padding-left:20px}
+ html.carta #cuerpo[data-ftab="hoja"] > .cab-fija .cab-caja{border-radius:18px 5px 18px 5px}
+ html.carta #cuerpo[data-ftab="arco"] > .cab-fija .cab-caja{border-radius:20px 20px 6px 6px}
+ html.carta #cuerpo[data-ftab="cinta"] > .cab-fija .cab-caja{border-radius:5px;
+   border-left:4px solid var(--tn-l,var(--acento))}
+ /* ⚠ Pestaña, Cortada y Flecha NO se recortan en la barrita: estiradas a todo lo ancho
+    quedaban como una cuña oscura y torcida (Martín, 2026-11-11: "quedó muy feo"). Ahí la
+    barrita se queda con su borde redondeado de siempre. */
+ /* ⭐ El nombre va CENTRADO (Martín, 2026-11-11). El ⋯ sale del renglón y queda clavado a
+    la derecha: si no, su ancho correría el centro. El relleno es igual de los dos lados por
+    lo mismo, y va DESPUÉS de las formas para ganarles a su relleno de costado. */
+ html.carta #cuerpo > .cab-fija .cab-caja,
+ html.carta #cuerpo[data-ftab] > .cab-fija .cab-caja{justify-content:center;
+   padding-left:48px;padding-right:48px}
+ html.carta #cuerpo > .cab-fija .mas{position:absolute;right:10px;top:50%;margin:-15px 0 0}
+ /* El ＋ de sumarla arriba: al lado del ⋯, clavado igual que él para no correr el centro. */
+ html.carta #cuerpo .arriba{flex:none;width:30px;height:30px;padding:0;border:0;border-radius:9px;
+   background:none;color:var(--ct-3);cursor:pointer;font:600 18px/1 var(--ct-ui);opacity:.7}
+ html.carta #cuerpo .arriba:hover{opacity:1;color:var(--ct-tinta);background:rgba(var(--ct),.08)}
+ html.carta #cuerpo > .cab-fija .arriba{position:absolute;right:44px;top:50%;margin:-15px 0 0}
+ html.carta #cuerpo > .cab-fija .cab-caja:has(.arriba){padding-left:82px;padding-right:82px}
+ html.carta #cuerpo > .cab-fija .nomEdit{flex:0 1 360px}
+ /* ⭐ Esconder la barrita (Martín, 2026-11-12: "me gustaría poder esconder esto"). El ︿ va
+    clavado a la IZQUIERDA, espejo del ⋯, y solo se insinúa al pasar por la barrita: es una
+    herramienta, no contenido. Escondida, queda una rayita centrada arriba del hilo (mismo
+    idioma que las pestañas del borde): con el mouse se vuelve un botón oscuro con la ﹀. */
+ html.carta #cuerpo > .cab-fija .ocultarCab{position:absolute;left:10px;top:50%;margin:-15px 0 0;
+   width:30px;height:30px;padding:0;border:0;border-radius:9px;background:none;cursor:pointer;
+   display:flex;align-items:center;justify-content:center;color:var(--ct-3);opacity:0;
+   transition:opacity .15s ease,background-color .15s ease,color .15s ease}
+ html.carta #cuerpo > .cab-fija .cab-caja:hover .ocultarCab,
+ html.carta #cuerpo > .cab-fija .ocultarCab:focus-visible{opacity:.8}
+ html.carta #cuerpo > .cab-fija .ocultarCab:hover{opacity:1;color:var(--ct-tinta);background:rgba(var(--ct),.08)}
+ html.carta #cuerpo > .cab-fija .ocultarCab svg,html.carta #cuerpo > .cab-fija .mostrarCab svg{width:12px;height:12px}
+ html.carta #cuerpo > .cab-fija .mostrarCab{display:none}
+ html.carta body.cab-oculta #cuerpo > .cab-fija{margin-bottom:calc(18px * var(--u))}
+ html.carta body.cab-oculta #cuerpo > .cab-fija .cab-caja{display:none}
+ html.carta body.cab-oculta #cuerpo > .cab-fija .mostrarCab{display:flex;position:absolute;left:50%;top:-4px;
+   width:56px;height:20px;margin-left:-28px;padding:0;border:0;background:none;cursor:pointer;
+   align-items:center;justify-content:center;color:#fff}
+ html.carta body.cab-oculta #cuerpo > .cab-fija .mostrarCab::before{content:'';position:absolute;left:50%;top:50%;
+   width:30px;height:4px;transform:translate(-50%,-50%);border-radius:3px;background:rgba(255,255,255,.45);
+   box-shadow:0 0 0 1px rgba(0,0,0,.12),0 1px 3px rgba(0,0,0,.25);
+   transition:width .18s ease,height .18s ease,border-radius .18s ease,background-color .18s ease}
+ html.carta body.cab-oculta #cuerpo > .cab-fija .mostrarCab svg{position:relative;opacity:0;
+   transform:rotate(180deg);transition:opacity .15s ease}
+ html.carta body.cab-oculta #cuerpo > .cab-fija .mostrarCab:hover::before,
+ html.carta body.cab-oculta #cuerpo > .cab-fija .mostrarCab:focus-visible::before{width:44px;height:20px;
+   border-radius:10px;background:rgba(22,22,28,.86);
+   box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 4px 14px rgba(0,0,0,.38)}
+ html.carta body.cab-oculta #cuerpo > .cab-fija .mostrarCab:hover svg,
+ html.carta body.cab-oculta #cuerpo > .cab-fija .mostrarCab:focus-visible svg{opacity:1}
+ html.carta #cuerpo > .cab-fija .mostrarCab:focus-visible{outline:none}
+ @media (prefers-reduced-motion:reduce){html.carta #cuerpo > .cab-fija .ocultarCab,
+   html.carta #cuerpo > .cab-fija .mostrarCab::before,html.carta #cuerpo > .cab-fija .mostrarCab svg{transition:none}}
+ /* El ícono de la carpeta es un botón: abre el menú de la carpeta (ícono, color y más). */
+ html.carta #cuerpo [data-icono-carpeta]{flex:none;padding:3px 5px;margin:-3px -2px;border:0;
+   border-radius:8px;background:none;color:inherit;cursor:pointer;line-height:1;
+   transition:background-color .15s}
+ html.carta #cuerpo [data-icono-carpeta]:hover{background:rgba(var(--ct),.1)}
  html.carta #hilo{gap:calc(20px * var(--escala,1))}
  html.carta .msg{font-size:calc(15px * var(--escala,1));line-height:1.65}
  html.carta .msg.claude{align-self:stretch;max-width:100%;background:none;border:0;
@@ -1382,6 +1549,15 @@
  html.carta .correo .ini.mas{color:var(--ct-3)}
  html.carta .correo .ini.mas::before{width:16px;height:16px;border-radius:0;
    background:currentColor;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center/contain no-repeat}
+ /* La fila "Nueva subcarpeta" (2026-11-12): el mismo trazo, con una carpeta y su "+". */
+ html.carta .correo .ini.carpetaMas::before{width:17px;height:17px;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z'/%3E%3Cpath d='M12 11v5M9.5 13.5h5'/%3E%3C/svg%3E") center/contain no-repeat}
+ html.carta .correo .nomSubB{width:100%;max-width:360px;box-sizing:border-box;padding:4px 8px;margin:-4px -8px 2px;
+   font:inherit;font-size:calc(14.5px * var(--escala,1));color:var(--ct-tinta);background:rgba(var(--ct),.07);
+   border:1px solid var(--acento);border-radius:9px;outline:none}
+ /* En la misma columna que las charlas (`--ct-col`, centrada), como `.subgrupo` y `.correo`. */
+ html.carta #cuerpo .subvaciaB{max-width:var(--ct-col);margin-left:auto;margin-right:auto;box-sizing:border-box;
+   padding:12px 6px 12px 34px;font-size:calc(12.5px * var(--escala,1));color:var(--ct-3);
+   font-style:italic;border-bottom:1px solid var(--ct-regla)}
  html.carta .correo .lapiz:not(.despl){position:relative;flex:none;font-size:0;width:30px;
    height:30px;padding:0;border-radius:8px;opacity:.55}
  html.carta .correo .lapiz:not(.despl)::before{content:'';position:absolute;inset:0;margin:auto;
@@ -1625,6 +1801,13 @@
  html.carta.vidrio section#cuerpo{margin-top:14px}
  html.carta.vidrio .carta-cab h1{font:600 calc(30px * var(--escala,1))/1.12 var(--ct-nombre);
    letter-spacing:-.015em}
+ /* La barrita fija del nombre, del mismo vidrio que los menús. */
+ html.carta.vidrio .cab-fija .cab-caja{backdrop-filter:var(--vd-esmeril);
+   /* Más tapada que la hoja común: va ENCIMA del texto del chat, y con la hoja de vidrio
+      las letras de abajo se leían a través del nombre. */
+   background-color:color-mix(in srgb,var(--fondo) 94%,transparent);
+   background-image:var(--vd-grano);border:1px solid var(--vd-filo);
+   box-shadow:var(--vd-luz),var(--vd-peso)}
  html.carta.vidrio .cabeza b{font:600 calc(28px * var(--escala,1))/1.12 var(--ct-nombre);
    letter-spacing:-.015em}
  html.carta.vidrio.con-foto .msg.claude,html.carta.vidrio.con-foto .carta-cab{background:none;
@@ -1727,6 +1910,11 @@
    mask-image:linear-gradient(to bottom,rgba(0,0,0,0) 0,#000 var(--vd-fundido),
      #000 calc(100% - 26px),rgba(0,0,0,0) 100%)}
  @keyframes vdFundido{to{--vd-fundido:30px}}
+/* Con la barrita del nombre arriba, el fundido de arriba la borraría: ella ya tapa el
+   texto que sube, así que ahí se apaga y queda solo el de abajo. */
+html.carta.vidrio section#cuerpo:has(> .cab-fija){
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),rgba(0,0,0,0) 100%);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),rgba(0,0,0,0) 100%)}
  html.carta.vidrio .msg.vos{box-shadow:inset 0 1px 0 rgba(255,255,255,.2),
    0 1px 2px rgba(0,0,0,calc(.28 * min(1,var(--vd-k)))),
    0 10px 22px -14px rgba(0,0,0,min(.6,var(--vd-k)))}
@@ -1748,6 +1936,62 @@
    box-shadow:var(--vd-luz),var(--vd-peso)}
  html.carta.vidrio #menuTarjeta{background:var(--ct-pieza);backdrop-filter:var(--vd-esmeril);
    border-radius:14px}
+ /* ⭐ El menú ⚡ de skills y comandos (2026-11-11, Martín: "quedó feo a comparación del
+    resto del panel"). Su CSS de fábrica vive en atajos.js y es una caja azul oscura
+    opaca, pensada antes del vidrio; acá se viste igual que el menú del modelo y el de la
+    tarjeta: el mismo vidrio, el mismo filo, la misma sombra y filas que se iluminan en
+    blanco en vez de en azul. Llevan `html.carta.vidrio` adelante, así que pesan más que
+    las de atajos.js aunque ese <style> se inyecte después. */
+ html.carta.vidrio .at-menu{backdrop-filter:var(--vd-esmeril);
+   background-color:var(--vd-hoja,color-mix(in srgb,var(--fondo) 58%,transparent));
+   background-image:linear-gradient(180deg,rgba(255,255,255,calc(.06 * var(--vd-b,1))),rgba(255,255,255,0) 160px),var(--vd-grano);
+   border:1px solid var(--vd-filo);border-radius:16px;box-shadow:var(--vd-luz),var(--vd-peso);
+   padding:8px;font-family:var(--ct-ui);scrollbar-width:thin;
+   scrollbar-color:rgba(255,255,255,.18) transparent}
+ html.carta.vidrio .at-menu .at-buscar{background:transparent;backdrop-filter:var(--vd-esmeril);
+   border-bottom:1px solid var(--ct-regla);margin:-8px -8px 6px;padding:8px;top:-8px;
+   border-radius:16px 16px 0 0}
+ html.carta.vidrio .at-menu .at-buscar input{background:rgba(255,255,255,.07);
+   border:1px solid rgba(255,255,255,.12);border-radius:11px;color:var(--ct-tinta);
+   box-shadow:inset 0 1px 2px rgba(0,0,0,.18)}
+ html.carta.vidrio .at-menu .at-buscar input::placeholder{color:var(--ct-3)}
+ html.carta.vidrio .at-menu .at-buscar input:focus{border-color:rgba(255,255,255,.34);
+   background:rgba(255,255,255,.1)}
+ html.carta.vidrio .at-menu .titulo{color:var(--ct-3);font-size:10px;letter-spacing:.16em;
+   padding:8px 10px 6px}
+ html.carta.vidrio .at-menu .fila{border-radius:10px}
+ html.carta.vidrio .at-menu .fila:hover{background:rgba(255,255,255,.08)}
+ html.carta.vidrio .at-menu .fila.primera{background:rgba(255,255,255,.12);
+   box-shadow:inset 0 1px 0 rgba(255,255,255,.16)}
+ html.carta.vidrio .at-menu .nombre{color:var(--ct-tinta)}
+ html.carta.vidrio .at-menu .desc,html.carta.vidrio .at-menu .aviso{color:var(--ct-2)}
+ html.carta.vidrio .at-menu .pie{color:var(--ct-3);border-top-color:var(--ct-regla)}
+ html.carta.vidrio .at-menu .pie b{color:var(--ct-2);font-weight:600}
+ html.carta.vidrio .at-menu .chapa{background:color-mix(in srgb,var(--ok) 13%,transparent);
+   color:color-mix(in srgb,var(--ok) 70%,white);
+   border-color:color-mix(in srgb,var(--ok) 28%,transparent)}
+ html.carta.vidrio .at-menu .chapa.proy{background:rgba(255,255,255,.07);color:var(--ct-2);
+   border-color:rgba(255,255,255,.14)}
+ /* Las sugerencias del "/" en la caja (2026-11-11, "le faltan los colores de la
+    interfaz"): el mismo vidrio que el menú ⚡ de arriba, para que sean la misma familia. */
+ /* ⚠ Fondo OPACO, no el vidrio del ⚡: flota encima del texto de la charla y con
+    cualquier transparencia (probado: esmeril, mezclas con `--fondo`, y hasta un
+    rgba al 93 %) las letras de atrás se leían entre los renglones. Solo un color
+    lleno lo tapó del todo. El borde, la luz y las tintas sí son las del vidrio. */
+ html.carta.vidrio .at-sug{background:#0d1017 !important;
+   border:1px solid var(--vd-filo);border-radius:14px;box-shadow:var(--vd-luz),var(--vd-peso);
+   padding:6px;font-family:var(--ct-ui);scrollbar-color:rgba(255,255,255,.18) transparent}
+ html.carta.vidrio .at-sug .fila{border-radius:9px}
+ html.carta.vidrio .at-sug .fila:hover{background:rgba(255,255,255,.06)}
+ html.carta.vidrio .at-sug .fila.activa{background:rgba(255,255,255,.12);
+   box-shadow:inset 0 1px 0 rgba(255,255,255,.16)}
+ html.carta.vidrio .at-sug .nombre{color:var(--ct-tinta)}
+ html.carta.vidrio .at-sug .fila.activa .nombre{color:var(--ct-tinta)}
+ html.carta.vidrio .at-sug .desc{color:var(--ct-3)}
+ html.carta.vidrio .at-sug .fila.activa .desc{color:var(--ct-2)}
+ html.carta.vidrio .at-sug .grupo{color:var(--ct-3);letter-spacing:.16em}
+ html.carta.vidrio .at-sug .grupo.plegable:hover{color:var(--ct-2)}
+ html.carta.vidrio .at-sug .ayuda{color:var(--ct-3);border-top-color:var(--ct-regla)}
 
  /* --- Las luces: lo elegido es UNA pieza de luz que viaja, no un fondo que se prende ---
     En las pestañas y en el riel. Cada lista se rearma entera al tocarla, así que la luz
@@ -1773,6 +2017,287 @@
  html.carta.vidrio.con-luces #carpetas:not(:has(.deslizando,.acomodando,.se-va,.vuelve)) .carpeta.sel{
    background:transparent !important;box-shadow:none}
  html.carta.vidrio.con-luces #carpetas:has(.deslizando,.acomodando,.se-va,.vuelve) #luzRiel{opacity:0}
+
+ /* ======================================================================================
+    ⭐⭐ VIDRIO CON BANDEJA (2026-11-11) — la tercera piel del casco nuevo.
+    Martín vio el boceto "Bandeja" (ronda 4) y pidió: *"crealo como estilo nuevo con la
+    temática que ya tengo"*. Es TODO lo de Vidrio (la pantalla lleva `carta` y `vidrio`) y
+    la clase `vbandeja` cambia dos cosas, nada más:
+      1. el riel de carpetas se achica a una tira de emojis (el nombre queda en el globito);
+      2. con una charla abierta aparece al lado `#colCharlas`: las charlas de ESA carpeta,
+         con filtros, siempre a la vista. Sin charla abierta no se muestra: la bandeja ya
+         está en el medio y sería la misma lista dos veces.
+    ⚠ Esa columna se descartó el 2026-08-16 para la pantalla de siempre. Acá vuelve SOLO
+    como estilo a elección: los demás estilos no tienen el `#colCharlas` ni a la vista ni
+    ocupando lugar (`display:none` de base, y así no entra en la grilla de `main`).
+    ⚠ Las dos piezas comparten la columna 1 de la grilla: el riel se pega a la izquierda y
+    la lista a la derecha (`justify-self`). Así nada de lo que está en las columnas 2 y 3
+    (barras, charla, caja, hojas de vidrio) se tiene que correr. El ancho del riel
+    arrastrable (`--lat`) no aplica acá. */
+ #colCharlas{display:none}
+ /* ⭐ Los anchos son VARIABLES (Martín, 2026-11-11: "quiero poder estirar los bordes"):
+    --rr es lo que mide el riel (64 la tira; --rw el ancho, que se estira) y --cw la lista.
+    Todo lo demás —la columna, las pestañas, los bordes— se calcula de esas dos, así que al
+    estirar nada queda desfasado. Entre pieza y pieza, siempre 14 px. */
+ html.carta.vbandeja body{--rr:64px;grid-template-columns:calc(var(--rr) + 14px) minmax(0,1fr) var(--der,0px)}
+ html.carta.vbandeja body.riel-ancho{--rr:var(--rw,220px)}
+ html.carta.vbandeja body.con-col{grid-template-columns:calc(var(--rr) + var(--cw,344px) + 28px) minmax(0,1fr) var(--der,0px)}
+ html.carta.vbandeja body.lateral-oculto{grid-template-columns:0 minmax(0,1fr) var(--der,0px)}
+ /* ⭐ El riel ancho (Martín, 2026-11-11: "en la barra más a la izquierda también quiero ese
+    botón para que muestre el nombre entero de la carpeta"): la pestaña de su borde lo abre
+    a 220 px con emoji + nombre + número, como la barra de espacios de ClickUp, y lo
+    vuelve a la tira. Todo lo que achica las carpetas va con `body:not(.riel-ancho)`. */
+ html.carta.vbandeja aside{justify-self:start;width:var(--rr);margin-right:0;overflow:hidden}
+ html.carta.vbandeja #paneProy{max-height:none;flex:1 1 auto;min-height:0;
+   padding:calc(14px * var(--u)) 0 calc(8px * var(--u));scrollbar-width:none}
+ html.carta.vbandeja #paneProy::-webkit-scrollbar{display:none}
+ /* ⭐⭐ "A medida que voy añadiendo proyectos, se van saliendo otros" (Martín, 2026-11-12).
+    No se iban: quedaban ABAJO. La lista se desplaza pero la barra va escondida (en la tira
+    de 64 px no hay lugar para una), y con 24 carpetas ya no entran: cada una nueva empujaba
+    otra fuera de la vista, "Agregar una carpeta…" incluido, sin ninguna señal. Ahora:
+    - un degradé en el borde donde sigue habiendo carpetas (abajo, y arriba si bajaste);
+    - una pastilla "▾ 3 más" abajo, que baja hasta el final al tocarla;
+    - con el riel ancho, una barra fina al pasar el mouse.
+    Las clases las pone `medirRiel()` midiendo, no adivinando. */
+ html.carta.vbandeja #paneProy.hay-abajo{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent);
+   mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent)}
+ html.carta.vbandeja #paneProy.hay-arriba{-webkit-mask-image:linear-gradient(to bottom,transparent,#000 40px);
+   mask-image:linear-gradient(to bottom,transparent,#000 40px)}
+ html.carta.vbandeja #paneProy.hay-arriba.hay-abajo{
+   -webkit-mask-image:linear-gradient(to bottom,transparent,#000 40px,#000 calc(100% - 56px),transparent);
+   mask-image:linear-gradient(to bottom,transparent,#000 40px,#000 calc(100% - 56px),transparent)}
+ html.carta.vbandeja body.riel-ancho #paneProy{scrollbar-width:thin;scrollbar-color:transparent transparent}
+ html.carta.vbandeja body.riel-ancho #paneProy:hover{scrollbar-color:rgba(255,255,255,.28) transparent}
+ #masAbajo{display:none}
+ html.carta.vbandeja body:not(.lateral-oculto) #masAbajo.hay{display:flex}
+ html.carta.vbandeja #masAbajo{grid-column:1;grid-row:1 / 6;align-self:end;justify-self:start;z-index:3;
+   width:var(--rr);margin-bottom:12px;justify-content:center;pointer-events:none}
+ html.carta.vbandeja #masAbajo button{pointer-events:auto;cursor:pointer;border:1px solid var(--vd-filo);
+   border-radius:99px;padding:3px 10px;font:600 11.5px/1.4 var(--ct-ui);color:var(--ct-tinta);
+   background:rgba(22,22,28,.82);box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap}
+ html.carta.vbandeja #masAbajo button:hover{background:rgba(34,34,42,.92)}
+ html.carta.vbandeja body:not(.riel-ancho) #masAbajo button{padding:3px 7px}
+ html.carta.vbandeja #paneArch,html.carta.vbandeja #tirador,html.carta.vbandeja #marcaCarta,
+ html.carta.vbandeja #paneProy .rubro,html.carta.vbandeja #buscar,
+ html.carta.vbandeja body:not(.riel-ancho) .carpeta .nom,html.carta.vbandeja body:not(.riel-ancho) .carpeta .num,
+ html.carta.vbandeja .carpeta .estrellas,html.carta.vbandeja .carpeta .hueco,
+ html.carta.vbandeja .carpeta .naveg,html.carta.vbandeja .carpeta .plegar,
+ html.carta.vbandeja #carpetas .subcarpeta,html.carta.vbandeja #carpetas .subgrupo,
+ html.carta.vbandeja body:not(.riel-ancho) .carpeta.escondida{display:none !important}
+ html.carta.vbandeja body.riel-ancho .carpeta.escondida{padding-left:22px}
+ /* Cada carpeta, un cuadrado con su emoji. Su color y la luz que viaja son los de Vidrio. */
+ html.carta.vbandeja body:not(.riel-ancho) .carpeta{width:44px;height:44px;margin:0 auto calc(6px * var(--u));
+   padding:0;gap:0;justify-content:center;border-radius:13px}
+ html.carta.vbandeja .carpeta > span:first-child{font-size:20px;line-height:1}
+ html.carta.vbandeja body:not(.riel-ancho) .carpeta .vive{position:absolute;top:5px;right:5px;margin:0}
+ html.carta.vbandeja body.riel-ancho .carpeta{margin:0 8px calc(4px * var(--u));border-radius:12px}
+ /* ⭐ "Escondidas" SE VE también en este estilo (2026-11-12): es el único camino para devolver
+    una carpeta que sacaste, y estaba oculto — con 20 escondidas y ninguna forma de verlas.
+    En la tira es un cuadrado con 🙈; tocarlo abre el riel con nombres y la lista. */
+ html.carta.vbandeja body:not(.riel-ancho) #verOcultas > span:first-child{display:none}
+ html.carta.vbandeja body:not(.riel-ancho) #verOcultas::before{content:'🙈';font-size:18px;line-height:1;opacity:.75}
+ html.carta.vbandeja body:not(.riel-ancho) #sumar{font-size:0;color:var(--ct-2)}
+ html.carta.vbandeja body:not(.riel-ancho) #sumar::before{content:'＋';font-size:18px}
+ /* ⭐ Las PESTAÑAS DEL BORDE (Martín, 2026-11-11: "no me copan los botones » / «… se
+    pierden"). Ni en la cabecera ni al pie: cada barra lleva una pestañita de vidrio
+    montada sobre su borde derecho, como Notion o Linear. Se ve siempre, se encuentra sin
+    buscar, y la flecha apunta para donde se va a mover la barra.
+    - #anchoRiel: ARRIBA, sobre el borde del riel → nombres de las carpetas sí/no.
+    - #abrirCol:  al MEDIO, sobre el borde de la lista → la contrae; contraída queda en el
+      mismo hueco (entre el riel y la charla) y la vuelve a abrir.
+    Las dos caen JUSTO en el centro del hueco de 14 px entre piezas.
+    ⭐ Se pueden ARRASTRAR para arriba o abajo por el borde (Martín: "me gustaría poder
+    manipular la disposición de donde está ese botón"): la altura se guarda en el navegador
+    (`sesPestRiel`, `sesPestCol`) y la pone `ubicarPestanas()` en --ya/--yb. Si las dos
+    terminan en el mismo hueco a la misma altura, la de la lista se corre: nunca se pisan. */
+ #anchoRiel,#abrirCol,#bordeRiel,#bordeCol{display:none}
+ html.carta.vbandeja body:not(.lateral-oculto) #anchoRiel,
+ html.carta.vbandeja body.con-col:not(.lateral-oculto) #abrirCol,
+ html.carta.vbandeja body.col-cerrada:not(.lateral-oculto) #abrirCol{display:flex}
+ /* ⭐ Cómo se ven (Martín, 2026-11-11, con captura: "se sigue viendo feo"): el vidrio
+    translúcido tomaba el color de la foto y quedaba una mancha sobre la curva de la
+    esquina. Ahora, QUIETA es una rayita fina y clara en el centro del hueco (se encuentra,
+    no ensucia); al pasar por el borde o por ella se convierte en un botón OSCURO y opaco
+    con la flecha, nítido sobre cualquier fondo. La caja de 18×40 es solo el lugar donde
+    se toca: lo que se dibuja es el ::before. */
+ html.carta.vbandeja #anchoRiel,html.carta.vbandeja #abrirCol{align-items:center;justify-content:center;
+   grid-column:1;grid-row:1 / 6;justify-self:start;align-self:start;z-index:5;padding:0;
+   position:relative;width:18px;height:40px;border:0;background:none;cursor:pointer;
+   color:#fff;touch-action:none}
+ html.carta.vbandeja #anchoRiel::before,html.carta.vbandeja #abrirCol::before{content:'';position:absolute;
+   left:50%;top:50%;width:4px;height:26px;transform:translate(-50%,-50%);border-radius:3px;
+   background:rgba(255,255,255,.5);box-shadow:0 0 0 1px rgba(0,0,0,.12),0 1px 3px rgba(0,0,0,.25);
+   transition:width .18s ease,height .18s ease,border-radius .18s ease,background-color .18s ease,box-shadow .18s ease}
+ html.carta.vbandeja #anchoRiel svg,html.carta.vbandeja #abrirCol svg{position:relative;opacity:0;
+   transition:opacity .15s ease,transform .2s ease}
+ html.carta.vbandeja #anchoRiel{margin:var(--ya,30px) 0 0 calc(var(--rr) - 2px)}
+ html.carta.vbandeja #abrirCol{margin:var(--yb,40vh) 0 0 calc(var(--rr) - 2px)}
+ html.carta.vbandeja body.con-col #abrirCol{margin-left:calc(var(--rr) + var(--cw,344px) + 12px)}
+ /* Se despliega con el mouse encima de ella o de su borde, con el teclado, o arrastrándola. */
+ html.carta.vbandeja #anchoRiel:hover::before,html.carta.vbandeja #abrirCol:hover::before,
+ html.carta.vbandeja #bordeRiel:hover ~ #anchoRiel::before,
+ html.carta.vbandeja body.con-col #bordeCol:hover ~ #abrirCol::before,
+ html.carta.vbandeja body.col-cerrada #bordeRiel:hover ~ #abrirCol::before,
+ html.carta.vbandeja #anchoRiel:focus-visible::before,html.carta.vbandeja #abrirCol:focus-visible::before,
+ html.carta.vbandeja #anchoRiel.moviendo::before,html.carta.vbandeja #abrirCol.moviendo::before{
+   width:20px;height:38px;border-radius:10px;background:rgba(22,22,28,.86);
+   box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 4px 14px rgba(0,0,0,.38)}
+ html.carta.vbandeja #anchoRiel:hover svg,html.carta.vbandeja #abrirCol:hover svg,
+ html.carta.vbandeja #bordeRiel:hover ~ #anchoRiel svg,
+ html.carta.vbandeja body.con-col #bordeCol:hover ~ #abrirCol svg,
+ html.carta.vbandeja body.col-cerrada #bordeRiel:hover ~ #abrirCol svg,
+ html.carta.vbandeja #anchoRiel:focus-visible svg,html.carta.vbandeja #abrirCol:focus-visible svg,
+ html.carta.vbandeja #anchoRiel.moviendo svg,html.carta.vbandeja #abrirCol.moviendo svg{opacity:1}
+ html.carta.vbandeja #anchoRiel:hover::before,html.carta.vbandeja #abrirCol:hover::before{background:rgba(34,34,42,.92)}
+ html.carta.vbandeja #anchoRiel.moviendo,html.carta.vbandeja #abrirCol.moviendo{cursor:grabbing}
+ /* Arrastrando la lista por debajo del mínimo: se apaga un poco, avisando que al soltar se contrae. */
+ html.carta.vbandeja body.va-a-cerrar #colCharlas{opacity:.45}
+ html.carta.vbandeja #anchoRiel:focus-visible,html.carta.vbandeja #abrirCol:focus-visible{outline:none}
+ html.carta.vbandeja #anchoRiel svg,html.carta.vbandeja #abrirCol svg{width:10px;height:10px}
+ /* La flecha apunta para donde se mueve: › abre, ‹ cierra. */
+ html.carta.vbandeja body.riel-ancho #anchoRiel svg,
+ html.carta.vbandeja body.con-col #abrirCol svg{transform:rotate(180deg)}
+ /* ⭐ Los BORDES ESTIRABLES: todo el hueco entre piezas es una manija (cursor ↔). Al pasar
+    se ilumina una rayita; arrastrando, el riel y la lista cambian de ancho en vivo. Por
+    debajo de un mínimo se pliegan solos (el riel a la tira, la lista se contrae), y
+    tirando del borde de la tira se abre el riel con nombres: como ClickUp. Los anchos se
+    guardan en el navegador (`sesRielW`, `sesColW`). */
+ html.carta.vbandeja body:not(.lateral-oculto) #bordeRiel,
+ html.carta.vbandeja body.con-col:not(.lateral-oculto) #bordeCol{display:block}
+ html.carta.vbandeja #bordeRiel,html.carta.vbandeja #bordeCol{grid-column:1;grid-row:1 / 6;
+   justify-self:start;align-self:stretch;width:14px;z-index:4;cursor:col-resize;touch-action:none;
+   margin-left:var(--rr);position:relative}
+ html.carta.vbandeja #bordeCol{margin-left:calc(var(--rr) + var(--cw,344px) + 14px)}
+ html.carta.vbandeja #bordeRiel::after,html.carta.vbandeja #bordeCol::after{content:'';position:absolute;
+   left:6px;top:28px;bottom:28px;width:2px;border-radius:2px;background:rgba(255,255,255,.4);
+   opacity:0;transition:opacity .15s ease .1s}
+ html.carta.vbandeja #bordeRiel:hover::after,html.carta.vbandeja #bordeCol:hover::after,
+ html.carta.vbandeja body.estirando #bordeRiel.activo::after,
+ html.carta.vbandeja body.estirando #bordeCol.activo::after{opacity:1}
+ html.carta.vbandeja body.estirando,html.carta.vbandeja body.estirando *{cursor:col-resize !important;
+   user-select:none !important;transition:none !important}
+ html.carta.vbandeja body.moviendo-pestana,html.carta.vbandeja body.moviendo-pestana *{cursor:grabbing !important;
+   user-select:none !important}
+ @media (prefers-reduced-motion:reduce){html.carta.vbandeja #anchoRiel,html.carta.vbandeja #abrirCol,
+   html.carta.vbandeja #anchoRiel svg,html.carta.vbandeja #abrirCol svg,
+   html.carta.vbandeja #anchoRiel::before,html.carta.vbandeja #abrirCol::before,
+   html.carta.vbandeja #bordeRiel::after,html.carta.vbandeja #bordeCol::after{transition:none}}
+
+ /* La lista de charlas: la sexta pieza de vidrio, solo en este estilo. */
+ html.carta.vbandeja body.con-col #colCharlas{display:flex;flex-direction:column;
+   grid-column:1;grid-row:1 / 6;justify-self:end;width:var(--cw,344px);margin-right:14px;min-height:0;
+   border-radius:24px;overflow:hidden;
+   background:var(--vd-vidrio);backdrop-filter:var(--vd-esmeril);border:1px solid var(--vd-filo);
+   background-image:linear-gradient(180deg,rgba(255,255,255,calc(.075 * var(--vd-b,1))),rgba(255,255,255,0) 190px),var(--vd-grano);
+   box-shadow:var(--vd-luz),var(--vd-peso)}
+ html.carta.vbandeja body.lateral-oculto #colCharlas{display:none}
+ #colCharlas .cc-cab{display:flex;align-items:center;gap:8px;
+   padding:calc(16px * var(--u)) calc(16px * var(--u)) calc(8px * var(--u))}
+ #colCharlas .cc-cab b{font:600 calc(16px * var(--u))/1.2 var(--ct-nombre);color:var(--ct-tinta);
+   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #colCharlas .cc-cab small{color:var(--ct-3);font-size:calc(12px * var(--u));flex:none}
+ /* El ícono y el nombre de la carpeta se tocan para editarlos: se insinúan al pasar. */
+ #colCharlas .cc-cab .cc-ico{flex:none;margin:-4px -4px -4px -6px;padding:3px 5px;border:0;border-radius:8px;
+   background:none;color:inherit;cursor:pointer;font-size:calc(17px * var(--u));line-height:1;
+   transition:background-color .15s}
+ #colCharlas .cc-cab .cc-ico:hover{background:rgba(255,255,255,.12)}
+ #colCharlas .cc-cab b[data-cc-nom]{min-width:0;cursor:text;border-radius:6px;
+   transition:background-color .15s,box-shadow .15s}
+ #colCharlas .cc-cab b[data-cc-nom]:hover{background:rgba(255,255,255,.08);box-shadow:0 0 0 4px rgba(255,255,255,.08)}
+ #colCharlas .cc-cab .cc-cabEdit{flex:1;width:auto;margin:-3px 0;font:600 calc(16px * var(--u))/1.2 var(--ct-nombre)}
+ #colCharlas .cc-cab .cc-nueva{margin-left:auto;flex:none;cursor:pointer;color:var(--ct-2);
+   font-size:calc(17px * var(--u));line-height:1;padding:2px 6px;border-radius:8px}
+ #colCharlas .cc-cab .cc-nueva:hover{background:rgba(255,255,255,.1);color:var(--ct-tinta)}
+ /* 📁＋ "Nueva subcarpeta", al lado del ＋ de charla nueva (2026-11-12). */
+ #colCharlas .cc-cab .cc-nueva + .cc-nueva{margin-left:0}
+ #colCharlas .cc-cab .cc-nuevasub{display:inline-flex;align-items:center;padding:3px 5px}
+ #colCharlas .cc-cab .cc-nuevasub svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;
+   stroke-linecap:round;stroke-linejoin:round}
+ /* El ＋ de cada subcarpeta (empezar una charla adentro): aparece al pasar, junto al ⋯. */
+ #colCharlas .cc-sub .cc-subnueva{font-weight:400;font-size:14px}
+ #colCharlas .cc-subvacia{padding:8px 10px;font-size:calc(11.5px * var(--u));color:var(--ct-3);font-style:italic}
+ #colCharlas .cc-subcrear{cursor:default}
+ #colCharlas .cc-subcrear .cc-nomEdit{margin:-3px 0;flex:1;font:600 calc(12.5px * var(--u)) var(--ct-ui)}
+ /* ⭐ Los filtros se ADAPTAN al ancho (Martín, 2026-11-12, con captura de "Quietas 4"
+    cortado: "estos botones no son reactivos"). Se reparten el renglón entero; si la lista
+    se angosta pasan a la palabra corta ("Trabajan", "Esperan"), y más angosta todavía
+    achican el relleno. Nunca dos renglones ni scroll escondido. Lo mide la LISTA, no la
+    ventana (`container-type`), porque la lista se estira sola. */
+ html.carta.vbandeja body.con-col #colCharlas{container-type:inline-size}
+ #colCharlas .cc-filtros{display:flex;flex-wrap:nowrap;gap:4px;overflow:hidden;
+   padding:0 calc(12px * var(--u)) calc(10px * var(--u));border-bottom:1px solid var(--ct-regla)}
+ #colCharlas .cc-filtros > span{cursor:pointer;border-radius:99px;padding:3px 8px;white-space:nowrap;
+   flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:center;
+   font-size:calc(11.5px * var(--u));color:var(--ct-2);border:1px solid var(--ct-regla2)}
+ #colCharlas .cc-filtros .corto{display:none}
+ @container (max-width:340px){
+   #colCharlas .cc-filtros .largo{display:none}
+   #colCharlas .cc-filtros .corto{display:inline}}
+ @container (max-width:280px){
+   #colCharlas .cc-filtros{gap:3px;padding-left:8px;padding-right:8px}
+   #colCharlas .cc-filtros > span{padding:3px 5px;font-size:calc(10.5px * var(--u))}}
+ #colCharlas .cc-filtros span:hover{color:var(--ct-tinta)}
+ #colCharlas .cc-filtros span.sel{background:rgba(255,255,255,.17);color:var(--ct-tinta);
+   border-color:transparent}
+ #colCharlas .cc-filtros i{font-style:normal;color:var(--ct-3);margin-left:3px}
+ #colCharlas .cc-lista{flex:1;min-height:0;overflow-y:auto;padding:6px 8px 10px}
+ #colCharlas .cc-it{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;
+   gap:2px 10px;padding:calc(9px * var(--u)) 10px;border-radius:12px;cursor:pointer}
+ #colCharlas .cc-it:hover{background:rgba(255,255,255,.07)}
+ #colCharlas .cc-it.sel{background:rgba(255,255,255,.12);box-shadow:inset 3px 0 0 var(--acento)}
+ #colCharlas .cc-it .cc-luz{grid-row:1;width:9px;display:flex;justify-content:center}
+ #colCharlas .cc-it b{font-weight:600;font-size:calc(13.5px * var(--u));color:var(--ct-tinta);
+   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #colCharlas .cc-it time{font:calc(11.5px * var(--u)) var(--ct-dato);color:var(--ct-3)}
+ #colCharlas .cc-it p{grid-column:2 / 4;margin:0;font-size:calc(12px * var(--u));color:var(--ct-2);
+   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #colCharlas .cc-it p em{font-style:normal;color:var(--ct-3)}
+ #colCharlas .cc-vacio{padding:18px 14px;color:var(--ct-3);font-size:calc(12.5px * var(--u))}
+ /* Las subcarpetas, como en ClickUp: renglón con flechita y las charlas adentro con sangría. */
+ #colCharlas .cc-sub{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;
+   margin-top:4px;padding:calc(7px * var(--u)) 10px;border-radius:10px;color:var(--ct-2);
+   font-size:calc(12.5px * var(--u));font-weight:600}
+ #colCharlas .cc-sub:hover{background:rgba(255,255,255,.07);color:var(--ct-tinta)}
+ #colCharlas .cc-sub .cc-flecha{flex:none;width:10px;font-size:10px;transition:transform .15s;
+   transform:rotate(90deg);color:var(--ct-3)}
+ #colCharlas .cc-grupo.plegado .cc-flecha{transform:none}
+ #colCharlas .cc-sub .cc-subnom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ #colCharlas .cc-sub small{flex:none;font-weight:400;color:var(--ct-3)}
+ #colCharlas .cc-sub .ptoSub{flex:none;width:7px;height:7px;border-radius:50%}
+ #colCharlas .cc-hijas{margin-left:14px;padding-left:4px;border-left:1px solid var(--ct-regla)}
+ #colCharlas .cc-sueltas{margin-top:6px}
+ /* ⭐ Editar desde la lista (Martín, 2026-11-12: "poder editar las sesiones desde acá, con
+    nombre y colores y demás, y poder hacer drag&drop"). Cada charla y cada subproyecto
+    llevan un ⋯ que aparece al pasar (en el lugar de la hora, para no correr nada) y el
+    mismo menú con el botón derecho. Doble clic en el nombre lo edita ahí mismo. */
+ #colCharlas .cc-mas{grid-column:3;grid-row:1;display:none;align-items:center;justify-content:center;
+   width:24px;height:20px;margin:-2px -4px -2px 0;border-radius:6px;color:var(--ct-2);
+   font:600 15px/1 var(--ct-ui);letter-spacing:.04em;cursor:pointer}
+ #colCharlas .cc-it:hover time,#colCharlas .cc-it.menu-abierto time{display:none}
+ #colCharlas .cc-it:hover .cc-mas,#colCharlas .cc-it.menu-abierto .cc-mas{display:flex}
+ #colCharlas .cc-mas:hover{background:rgba(255,255,255,.14);color:var(--ct-tinta)}
+ #colCharlas .cc-sub .cc-mas{display:flex;flex:none;opacity:0;margin:-3px -4px -3px 0}
+ #colCharlas .cc-sub:hover .cc-mas{opacity:1}
+ #colCharlas .cc-sub:hover small{display:none}
+ /* El color de la charla, el MISMO de su pestaña de arriba: se elige en un lado y se ve en
+    los dos. Fondo apenas teñido y el nombre en el tono claro, como la pestaña. */
+ #colCharlas .cc-it.pintada{background:color-mix(in srgb,var(--tn-f) 70%,transparent)}
+ #colCharlas .cc-it.pintada:hover{background:color-mix(in srgb,var(--tn-f) 92%,transparent)}
+ #colCharlas .cc-it.pintada b{color:var(--tn-l)}
+ #colCharlas .cc-it.pintada.sel{box-shadow:inset 3px 0 0 var(--tn-l),inset 0 0 0 1px var(--tn-m)}
+ #colCharlas .cc-nomEdit{min-width:0;width:100%;margin:-3px -6px;padding:2px 6px;
+   font:600 calc(13.5px * var(--u)) var(--ct-ui);color:var(--ct-tinta);background:rgba(0,0,0,.25);
+   border:1px solid var(--acento);border-radius:7px;outline:none}
+ /* Arrastrar: la que llevás se apaga, y el grupo donde caería se marca entero. Entre
+    subproyectos, una rayita dice si queda antes o después. */
+ #colCharlas .cc-it[draggable="true"],#colCharlas .cc-sub[draggable="true"]{cursor:grab}
+ #colCharlas .llevada{opacity:.35}
+ #colCharlas .cc-grupo.soltar-aca,#colCharlas .cc-sueltas.soltar-aca{border-radius:12px;
+   background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
+ #colCharlas .cc-sub.soltar-antes{box-shadow:inset 0 2px 0 var(--acento)}
+ #colCharlas .cc-sub.soltar-despues{box-shadow:inset 0 -2px 0 var(--acento)}
+ #colCharlas .cc-soltar-fuera{margin-top:6px;padding:10px;border-radius:12px;text-align:center;
+   font-size:calc(12px * var(--u));color:var(--ct-3);border:1px dashed var(--ct-regla2)}
 
  /* --- La luz de "está trabajando" en la pieza de escribir. Es un filo de 1,5 px del color
     de "trabajando" (el del 🎨) que da la vuelta a la pieza. Se prende SOLA cuando la
@@ -1956,6 +2481,18 @@
    .carpeta .vive.preguntando,.subcarpeta.e-pregunta .pto,.correo.preguntando .ini,
    html.estilo-grok .correo.preguntando::after,html.carta .ast.preguntando{animation:none}
  }
+ /* ⭐ La luz de la pestaña es la pestaña ENTERA teñida (Martín, 2026-11-11). Va como capa de
+    `background-image` encima del color que le elegiste, así no lo pisa: se suman. Tonos
+    suaves; el rojo, solo para lo que falló. Con `#tabs` adelante para ganarle a los estilos. */
+ html #tabs#tabs .tab.luz-viva{background-image:linear-gradient(color-mix(in srgb,var(--aviso) 16%,transparent),color-mix(in srgb,var(--aviso) 16%,transparent)) !important}
+ html #tabs#tabs .tab.luz-trabaja{background-image:linear-gradient(color-mix(in srgb,var(--aviso) 30%,transparent),color-mix(in srgb,var(--aviso) 30%,transparent)) !important;
+   animation:luzLate 1.6s ease-in-out infinite}
+ html #tabs#tabs .tab.luz-espera{background-image:linear-gradient(color-mix(in srgb,var(--ok) 26%,transparent),color-mix(in srgb,var(--ok) 26%,transparent)) !important}
+ html #tabs#tabs .tab.luz-pregunta{background-image:linear-gradient(color-mix(in srgb,var(--pregunta) 30%,transparent),color-mix(in srgb,var(--pregunta) 30%,transparent)) !important;
+   animation:luzLate 1.1s ease-in-out infinite}
+ html #tabs#tabs .tab.luz-falla{background-image:linear-gradient(color-mix(in srgb,var(--mal) 30%,transparent),color-mix(in srgb,var(--mal) 30%,transparent)) !important}
+ @keyframes luzLate{50%{filter:brightness(1.35)}}
+ @media (prefers-reduced-motion:reduce){#tabs .tab.luz-trabaja,#tabs .tab.luz-pregunta{animation:none}}
 </style>
 <!-- El markdown de Claude, dibujado (negritas, titulos, viñetas, codigo). Trae sus
      propios estilos: son los mismos que usa la pestaña de sesiones del celular. -->
@@ -2014,7 +2551,9 @@
      que el menú se achicara a iconos para dejarles lugar a las pestañas. Ahora que no
      comparten renglón no tiene que cederle nada a nadie y se ve siempre entero
      (`menu.js` ya se porta así solo cuando no encuentra rival). -->
-<div id="barraArriba">
+<!-- ⭐ `data-menu-fila`: con las columnas de la izquierda anchas esta barra se angosta, y
+     el menú tiene que achicarse a solo íconos en vez de quedar cortado (2026-11-12). -->
+<div id="barraArriba" data-menu-fila>
   <!-- ⚠ Los dos botones van juntos adentro de `.izq`: sueltos, el `space-between` de la
        fila los repartía y el 👁 quedaba flotando en el medio de la nada. -->
   <!-- ⭐ UN BOTÓN POR COSA, todos acá y todos de un toque (pedido de Martín, 2026-08-18).
@@ -2056,6 +2595,9 @@
 <!-- La terminal de la columna derecha (2026-11-10). Si el panel todavía no la sirve
      (falta reiniciarlo), este archivo no carga y la pieza simplemente no aparece. -->
 <script src="/estaticos/terminal.js"></script>
+<!-- El escritorio remoto por RustDesk (2026-11-12). Igual que la terminal: con un panel sin
+     reiniciar este archivo no carga y la pieza no aparece. -->
+<script src="/estaticos/escritorio.js"></script>
 <main>
   <aside>
     <div id="paneProy">
@@ -2079,6 +2621,15 @@
     </div>
     <div id="tirador" title="Arrastrá para ensanchar"></div>
   </aside>
+  <!-- ⭐ Solo con el estilo "Vidrio con bandeja": las charlas de la carpeta de la charla
+       abierta, siempre a la vista (`pintarColCharlas`). Con cualquier otro estilo está
+       escondida y no ocupa lugar. -->
+  <div id="colCharlas" aria-label="Charlas de esta carpeta"></div>
+  <div id="masAbajo"><button type="button" title="Hay más carpetas abajo: tocá para verlas"></button></div>
+  <div id="bordeRiel" title="Arrastrá para cambiar el ancho"></div>
+  <div id="bordeCol" title="Arrastrá para cambiar el ancho de la lista"></div>
+  <button id="abrirCol" type="button" title="Contraer la lista de charlas" onclick="clicPestana(this, () => plegarColCharlas(!colPlegada))"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <button id="anchoRiel" type="button" title="Mostrar el nombre de las carpetas" onclick="clicPestana(this, () => ensancharRiel(!rielAncho))"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   <section id="cuerpo"><div class="vacio">Cargando…</div></section>
   <!-- La columna de la derecha: un tirador para ensancharla, las pestañas (que aparecen
        con más de una pieza) y las piezas. Entorno es la de siempre; las demás se anotan
@@ -2407,6 +2958,9 @@ function aplicarFormas(){
   if (!t) return;
   t.dataset.ftab = formas.tab || 'redonda';
   t.dataset.fgrupo = formas.grupo || 'redonda';
+  // La barrita del nombre de la charla toma la forma de las pestañas (ver `teñirCab`).
+  const c = $('#cuerpo');
+  if (c) c.dataset.ftab = formas.tab || 'redonda';
   // La forma cambia el ancho de las tarjetas (el relleno de los costados), así que la
   // caja que abraza al grupo hay que volver a medirla.
   acomodarAbrazo();
@@ -2736,6 +3290,50 @@ function subsDe(p){
 var subproyPlegados = new Set();     // `var`: si algo pinta antes de llegar acá, no muere
 try { subproyPlegados = new Set(JSON.parse(localStorage.getItem('sesSubproyPlegados') || '[]')); } catch(e){}
 const claveSubproy = (carpeta, sub) => carpeta + '|' + sub;
+// ⭐ Cada subproyecto a gusto (Martín, 2026-11-11: "las subcarpetas también las debo poder
+// mover y dejarlas fijas y cambiarles el nombre y color"). En esta pantalla, como el color
+// y el orden de las carpetas: `subAjustes` por carpeta|subproyecto ({fija, color}) y
+// `subOrden` por carpeta (los nombres en el orden en que los dejaste arrastrando).
+// El nombre, en cambio, es del servidor: renombrar muda a todas sus charlas.
+var subAjustes = {}, subOrden = {};
+try { subAjustes = JSON.parse(localStorage.getItem('sesSubAjustes') || '{}') || {}; } catch(e){}
+try { subOrden = JSON.parse(localStorage.getItem('sesSubOrden') || '{}') || {}; } catch(e){}
+// ⭐ Subcarpetas VACÍAS (Martín, 2026-11-12, con captura de la lista: "acá no puedo crear
+// fácilmente una subcarpeta"). Un subproyecto es una etiqueta de cada charla, así que antes
+// existía recién cuando le ponías una charla adentro. Ahora se crea primero, con nombre, y
+// queda esperando charlas (arrastradas o empezadas ahí). Se guarda como el orden y el
+// color: por carpeta, en este navegador. En cuanto tiene una charla deja de ser "vacía" y
+// pasa a ser un subproyecto común (del servidor); `subVaciasDe` lo saca de acá solo.
+var subVacias = {};
+try { subVacias = JSON.parse(localStorage.getItem('sesSubVacias') || '{}') || {}; } catch(e){}
+const ajusteSub = (carpeta, sub) => (subAjustes || {})[claveSubproy(carpeta, sub)] || {};
+function guardarSubAjustes(){
+  localStorage.setItem('sesSubAjustes', JSON.stringify(subAjustes));
+  localStorage.setItem('sesSubOrden', JSON.stringify(subOrden));
+  localStorage.setItem('sesSubVacias', JSON.stringify(subVacias));
+}
+// Las vacías de una carpeta que siguen vacías (las que ya tienen charla se limpian solas).
+function subVaciasDe(p){
+  const lista = (subVacias[p.proyecto] || []);
+  const con = new Set(p.sesiones.map(s => s.sub).filter(Boolean));
+  const quedan = lista.filter(n => !con.has(n));
+  if (quedan.length !== lista.length){
+    if (quedan.length) subVacias[p.proyecto] = quedan; else delete subVacias[p.proyecto];
+    guardarSubAjustes();
+  }
+  return quedan;
+}
+// Lo que el título del grupo lleva de más: el 📌 si es fija y el color en la letra y en
+// un puntito (el puntito es lo que se ve aunque el tema le baje el tono a los rótulos).
+function adornoSub(carpeta, sub){
+  if (!sub) return {estilo: '', antes: ''};
+  const a = ajusteSub(carpeta, sub), t = a.color ? tresTonos(a.color) : null;
+  return {
+    estilo: t ? ' style="color:' + t[2] + '"' : '',
+    antes: (a.fija ? '<span class="pinSub" title="Fija arriba">📌</span>' : '') +
+           (t ? '<span class="ptoSub" style="background:' + t[2] + '"></span>' : '')
+  };
+}
 function plegarSubproy(clave){
   subproyPlegados.has(clave) ? subproyPlegados.delete(clave) : subproyPlegados.add(clave);
   localStorage.setItem('sesSubproyPlegados', JSON.stringify([...subproyPlegados]));
@@ -2743,11 +3341,24 @@ function plegarSubproy(clave){
 // Grupos con nombre en el orden en que aparecen (las filas ya vienen de la más nueva a la
 // más vieja, así que arriba queda el grupo con movimiento más reciente) y al final las que
 // no tienen ninguno.
-function agruparSub(filas){
-  if (!filas.some(s => s.sub)) return null;
+// ⭐ Con `carpeta`, mandan el orden que les diste arrastrando y las fijas van primero
+// (ver `subAjustes` más abajo). Las que nunca moviste siguen por movimiento reciente,
+// después de las que sí.
+function agruparSub(filas, carpeta, vacias){
+  vacias = vacias || [];
+  if (!filas.some(s => s.sub) && !vacias.length) return null;
   const g = new Map();
   filas.forEach(s => { const k = s.sub || ''; if (!g.has(k)) g.set(k, []); g.get(k).push(s); });
+  // Las vacías van como grupos sin charlas (solo si las pasan: la columna de carpetas y la
+  // bandeja siguen igual que siempre).
+  vacias.forEach(k => { if (k && !g.has(k)) g.set(k, []); });
   const out = [...g].filter(([k]) => k).map(([k, v]) => ({sub: k, filas: v}));
+  if (carpeta !== undefined){
+    const orden = (subOrden || {})[carpeta] || [];
+    const pos = k => { const i = orden.indexOf(k); return i < 0 ? orden.length : i; };
+    const fija = k => ajusteSub(carpeta, k).fija ? 0 : 1;
+    out.sort((a, b) => fija(a.sub) - fija(b.sub) || pos(a.sub) - pos(b.sub));
+  }
   if (g.has('')) out.push({sub: '', filas: g.get('')});
   return out;
 }
@@ -2759,16 +3370,18 @@ function repintarBandeja(){ if (!activa && !verArchivo){ firma = ''; pintarLista
 const subproyectosDe = p => [...new Set(p.sesiones.map(s => s.sub).filter(Boolean))]
   .sort((a, b) => a.localeCompare(b, 'es'));
 
+// Sin comillas: el nombre viaja adentro de atributos del HTML.
+const limpiarSub = s => (s || '').replace(/"/g, '').split(/\s+/).join(' ').trim().slice(0, 40);
+
 async function asignarSub(sid, sub){
-  // Sin comillas: el nombre viaja adentro de atributos del HTML.
-  sub = (sub || '').replace(/"/g, '').split(/\s+/).join(' ').trim().slice(0, 40);
+  sub = limpiarSub(sub);
   // Se ve en el acto: se anota en la lista que ya está en memoria y se repinta; el
   // servidor confirma en el refresco de siempre.
   datos.proyectos.forEach(p => p.sesiones.forEach(s => {
     if (s.id !== sid) return;
     if (sub) s.sub = sub; else delete s.sub;
   }));
-  repintarBandeja(); pintarCarpetas();
+  repintarBandeja(); pintarCarpetas(); colFirma = ''; pintarColCharlas();
   await fetch('/movil/subproyecto', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({sid, subproyecto: sub})}).catch(() => {});
   firma = ''; cargar();
@@ -2799,10 +3412,162 @@ function abrirMenuSub(e, sid){
   };
   const sacar = m.querySelector('[data-hace="sacar"]');
   if (sacar) sacar.onclick = () => { cerrarMenuTarjeta(); asignarSub(sid, ''); };
+  ponerMenuAlPuntero(m, e);
+}
+
+function ponerMenuAlPuntero(m, e){
   m.classList.add('abierto');
   const an = m.offsetWidth, al = m.offsetHeight;
   m.style.left = Math.round(Math.max(8, Math.min(e.clientX, innerWidth - an - 8))) + 'px';
   m.style.top = Math.round(Math.max(8, Math.min(e.clientY, innerHeight - al - 8))) + 'px';
+}
+
+const repintarSubs = () => { guardarSubAjustes(); pintarCarpetas(); repintarBandeja();
+                             colFirma = ''; pintarColCharlas(); };
+
+// El menú del TÍTULO de un subproyecto (botón derecho en la columna o en la bandeja, o
+// su ⋯): color, fijarlo arriba y cambiarle el nombre. "Sin subproyecto" no lo tiene: no
+// es un grupo tuyo, es lo que queda afuera.
+function abrirMenuSubgrupo(e, carpeta, sub){
+  e.preventDefault(); e.stopPropagation();
+  if (!sub) return;
+  const clave = claveSubproy(carpeta, sub);
+  const a = ajusteSub(carpeta, sub);
+  const m = $('#menuTarjeta');
+  m.innerHTML = '<div class="rub">Subproyecto «' + esc(sub) + '»</div>' +
+    '<div class="tonos">' +
+      Object.keys(TONOS).map(k =>
+        '<div class="tono' + (a.color === k ? ' sel' : '') + '" data-tono="' + k +
+        '" title="' + k + '" style="background:' + TONOS[k][0] +
+        ';box-shadow:inset 0 0 0 2px ' + TONOS[k][2] + '"></div>').join('') +
+      '<div class="tono nada' + (a.color ? '' : ' sel') + '" data-tono="" title="Sin color">✕</div>' +
+      '<span class="ruedaCaja' + (esHex(a.color) ? ' sel' : '') + '" title="Cualquier otro color">' +
+        '<input type="color" class="rueda" id="subRueda" value="' +
+        (esHex(a.color) ? a.color : '#8ecbff') + '"></span>' +
+    '</div><div class="sep"></div>' +
+    '<div class="op" data-hace="fijar">' + (a.fija ? '📌 Soltarla (deja de ir arriba)' : '📌 Fijarla arriba') + '</div>' +
+    '<div class="op" data-hace="nombre">✎ Cambiarle el nombre</div>' +
+    // Borrar solo se ofrece si está VACÍA: una con charlas no se borra desde acá (las
+    // charlas quedarían sueltas sin que lo hayas decidido una por una).
+    ((subVacias[carpeta] || []).includes(sub)
+      ? '<div class="op" data-hace="borrar">🗑 Borrar esta subcarpeta (está vacía)</div>' : '') +
+    '<div class="nada-hay" style="padding:4px 10px 2px">Para moverla, arrastrá el título.</div>';
+  const poner = cambios => {
+    const n = Object.assign({}, ajusteSub(carpeta, sub), cambios);
+    Object.keys(n).forEach(k => { if (!n[k]) delete n[k]; });
+    if (Object.keys(n).length) subAjustes[clave] = n; else delete subAjustes[clave];
+    repintarSubs();
+  };
+  // Como en el menú de la carpeta: el color se ve en el acto y el menú queda abierto.
+  const marcar = t => {
+    m.querySelectorAll('.tonos .tono').forEach(o => o.classList.toggle('sel', o === t));
+    m.querySelector('.ruedaCaja').classList.toggle('sel', t === null);
+  };
+  m.querySelectorAll('.tonos .tono').forEach(t => t.onclick = () => {
+    poner({color: t.dataset.tono || ''}); marcar(t);
+  });
+  const rueda = m.querySelector('#subRueda');
+  rueda.oninput = rueda.onchange = () => { poner({color: rueda.value}); marcar(null); };
+  m.querySelector('[data-hace="fijar"]').onclick = () => {
+    cerrarMenuTarjeta(); poner({fija: !a.fija});
+  };
+  m.querySelector('[data-hace="nombre"]').onclick = () => {
+    cerrarMenuTarjeta();
+    const n = prompt('Nuevo nombre para «' + sub + '»:', sub);
+    if (n !== null) renombrarSubproy(carpeta, sub, n);
+  };
+  const borrar = m.querySelector('[data-hace="borrar"]');
+  if (borrar) borrar.onclick = () => {
+    cerrarMenuTarjeta();
+    subVacias[carpeta] = (subVacias[carpeta] || []).filter(x => x !== sub);
+    if (!subVacias[carpeta].length) delete subVacias[carpeta];
+    delete subAjustes[clave];
+    if (subOrden[carpeta]) subOrden[carpeta] = subOrden[carpeta].filter(x => x !== sub);
+    repintarSubs();
+  };
+  ponerMenuAlPuntero(m, e);
+}
+
+// Renombrar = mudar todas sus charlas (archivadas incluidas) al nombre nuevo, y llevarse
+// con él lo que es de esta pantalla: color, fija, plegado y su lugar en el orden. Si el
+// nombre nuevo ya existe, los dos grupos se juntan.
+async function renombrarSubproy(carpeta, viejo, nuevo){
+  nuevo = limpiarSub(nuevo);
+  if (!nuevo || nuevo === viejo) return;
+  const p = datos.proyectos.find(x => x.proyecto === carpeta);
+  if (!p) return;
+  const sids = p.sesiones.filter(s => s.sub === viejo).map(s => s.id);
+  p.sesiones.forEach(s => { if (s.sub === viejo) s.sub = nuevo; });
+  // Una subcarpeta vacía no tiene charlas que mudar: vive en `subVacias`, se renombra ahí.
+  if ((subVacias[carpeta] || []).includes(viejo)){
+    const v = subVacias[carpeta].map(x => x === viejo ? nuevo : x);
+    subVacias[carpeta] = [...new Set(v)];
+  }
+  abiertas.forEach(t => { if (t.sub === viejo && t.cwd === p.cwd) t.sub = nuevo; });
+  const kv = claveSubproy(carpeta, viejo), kn = claveSubproy(carpeta, nuevo);
+  if (subAjustes[kv]){
+    subAjustes[kn] = Object.assign({}, subAjustes[kv], subAjustes[kn] || {});
+    delete subAjustes[kv];
+  }
+  if (subproyPlegados.delete(kv)){
+    subproyPlegados.add(kn);
+    localStorage.setItem('sesSubproyPlegados', JSON.stringify([...subproyPlegados]));
+  }
+  const o = subOrden[carpeta];
+  if (o){
+    const i = o.indexOf(viejo);
+    if (i >= 0){ if (o.includes(nuevo)) o.splice(i, 1); else o[i] = nuevo; }
+  }
+  guardar(); repintarSubs();
+  await Promise.all(sids.map(sid => fetch('/movil/subproyecto', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({sid, subproyecto: nuevo})}).catch(() => {})));
+  firma = ''; cargar();
+}
+
+// ⭐ Mover un subproyecto: se agarra el TÍTULO y se suelta sobre otro título de la misma
+// carpeta — arriba de la mitad queda antes, abajo de la mitad queda después. Vale en la
+// columna y en la bandeja. ⚠ Va con addEventListener y no con `ondragover =`: en la
+// bandeja esos mismos títulos ya reciben las CHARLAS que arrastrás de un grupo a otro.
+let subLlevado = null;
+function engancharArrastreSub(raiz){
+  const titulos = [...raiz.querySelectorAll('.subgrupo[data-g][data-carp]')];
+  const limpiar = () => titulos.forEach(x => x.classList.remove('soltar-antes', 'soltar-despues'));
+  const antes = (el, e) => { const r = el.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; };
+  titulos.forEach(el => {
+    if (!el.dataset.g) return;            // "Sin subproyecto" no se mueve ni recibe
+    el.draggable = true;
+    el.addEventListener('dragstart', e => {
+      subLlevado = {carp: el.dataset.carp, g: el.dataset.g};
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', el.dataset.g);
+      el.classList.add('llevada');
+    });
+    el.addEventListener('dragend', () => { el.classList.remove('llevada'); limpiar(); subLlevado = null; });
+    el.addEventListener('dragover', e => {
+      if (!subLlevado || subLlevado.carp !== el.dataset.carp || subLlevado.g === el.dataset.g) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      const a = antes(el, e);
+      if (!el.classList.contains(a ? 'soltar-antes' : 'soltar-despues')){
+        limpiar(); el.classList.add(a ? 'soltar-antes' : 'soltar-despues');
+      }
+    });
+    el.addEventListener('drop', e => {
+      if (!subLlevado || subLlevado.carp !== el.dataset.carp || subLlevado.g === el.dataset.g) return;
+      e.preventDefault();
+      const carp = el.dataset.carp, llevado = subLlevado.g, a = antes(el, e);
+      limpiar(); subLlevado = null;
+      // El orden de partida es el que se VE (fijas primero incluidas): así lo que soltás
+      // queda donde lo viste caer.
+      const orden = titulos.filter(x => x.dataset.carp === carp && x.dataset.g)
+                           .map(x => x.dataset.g).filter(g => g !== llevado);
+      let i = orden.indexOf(el.dataset.g);
+      if (!a) i++;
+      orden.splice(i, 0, llevado);
+      subOrden[carp] = orden;
+      repintarSubs();
+    });
+  });
 }
 
 // Qué subcarpetas se ven ahora: si no cambió, no hace falta rearmar la columna.
@@ -3051,13 +3816,148 @@ function pintarCielo(){
 // El encabezado de la charla abierta: el nombre en cursiva (es lo que estás mirando) y un
 // renglón abajo con la carpeta y en qué anda (`enQue`: 'trabajando', 'te pregunta algo' o
 // nada). Las pestañas siguen diciendo lo mismo; esto es el título de la página que leés.
-function cabeceraCarta(t, enQue){
+// ⭐ El nombre se edita AHÍ (pedido de Martín, 2026-11-11: "que arriba diga el nombre de
+// la sesión y que ahí pueda editar el nombre y demás"). Tocar el nombre lo vuelve un campo;
+// el ⋯ abre el mismo menú del botón derecho de la pestaña (color, forma, cerrar). Y como el
+// título grande se va con el scroll, `.cab-fija` es una barrita que aparece pegada arriba
+// apenas el título sale de la vista (ver `cabPegada`). No ocupa lugar: mide 0 de alto.
+function piezasCab(t, enQue){
   const g = grupoDe(t), ico = iconos[g];
-  return '<div class="carta-cab"><h1>' + (ico ? '<span class="em">' + esc(ico) + '</span>' : '') +
-    '<span>' + esc(t.nombre || 'Charla nueva') + '</span></h1><p>' +
-    esc(sinIconoRepetido(nombreGrupo(g), ico)) + (t.cerebro === 'codex' ? ' · Codex' : '') +
-    (enQue ? ' · ' + enQue : '') + '</p></div>';
+  // Una pestaña sin estrenar todavía no tiene id real: no hay a quién ponerle el nombre.
+  const editable = !t.sid.startsWith('nueva-');
+  const nom = '<span class="nom"' + (editable ? ' data-editar title="Tocá para cambiarle el nombre"' : '') +
+    '>' + esc(t.nombre || 'Charla nueva') + '</span>';
+  const mas = (t.fija === false
+      ? '<button class="arriba" data-fijar-cab title="Sumarla a las pestañas de arriba" ' +
+        'aria-label="Sumarla a las pestañas de arriba">＋</button>' : '') +
+    '<button class="mas" data-menu-charla title="Color, forma y más" ' +
+    'aria-label="Más opciones de esta charla">⋯</button>';
+  // ⭐ El proyecto va ADELANTE del nombre (Martín, 2026-11-11: "que diga el nombre del
+  // proyecto antes"), en `proy`; atrás quedan solo Codex y en qué anda.
+  const proyN = '<span class="proyCab">' + esc(sinIconoRepetido(nombreGrupo(g), ico)) + '</span>';
+  const sub = [t.cerebro === 'codex' ? 'Codex' : '', enQue || ''].filter(Boolean).join(' · ');
+  // ⭐ El ícono es un botón (Martín, 2026-11-11: "poder editar más cosas en esa barra, como
+  // el ícono de la carpeta"): abre el mismo menú del botón derecho de la carpeta (ícono,
+  // color, navegador, fondo, apodo). Sin ícono puesto muestra 📁 para que haya qué tocar.
+  const em = '<button class="em" data-icono-carpeta title="Cambiar el ícono y el color de la carpeta" ' +
+    'aria-label="Ícono de la carpeta">' + esc(ico || '📁') + '</button>';
+  return {em, proyN, nom, mas, sub};
 }
+// ⭐ La barrita se puede ESCONDER (Martín, 2026-11-12, con captura: "me gustaría poder
+// esconder esto"). El ︿ de su izquierda la guarda y queda una rayita arriba del hilo, del
+// mismo idioma que las pestañas del borde; tocándola vuelve. Queda guardado (`sesCabOculta`).
+var cabOculta = localStorage.getItem('sesCabOculta') === '1';
+function esconderCab(si){
+  cabOculta = !!si;
+  localStorage.setItem('sesCabOculta', si ? '1' : '0');
+  document.body.classList.toggle('cab-oculta', cabOculta);
+}
+if (document.body) document.body.classList.toggle('cab-oculta', cabOculta);
+else document.addEventListener('DOMContentLoaded', () => document.body.classList.toggle('cab-oculta', cabOculta));
+const FLECHA_ARRIBA = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" ' +
+  'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function cabeceraCarta(t, enQue){
+  const {em, proyN, nom, mas, sub} = piezasCab(t, enQue);
+  return '<div class="cab-fija">' +
+    '<button class="mostrarCab" data-mostrar-cab title="Mostrar la barra del nombre" ' +
+      'aria-label="Mostrar la barra del nombre">' + FLECHA_ARRIBA + '</button>' +
+    '<div class="cab-caja">' +
+    '<button class="ocultarCab" data-ocultar-cab title="Esconder esta barra" ' +
+      'aria-label="Esconder esta barra">' + FLECHA_ARRIBA + '</button>' + em + proyN + nom +
+      (sub ? '<span class="sub">' + sub + '</span>' : '') + mas + '</div></div>' +
+    '<div class="carta-cab"><h1>' + em + nom + mas + '</h1><p>' + proyN + (sub ? ' · ' + sub : '') + '</p></div>';
+}
+// ⭐ La barrita lleva el COLOR de su pestaña (Martín, 2026-11-11: "cuando le doy a modificar
+// cosas acá no modifica nada"). Su ⋯ abre el menú de la pestaña, y lo que elegías cambiaba
+// solo la pestaña de arriba, apenas un tono de letra: desde la barrita parecía no hacer nada.
+// Va directo sobre el elemento y no en el HTML del hilo, para que la rueda pinte en vivo
+// mientras la arrastrás sin redibujar la charla entera en cada movimiento.
+function teñirCab(){
+  const c = $('#cuerpo > .cab-fija .cab-caja');
+  if (!c) return;
+  const t = tresTonos(tonos[activa]);
+  c.classList.toggle('pintada', !!t);
+  ['--tn-f', '--tn-m', '--tn-l'].forEach((v, i) =>
+    t ? c.style.setProperty(v, t[i]) : c.style.removeProperty(v));
+}
+// El ícono nuevo se ve en la barrita al toque, sin esperar el repintado de cada 3 s.
+function iconoCab(){
+  const t = abiertas.find(x => x.sid === activa);
+  if (!t) return;
+  const ico = iconos[grupoDe(t)] || '📁';
+  document.querySelectorAll('#cuerpo [data-icono-carpeta]').forEach(b => b.textContent = ico);
+}
+// La barrita fija se prende cuando el título grande ya no se ve.
+function cabPegada(){
+  const c = $('#cuerpo'), cab = c && c.querySelector('.carta-cab');
+  if (!c) return;
+  c.classList.toggle('cab-pegada',
+    !!cab && cab.getBoundingClientRect().bottom < c.getBoundingClientRect().top + 8);
+}
+// Mientras escribís el nombre nuevo, el repintado de cada 3 s no toca la charla: si no,
+// te borraba el campo a mitad de la palabra.
+let editandoNombre = null;
+function editarNombre(span){
+  const t = abiertas.find(x => x.sid === activa);
+  if (!t || editandoNombre) return;
+  const sid = t.sid, antes = t.nombre || '';
+  editandoNombre = sid;
+  const inp = document.createElement('input');
+  inp.className = 'nomEdit'; inp.value = antes; inp.spellcheck = false;
+  inp.setAttribute('aria-label', 'Nombre de la charla');
+  span.replaceWith(inp);
+  // Sin preventScroll, el foco en la barrita fija hacía saltar el hilo hacia arriba.
+  inp.focus({preventScroll: true}); inp.select();
+  let listo = false;
+  const terminar = async guardarlo => {
+    if (listo) return; listo = true;
+    const n = inp.value.trim();
+    editandoNombre = null;
+    if (guardarlo && n && n !== antes) await guardarNombre(sid, n);
+    else { firma = ''; pintarSesion(); }
+  };
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter'){ e.preventDefault(); terminar(true); }
+    else if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); terminar(false); }
+  });
+  inp.addEventListener('blur', () => terminar(true));
+  inp.addEventListener('click', e => e.stopPropagation());
+}
+$('#cuerpo').addEventListener('scroll', cabPegada, {passive: true});
+// Los dos gestos de la barrita del nombre: tocar el nombre lo edita, el ⋯ abre el menú.
+const tocarCabecera = e => {
+  if (e.target.closest('[data-ocultar-cab]')){ e.preventDefault(); esconderCab(true); return; }
+  if (e.target.closest('[data-mostrar-cab]')){ e.preventDefault(); esconderCab(false); return; }
+  // El ＋ de la barrita: la charla que estás mirando pasa a las pestañas de arriba.
+  if (e.target.closest('[data-fijar-cab]') && activa){
+    e.preventDefault(); fijarTab(activa); firma = ''; pintarSesion(); return;
+  }
+  const ed = e.target.closest('[data-editar]');
+  if (ed){ e.preventDefault(); editarNombre(ed); return; }
+  const ic = e.target.closest('[data-icono-carpeta]');
+  if (ic && activa){
+    const t = abiertas.find(x => x.sid === activa);
+    if (!t) return;
+    const r = ic.getBoundingClientRect();
+    abrirMenuCarpeta({preventDefault: () => e.preventDefault(),
+                      stopPropagation: () => e.stopPropagation(),
+                      clientX: r.left, clientY: r.bottom + 6},
+                     {dataset: {proy: grupoDe(t)}});
+    return;
+  }
+  const b = e.target.closest('[data-menu-charla]');
+  if (!b || !activa) return;
+  // El menú de la pestaña, sin depender de que la pestaña se vea: con las barras
+  // escondidas (o adentro de un grupo plegado) no hay tarjeta que tocar.
+  const r = b.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.dataset.sid = activa;
+  el.dataset.i = abiertas.findIndex(x => x.sid === activa);
+  abrirMenuTarjeta({preventDefault: () => e.preventDefault(),
+                    stopPropagation: () => e.stopPropagation(),
+                    clientX: r.left, clientY: r.bottom + 6}, el);
+};
+$('#cuerpo').addEventListener('click', tocarCabecera);
 // Al poner o sacar el estilo hay que redibujar el riel: los puntos y la franja se arman
 // solo con el estilo puesto.
 let cartaPuesta = document.documentElement.classList.contains('carta');
@@ -3159,6 +4059,9 @@ window.addEventListener('aspecto-aplicado', () => {
   const ahora = document.documentElement.classList.contains('vidrio');
   if (ahora && !vidrioPuesto) vdLlegar();
   vidrioPuesto = ahora;
+  // Elegiste o sacaste "Vidrio con bandeja": la lista de charlas aparece o se va ya, sin
+  // esperar al próximo repintado. Va ANTES de medir las luces: cambia el ancho del riel.
+  try { colFirma = ''; pintarColCharlas(); } catch (e) {}
   // Cambió la letra, el tamaño o el estilo: las luces se vuelven a medir.
   try { acomodarLuces(); } catch (e) {}
 });
@@ -3236,13 +4139,16 @@ function pintarCarpetas(){
   // ⭐ Con subproyectos, las activas cuelgan de un título por grupo (plegable). Sin
   // ninguno, los mismos renglones de siempre.
   const subsHtml = (p, subs) => {
-    const grupos = agruparSub(subs);
+    const grupos = agruparSub(subs, p.proyecto);
     if (!grupos) return subs.map(subRenglon).join('');
     return grupos.map(g => {
       const k = claveSubproy(p.proyecto, g.sub), pleg = subproyPlegados.has(k);
-      return '<div class="subgrupo" data-subpleg="' + esc(k) + '" title="' +
-          (pleg ? 'Mostrar' : 'Esconder') + ' las de este subproyecto">' +
-          '<span>' + (pleg ? '▸' : '▾') + '</span><span class="nom">' + esc(tituloSub(g.sub)) +
+      const ad = adornoSub(p.proyecto, g.sub);
+      return '<div class="subgrupo" data-subpleg="' + esc(k) + '" data-g="' + esc(g.sub) +
+          '" data-carp="' + esc(p.proyecto) + '"' + ad.estilo + ' title="' +
+          (pleg ? 'Mostrar' : 'Esconder') + ' las de este subproyecto' +
+          (g.sub ? ' · arrastralo para moverlo · botón derecho: color, fijar, nombre' : '') + '">' +
+          '<span>' + (pleg ? '▸' : '▾') + '</span>' + ad.antes + '<span class="nom">' + esc(tituloSub(g.sub)) +
           '</span><span class="num">' + g.filas.length + '</span></div>' +
         (pleg ? '' : g.filas.map(subRenglon).join(''));
     }).join('');
@@ -3250,7 +4156,9 @@ function pintarCarpetas(){
   $('#carpetas').innerHTML =
     '<div id="luzRiel"></div>' +
     '<div class="carpeta ' + (proy===TODAS?'sel':'') + '" data-proy="' + esc(TODAS) + '">' +
-      '<span>✉</span><span class="nom">Todas</span><span class="num">' + cuantas + '</span></div>' +
+      // El número es de CHARLAS, no de carpetas (Martín lo leyó como "hasta 21 proyectos").
+      '<span>✉</span><span class="nom">Todas</span><span class="num" title="' + cuantas +
+        ' charlas en la bandeja (no es un tope de carpetas)">' + cuantas + '</span></div>' +
     visibles.map(fila).join('') +
     // El pie con las escondidas. Solo si hay alguna: si no, es un cartel que no hace
     // nada. Es el ÚNICO camino de vuelta, así que no puede depender de acordarse.
@@ -3260,9 +4168,11 @@ function pintarCarpetas(){
           '<span class="nom">Escondidas</span>' +
           '<span class="num">' + escondidas.length + '</span></div>' +
         (viendoOcultas ? escondidas.map(p =>
-          '<div class="carpeta devolver" data-volver="' + esc(p.proyecto) + '">' +
-            '<span class="nom">' + esc(p.proyecto) + '</span>' +
-            '<span class="vol">↩ devolver</span></div>').join('') : '')
+          '<div class="carpeta escondida" data-volver="' + esc(p.proyecto) + '" tabindex="0" ' +
+            'title="Tocá para devolverla a la lista">' +
+            '<span class="icoEsc">' + esc(iconos[p.proyecto] || '📁') + '</span>' +
+            '<span class="nom">' + esc(sinIconoRepetido(nombreGrupo(p.proyecto), iconos[p.proyecto])) + '</span>' +
+            '<span class="vol">↩</span></div>').join('') : '')
       : '');
   marcarVuelve = '';
   pintarCielo();
@@ -3299,7 +4209,9 @@ function pintarCarpetas(){
     x.onmousedown = e => e.stopPropagation();
     x.onclick = e => { e.stopPropagation(); plegarSubproy(x.dataset.subpleg);
                        pintarCarpetas(); repintarBandeja(); };
+    x.oncontextmenu = e => abrirMenuSubgrupo(e, x.dataset.carp, x.dataset.g);
   });
+  engancharArrastreSub($('#carpetas'));
   // Una subcarpeta es la charla misma: clic entra, botón del medio (o Ctrl) abre otra
   // pestaña del navegador — lo mismo que en la bandeja.
   document.querySelectorAll('.subcarpeta[data-subsid]').forEach(x => {
@@ -3311,10 +4223,11 @@ function pintarCarpetas(){
     };
     x.onauxclick = e => { if (e.button !== 1) return; e.preventDefault(); abrirEnNavegador(sid); };
   });
-  document.querySelectorAll('[data-volver]').forEach(x =>
-    x.onclick = () => ocultarCarpeta(x.dataset.volver, false));
-  const ver = $('#verOcultas');
-  if (ver) ver.onclick = () => { viendoOcultas = !viendoOcultas; pintarCarpetas(); };
+  document.querySelectorAll('[data-volver]').forEach(x => {
+    x.onclick = () => ocultarCarpeta(x.dataset.volver, false);
+    x.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); ocultarCarpeta(x.dataset.volver, false); } };
+  });
+  const ver = $('#verOcultas');       // su clic se engancha abajo, junto a `medirRiel`
   engancharArrastreCarpetas();
   if (!visibles.length && !escondidas.length)
     $('#carpetas').innerHTML = '<div style="color:var(--c7d8592,#7d8592);padding:8px 18px;font-size:12.5px">' +
@@ -3328,7 +4241,42 @@ function pintarCarpetas(){
     if (el) el.scrollIntoView({block:'nearest'});
   }
   acomodarLuzRiel();
+  // "Escondidas" en la tira de emojis: no hay lugar para la lista, así que abre el riel
+  // con nombres y la despliega de una.
+  if (ver) ver.onclick = () => {
+    viendoOcultas = !viendoOcultas;
+    if (viendoOcultas && document.documentElement.classList.contains('vbandeja') && !rielAncho) ensancharRiel(true);
+    pintarCarpetas();
+  };
+  requestAnimationFrame(medirRiel);
 }
+
+// ⭐ Cuántas carpetas quedan fuera de la vista del riel (ver el CSS de "se van saliendo
+// otros"). Se cuenta lo que de verdad no se ve, midiendo, y no "cuántas hay": la pastilla
+// tiene que decir cuántas te estás perdiendo.
+function medirRiel(){
+  const p = $('#paneProy'), caja = $('#masAbajo');
+  if (!p || !caja) return;
+  const resto = p.scrollHeight - p.scrollTop - p.clientHeight;
+  p.classList.toggle('hay-arriba', p.scrollTop > 4);
+  p.classList.toggle('hay-abajo', resto > 4);
+  const borde = p.getBoundingClientRect().bottom - 28;
+  const ocultas = [...p.querySelectorAll('#carpetas > .carpeta, #sumar')]
+    .filter(c => c.offsetParent && c.getBoundingClientRect().top > borde).length;
+  const b = caja.querySelector('button');
+  caja.classList.toggle('hay', resto > 4 && ocultas > 0);
+  b.textContent = rielAncho ? '▾ ' + ocultas + ' más' : '▾ ' + ocultas;
+  b.setAttribute('aria-label', 'Hay ' + ocultas + ' carpetas más abajo');
+}
+(function(){
+  const p = $('#paneProy'), b = $('#masAbajo button');
+  if (!p || !b) return;
+  p.addEventListener('scroll', medirRiel, {passive: true});
+  addEventListener('resize', medirRiel);
+  if (window.ResizeObserver) new ResizeObserver(medirRiel).observe(p);
+  b.onclick = () => p.scrollTo({top: p.scrollHeight,
+    behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+})();
 
 // --- ⭐⭐ Arrastrar una carpeta para moverla de lugar ------------------------------
 // ⚠⚠ Se agarra la FILA ENTERA (pedido de Martín, 2026-08-18, segunda vuelta: "no me
@@ -3747,7 +4695,7 @@ function abrirMenuCarpeta(e, el){
     filaIco.querySelectorAll('[data-ico]').forEach(i => i.onclick = () => {
       const v = i.dataset.ico;
       if (v) iconos[nombre] = v; else delete iconos[nombre];
-      guardarIconos(); subirCarp(nombre, 'icono', v); pintarCarpetas();
+      guardarIconos(); subirCarp(nombre, 'icono', v); pintarCarpetas(); iconoCab();
       filaIco.querySelectorAll('[data-ico]').forEach(o => o.classList.toggle('sel', o === i));
     });
     // Sacar uno tuyo del juego NO despinta las carpetas que lo usan: el ícono se guarda
@@ -3775,7 +4723,7 @@ function abrirMenuCarpeta(e, el){
     // Se le pone a esta carpeta solo: lo buscaste estando parado acá, hacerte elegirlo
     // de nuevo en la fila sería un clic al pedo.
     iconos[nombre] = v;
-    guardarIconos(); subirCarp(nombre, 'icono', v); pintarCarpetas(); pintarIconos(); ubicar();
+    guardarIconos(); subirCarp(nombre, 'icono', v); pintarCarpetas(); pintarIconos(); ubicar(); iconoCab();
   };
 
   function abrirBuscaIconos(){
@@ -3985,25 +4933,77 @@ $('#buscar').addEventListener('input', pintarCarpetas);
 // Sumar una carpeta que todavía no tiene conversaciones: se escribe la ruta, el
 // servidor comprueba que exista (y la crea si le decís que sí) y queda en la lista
 // para arrancar una sesión ahí (pedido de Martín, 2026-08-17).
-$('#sumar').onclick = async () => {
-  const ruta = prompt('Pegá la ruta completa de la carpeta (por ejemplo C:\\Trabajo\\MiProyecto)');
-  if (!ruta) return;
-  let r;
-  try {
-    r = await (await fetch('/movil/carpeta', {method:'POST',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ruta})})).json();
-  } catch(e){ return alert('No pude: ' + e); }
-  if (!r.ok && r.puede_crear){
-    if (!confirm('Esa carpeta no existe. ¿La creo?')) return;
+// ⭐ Dos caminos (Martín, 2026-11-12: "me tiene que dejar elegir de mis archivos o escribir
+// la ruta"): un campo para el nombre o la ruta, y "📂 Elegir…", que le pide al PANEL que abra
+// el selector de carpetas de Windows (`/movil/elegir-carpeta`: el navegador no puede darle a
+// la página la ruta de una carpeta elegida). Solo el nombre sigue creándola en
+// EspacioDeTrabajo sin preguntar (2026-11-11). Todo pasa en un panelito, sin los carteles
+// del navegador: el "¿la creo?" y los errores se leen ahí mismo.
+// ⚠ El selector se abre en la PC donde corre el panel: entrando desde otra máquina (el
+// celular por Tailscale) el botón no aparece, porque abriría una ventana que nadie ve.
+const PANEL_LOCAL = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+$('#sumar').onclick = e => {
+  e.preventDefault(); e.stopPropagation();
+  const m = $('#menuTarjeta');
+  m.innerHTML = '<div class="rub">Agregar una carpeta</div>' +
+    '<div class="sumarCaja">' +
+      '<input id="sumarRuta" spellcheck="false" autocomplete="off" ' +
+        'placeholder="Nombre nuevo o ruta (C:\\…)" aria-label="Nombre o ruta de la carpeta">' +
+      (PANEL_LOCAL ? '<button id="sumarElegir" type="button" ' +
+        'title="Abre el selector de carpetas de Windows">📂 Elegir…</button>' : '') +
+    '</div>' +
+    '<div class="sumarAyuda" id="sumarAyuda">Solo el nombre: se crea en EspacioDeTrabajo. Enter para agregar.</div>' +
+    '<div class="sumarAcc" id="sumarAcc" hidden><button id="sumarCrear" type="button">Crearla</button></div>';
+  const inp = m.querySelector('#sumarRuta'), ayuda = m.querySelector('#sumarAyuda');
+  const acc = m.querySelector('#sumarAcc'), elegir = m.querySelector('#sumarElegir');
+  const decir = (t, mal) => { ayuda.textContent = t; ayuda.classList.toggle('mal', !!mal); };
+  const agregar = async (ruta, crear) => {
+    ruta = (ruta || '').trim();
+    if (!ruta) return decir('Escribí un nombre o una ruta, o tocá Elegir.', true);
+    acc.hidden = true; decir('Agregando…');
+    let r;
     try {
-      r = await (await fetch('/movil/carpeta', {method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ruta, crear: true})})).json();
-    } catch(e){ return alert('No pude: ' + e); }
-  }
-  if (!r.ok) return alert(r.error || 'No pude agregarla');
-  await cargar();
-  irProyecto(r.nombre);
+      r = await (await fetch('/movil/carpeta', {method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(crear ? {ruta, crear: true} : {ruta})})).json();
+    } catch (er) { return decir('No pude hablar con el panel: ' + er, true); }
+    if (!r.ok && r.puede_crear){
+      decir('Esa carpeta no existe todavía.');
+      acc.hidden = false;
+      m.querySelector('#sumarCrear').onclick = () => agregar(ruta, true);
+      return;
+    }
+    if (!r.ok) return decir(r.error || 'No pude agregarla.', true);
+    cerrarMenuTarjeta();
+    await cargar();
+    irProyecto(r.nombre);
+  };
+  inp.addEventListener('keydown', ev => {
+    ev.stopPropagation();
+    if (ev.key === 'Enter'){ ev.preventDefault(); agregar(inp.value); }
+    else if (ev.key === 'Escape'){ ev.preventDefault(); cerrarMenuTarjeta(); }
+  });
+  inp.addEventListener('input', () => { acc.hidden = true; decir('Solo el nombre: se crea en EspacioDeTrabajo. Enter para agregar.'); });
+  if (elegir) elegir.onclick = async () => {
+    elegir.disabled = true;
+    decir('Se abrió el selector de Windows: elegí la carpeta ahí.');
+    let r;
+    try {
+      const resp = await fetch('/movil/elegir-carpeta', {method: 'POST'});
+      // Endpoint nuevo: hasta que el panel se reinicia, no existe.
+      if (resp.status === 404){ elegir.disabled = false;
+        return decir('Para usar esto falta reiniciar el panel (⟳). Mientras, escribí la ruta.', true); }
+      r = await resp.json();
+    } catch (er) { elegir.disabled = false; return decir('No pude abrir el selector: ' + er, true); }
+    elegir.disabled = false;
+    if (r.cancelado) return decir('No elegiste ninguna. Podés escribir la ruta.');
+    if (!r.ok) return decir(r.error || 'No pude abrir el selector.', true);
+    inp.value = r.ruta;
+    agregar(r.ruta);
+  };
+  const s = $('#sumar').getBoundingClientRect();
+  ponerMenuAlPuntero(m, {clientX: s.right + 8, clientY: s.top - 40});
+  inp.focus();
 };
 
 function irProyecto(n){
@@ -4021,11 +5021,41 @@ function irProyecto(n){
 // de cargar (mismo arreglo que ya tenía la pantalla del celular).
 function alFinal(c){
   c.scrollTop = c.scrollHeight;
+  // ⚠ Al cargar la imagen se vuelve a bajar SOLO si seguís queriendo estar abajo: si en el
+  // medio subiste a leer, una captura que termina de llegar no te arrastra al final.
   c.querySelectorAll('img').forEach(i => {
     if (!i.complete)
-      i.addEventListener('load', () => { c.scrollTop = c.scrollHeight; }, {once:true});
+      i.addEventListener('load', () => { if (sigueAbajo) c.scrollTop = c.scrollHeight; }, {once:true});
   });
 }
+
+// ⭐⭐ "Cuando subo en una conversación me arrastra para abajo" (Martín, 2026-11-12). La
+// charla te sigue hacia abajo mientras escribe Claude, y antes decidía si seguirte MIDIENDO
+// la distancia al final en cada repintado y en cada pedacito del texto en vivo (varios por
+// segundo). La rueda de Chrome sube animada: durante esa animación todavía estabas a menos
+// de 90 px, llegaba un pedacito y te devolvía abajo — con el texto llegando sin parar, no
+// había forma de escaparse. Ahora se sigue la INTENCIÓN: apenas subís (rueda, flechas,
+// RePág, Inicio, arrastrar la barra o el dedo) deja de seguirte, y vuelve a seguirte cuando
+// llegás vos al final, al entrar a una charla o al mandar un mensaje.
+var sigueAbajo = true, ultimoTop = 0;
+window.chatSigue = () => sigueAbajo;
+(function vigilarSubida(){
+  const c = $('#cuerpo');
+  if (!c) return;
+  const soltar = () => { sigueAbajo = false; };
+  c.addEventListener('wheel', e => { if (e.deltaY < 0) soltar(); }, {passive: true});
+  c.addEventListener('keydown', e => {
+    if (['ArrowUp', 'PageUp', 'Home'].includes(e.key) || (e.key === ' ' && e.shiftKey)) soltar();
+  });
+  c.addEventListener('scroll', () => {
+    const resto = c.scrollHeight - c.scrollTop - c.clientHeight;
+    // Llegaste al final (o el contenido se achicó y quedaste pegado abajo): te sigue otra vez.
+    if (resto < 40) sigueAbajo = true;
+    // Subió y no fue por la rueda ni el teclado (la barra, el dedo): también suelta.
+    else if (c.scrollTop < ultimoTop - 2) sigueAbajo = false;
+    ultimoTop = c.scrollTop;
+  }, {passive: true});
+})();
 
 // De qué grupo es una pestaña. Una charla recién abierta todavía no tiene carpeta
 // (adentro se elige el proyecto), así que esas se juntan aparte en vez de quedar sueltas.
@@ -4059,6 +5089,27 @@ function pintarTabs(){
   // absoluta), así que no ocupa lugar, pero al final rompía el "el ＋ es el último de la
   // fila" — que sí es una regla de la pantalla. Adelante no molesta a nadie: el arrastre
   // recorre los grupos hacia ADELANTE con `nextElementSibling`.
+  // ⭐⭐ Pestañas SUELTAS, como en Chrome (Martín, 2026-11-11: "no me gusta la agrupación
+  // que hace"). Antes se veía un solo proyecto desplegado y los demás plegados en una
+  // pastilla ("Mi proyecto 1 ✕"); ahora cada charla es su pestaña, en el orden de
+  // `abiertas`, con el ícono de su carpeta adelante para saber de dónde es. El código de
+  // las pastillas queda abajo sin usarse (`SIN_GRUPOS`): si algún día se quieren de vuelta,
+  // es apagar esta llave.
+  const SIN_GRUPOS = true;
+  if (SIN_GRUPOS){
+    // ⭐⭐ La charla DE PASO no se dibuja arriba (Martín, 2026-11-11: "cuando entro en una
+    // sesión se va automáticamente para arriba, eso no es lo que quiero; si quiero agregar
+    // una arriba tengo que apretar el +"). Sigue en `abiertas` —es lo que permite mostrarla,
+    // tomar su carpeta y su dirección—, pero la barra es solo de las que sumaste vos con el
+    // ＋ de la barrita del nombre (`data-fijar-cab`) o desde el botón derecho.
+    // ⚠ Solo con el estilo Carta: sin él no hay barrita del nombre y la charla quedaría sin
+    // ningún ＋ ni pestaña desde donde sumarla.
+    const esconder = document.documentElement.classList.contains('carta');
+    $('#tabs').innerHTML = '<div id="abrazo"></div><div id="luzTab"></div>' +
+      abiertas.map((t, i) => esconder && t.fija === false ? '' : tabSuelta(t, i, viva)).join('') + colaDeTabs();
+    engancharTabs();
+    return;
+  }
   $('#tabs').innerHTML = '<div id="abrazo"></div><div id="luzTab"></div>' + grupos.map(g => {
     const desplegado = g.nombre === grupoAbierto;
     // Plegado, la pastilla resume lo que pasa adentro con el mismo semáforo de siempre:
@@ -4111,25 +5162,82 @@ function pintarTabs(){
         (t.cerebro === 'codex' ? '<span class="cer">Codex</span>' : '') +
         '<span class="x" data-cerrar="' + i + '">✕</span></div>';
     }).join('');
-  }).join('') +
+  }).join('') + colaDeTabs();
+  engancharTabs();
+}
+
+// Una pestaña suelta: el ícono de su carpeta adelante (con las pestañas sin agrupar es lo
+// único que dice de qué proyecto es) y después lo mismo que las pestañas de siempre.
+function tabSuelta(t, i, viva){
+  const esp = pendientes[t.sid] && activa !== t.sid;
+  const fal = !!falladas[t.sid];
+  const prg = !fal && hayPregunta(t.sid);
+  const g = grupoDe(t), ico = iconos[g];
+  const dePaso = t.fija === false;
+  // ⭐ La luz es la pestaña ENTERA pintada (Martín, 2026-11-11: "no me muestra, pero pintemos
+  // la ventanita entera nomás"): el puntito chico se perdía o no se veía. El color sale de
+  // `luz-*` (ver el CSS de `#tabs .tab.luz-`): trabajando, te pregunta, te espera, falló, viva.
+  // ⚠ Sale de `estadoSesion`, la MISMA cuenta de la lista: mirando solo `viva` una charla
+  // trabajando (`ocupada`) quedaba sin luz mientras la lista decía "trabajando".
+  const s = datos.proyectos.flatMap(p => p.sesiones).find(x => x.id === t.sid);
+  const e = s ? estadoSesion(s, Date.now() / 1000) : '';
+  const luz = (fal || e === 'fallada') ? 'falla' : (prg || e === 'preguntando') ? 'pregunta'
+            : (enVuelo[t.sid] || e === 'trabajando') ? 'trabaja'
+            : ((esp || e === 'espera') && activa !== t.sid) ? 'espera' : viva(t.sid) ? 'viva' : '';
+  return '<div class="tab ' + (activa===t.sid?'sel':'') + (dePaso ? ' de-paso' : '') +
+    (fal ? ' fallada' : prg ? ' preguntando' : esp ? ' espera' : '') + (recienTab===t.sid ? ' recien' : '') +
+    (luz ? ' luz-' + luz : '') +
+    '" draggable="true"' + pinta(t.sid) +
+    ' data-i="' + i + '" data-sid="' + esc(t.sid) + '"' +
+    ' title="' + esc(t.nombre) + ' · ' + esc(nombreGrupo(g)) + ' · botón derecho para cambiarla">' +
+    (ico ? '<span class="ico-carp">' + esc(ico) + '</span>' : '') +
+    (hayBorrador(t.sid) ? '<span class="plu">✎</span>' : '') +
+    // ⭐ El proyecto ADELANTE del nombre (Martín, 2026-11-11, con una captura de «Chief»):
+    // hay un Chief en cada carpeta y el ícono solo no alcanza para saber de cuál es.
+    '<span class="proyTab">' + esc(sinIconoRepetido(nombreGrupo(g), ico)) + '</span>' +
+    (dePaso ? '<span class="nom">' + esc(t.nombre) + '</span>' : esc(t.nombre)) +
+    (t.cerebro === 'codex' ? '<span class="cer">Codex</span>' : '') +
+    // ⭐ La luz va a la DERECHA, al lado de la ✕ (Martín, 2026-11-11): adelante ya están el
+    // ícono y el proyecto, y la luz se perdía entre ellos.
+    (dePaso ? '<span class="fijar" data-fijar title="Dejarla arriba (o doble clic en la pestaña)">📌</span>' : '') +
+    '<span class="x" data-cerrar="' + i + '">✕</span></div>';
+}
+
+// Dejar arriba una charla que estaba de paso.
+function fijarTab(sid){
+  const t = abiertas.find(x => x.sid === sid);
+  if (!t || t.fija !== false) return;
+  delete t.fija;
+  guardar(); pintarTabs();
+}
+
+function colaDeTabs(){
+  return (
     // "↩ Volver a abrir": solo el medio minuto después de "Cerrar todas" (`cerrarTodas`).
     // ⚠ No lleva `data-i`: no es una charla, igual que el ＋, y va ANTES de él porque el ＋
     // es siempre el último de la fila.
     (cerradasRecien ? '<div class="tab volver" id="tabVolver" title="Volver a abrir las ' +
         'pestañas que cerraste recién, en el mismo orden">↩ Volver a abrir ' +
         (cerradasRecien.tabs.length === 1 ? 'la que cerraste'
-                                          : 'las ' + cerradasRecien.tabs.length) + '</div>' : '') +
+                                          : 'las ' + cerradasRecien.tabs.length) +
+        // La ✕ lo descarta antes de los 30 s (Martín, 2026-11-11): quedan cerradas igual.
+        '<span class="x" data-olvidar title="Sacar este aviso: quedan cerradas">✕</span></div>' : '') +
     // El ＋ va SIEMPRE, aunque no haya ninguna pestaña abierta: es el atajo para
     // arrancar una charla sin tener que ir hasta la carpeta y buscar la fila de
     // "Empezar una conversación" (pedido de Martín, 2026-08-17).
-    '<div class="tab mas" id="tabMas" title="Empezar una conversación">＋</div>';
+    '<div class="tab mas" id="tabMas" title="Empezar una conversación">＋</div>');
+}
+
+function engancharTabs(){
   // ⚠ Solo las pestañas de verdad llevan el clic de ir/cerrar: el ＋ no tiene
   // `data-i`, y con el selector `.tab` pelado caía en abiertas[NaN] y reventaba.
   document.querySelectorAll('#tabs .tab[data-i]').forEach(el => {
     el.onclick = e => {
       if (e.target.dataset.cerrar !== undefined) { cerrar(+e.target.dataset.cerrar); return; }
+      if (e.target.dataset.fijar !== undefined) { fijarTab(el.dataset.sid); return; }
       irTab(abiertas[+el.dataset.i].sid);
     };
+    el.ondblclick = () => fijarTab(el.dataset.sid);
     engancharArrastre(el);
   });
   document.querySelectorAll('#tabs .grupo').forEach(el => {
@@ -4141,7 +5249,10 @@ function pintarTabs(){
     engancharArrastre(el);
   });
   $('#tabMas').onclick = nuevaCharla;
-  if ($('#tabVolver')) $('#tabVolver').onclick = reabrirCerradas;
+  if ($('#tabVolver')) $('#tabVolver').onclick = e => {
+    if (e.target.dataset.olvidar !== undefined){ olvidarCerradas(); pintarTabs(); return; }
+    reabrirCerradas();
+  };
   acomodarAbrazo();
   // ⚠ Abrir o cerrar una pestaña cambia lo que ocupa la fila SIN cambiar su tamaño, así
   // que el ResizeObserver del menú no se entera: hay que avisarle a mano.
@@ -4218,6 +5329,9 @@ function abrirMenuTarjeta(e, el){
         '<div class="forma' + (formas[esGrupo ? 'grupo' : 'tab'] === k ? ' sel' : '') +
         '" data-forma="' + k + '">' + FORMAS[k] + '</div>').join('') +
     '</div><div class="sep"></div>' +
+    (esGrupo ? '' : (abiertas.find(x => x.sid === sid) || {}).fija === false
+      ? '<div class="op" data-hace="fijar">📌 Dejarla arriba</div>'
+      : '<div class="op" data-hace="soltar">📍 Dejarla solo de paso</div>') +
     '<div class="op" data-hace="nombre">✎ Cambiarle el nombre</div>' +
     '<div class="op" data-hace="cerrar">✕ ' +
       (esGrupo ? 'Cerrar las de este proyecto' : 'Cerrar esta conversación') + '</div>' +
@@ -4233,7 +5347,7 @@ function abrirMenuTarjeta(e, el){
   m.querySelectorAll('.tono').forEach(t => t.onclick = () => {
     const v = t.dataset.tono;
     if (v) tonos[clave] = v; else delete tonos[clave];
-    guardarTarjetas(); pintarTabs(); marcar(t);
+    guardarTarjetas(); pintarTabs(); teñirCab(); marcar(t);
     // La pastilla y la carpeta son el MISMO proyecto: el color elegido acá también sube.
     if (esGrupo) subirCarp(nombre, 'color', v);
   });
@@ -4241,8 +5355,8 @@ function abrirMenuTarjeta(e, el){
   // guarda (serían cien escrituras por un color); se guarda al soltar. Y no se redibuja
   // el menú en el medio, o el navegador cierra su propio selector.
   const rueda = m.querySelector('#tonoRueda');
-  rueda.oninput  = () => { tonos[clave] = rueda.value; pintarTabs(); marcar(null); };
-  rueda.onchange = () => { tonos[clave] = rueda.value; guardarTarjetas(); pintarTabs();
+  rueda.oninput  = () => { tonos[clave] = rueda.value; pintarTabs(); teñirCab(); marcar(null); };
+  rueda.onchange = () => { tonos[clave] = rueda.value; guardarTarjetas(); pintarTabs(); teñirCab();
                            marcar(null);
                            if (esGrupo) subirCarp(nombre, 'color', rueda.value); };
   // Igual que el color: se ve en el acto y el menú se queda abierto, para poder probar
@@ -4274,6 +5388,17 @@ function abrirMenuTarjeta(e, el){
   m.querySelector('[data-hace="cerrar-todas"]').onclick = () => {
     cerrarMenuTarjeta();
     cerrarTodas();
+  };
+  const opFijar = m.querySelector('[data-hace="fijar"]');
+  if (opFijar) opFijar.onclick = () => { cerrarMenuTarjeta(); fijarTab(sid); };
+  const opSoltar = m.querySelector('[data-hace="soltar"]');
+  // De paso hay UNA sola: la que estaba de paso antes se va (si no es la que estás mirando).
+  if (opSoltar) opSoltar.onclick = () => {
+    cerrarMenuTarjeta();
+    abiertas = abiertas.filter(x => x.sid === sid || x.sid === activa || x.fija !== false);
+    const t = abiertas.find(x => x.sid === sid);
+    if (t) t.fija = false;
+    guardar(); pintarTabs();
   };
 
   m.classList.add('abierto');
@@ -4659,8 +5784,18 @@ function cerrar(i){
 // después las recorrés, en vez de entrar y volver por cada una.
 function abrirSesion(cwd, sid, nombre, fondo, cerebro){
   if (!sid) sid = 'nueva-' + Date.now();
-  if (!abiertas.some(t => t.sid === sid))
-    abiertas.push({sid, cwd, nombre, cerebro: cerebro || ''});
+  // ⭐⭐ Arriba quedan las que VOS elegís (Martín, 2026-11-11: "más interesante poder elegir
+  // yo qué sesión va a quedar arriba"). Abrir una charla desde la lista la muestra arriba
+  // DE PASO (`fija: false`, en cursiva): hay una sola de paso a la vez y la próxima que
+  // abras la reemplaza. Queda fija con el 📌, con doble clic o desde el botón derecho.
+  // ⭐ Una charla NUEVA también entra de paso (Martín, 2026-11-11: "tampoco me gusta que
+  // cuando abro una nueva sesión se vaya arriba"): sube con el ＋ de la barra del nombre.
+  if (!abiertas.some(t => t.sid === sid)){
+    const dePaso = !fondo;
+    if (dePaso) soltarDePaso();
+    abiertas.push(Object.assign({sid, cwd, nombre, cerebro: cerebro || ''},
+                                dePaso ? {fija: false} : {}));
+  }
   if (!fondo) return irTab(sid);
   // ⚠ El grupo del proyecto tiene que quedar DESPLEGADO: si cae adentro de una pastilla
   // plegada no se ve nada y el clic se siente como que no hizo nada, que es exactamente
@@ -4675,6 +5810,19 @@ function abrirSesion(cwd, sid, nombre, fondo, cerebro){
   // ⚠ La marca se apaga con un repintado y no con una clase que se saca a mano: la barra
   // se redibuja sola cada pocos segundos y se la llevaría puesta antes de que la veas.
   setTimeout(() => { if (recienTab === sid){ recienTab = ''; pintarTabs(); } }, 1500);
+}
+
+// La de paso anterior se va al abrir otra. ⚠ Menos una charla sin estrenar que ya tiene
+// algo escrito o está mandando su primer mensaje: su borrador y su id provisorio viven
+// solo en esa pestaña, y tirarla perdería lo escrito o dejaría colgado el cambio de id.
+function soltarDePaso(){
+  abiertas = abiertas.filter(t => {
+    if (t.fija !== false) return true;
+    if (!t.sid.startsWith('nueva-')) return false;
+    if (enVuelo[t.sid] || (borradores[t.sid] || '').trim()) return true;
+    delete borradores[t.sid];
+    return false;
+  });
 }
 
 let recienTab = '';      // la pestaña recién abierta en segundo plano, para que parpadee
@@ -4698,7 +5846,621 @@ function abrirCarpetaEnNavegador(nombre){
   window.open(location.pathname + '?p=' + encodeURIComponent(nombre), '_blank', 'noopener');
 }
 
+// ⭐⭐ VIDRIO CON BANDEJA (2026-11-11): la lista de charlas al lado de la charla abierta.
+// Muestra las de la carpeta de la charla que estás leyendo (sin archivadas ni tapadas, la
+// más nueva arriba), con cuatro filtros. El clic hace lo MISMO que la bandeja: abrir la
+// charla; botón del medio o Ctrl, en otra pestaña del navegador.
+// ⚠ Con `var` y sin depender de `lateralOculto()`: puede correr antes de que las `const`
+// de más abajo existan (ver el aviso de `saleArmada`).
+var colFiltro = 'todas', colFirma = '';
+// La pestaña del borde de la lista (#abrirCol) contrae SOLO la lista (queda la tira de
+// emojis, como el panel de ClickUp) y la vuelve a abrir; queda guardado en este navegador.
+// Ctrl+B sigue escondiendo las dos barras.
+var colPlegada = localStorage.getItem('sesColPlegada') === '1';
+function plegarColCharlas(si){
+  colPlegada = !!si;
+  localStorage.setItem('sesColPlegada', si ? '1' : '0');
+  colFirma = ''; pintarColCharlas();
+}
+// ⭐ Bordes estirables y pestañas movibles (Martín, 2026-11-11: "me gustaría poder manipular
+// la disposición de donde está ese botón… y estirar los bordes y que sean reactivos").
+// Los anchos van en --rw / --cw y la altura de cada pestaña en --ya / --yb (ver el CSS de
+// "PESTAÑAS DEL BORDE"); todo queda guardado en este navegador.
+var RIEL_MIN = 150, RIEL_MAX = 380, COL_MIN = 240, COL_MAX = 640;
+var rielW = +localStorage.getItem('sesRielW') || 220;
+var colW = +localStorage.getItem('sesColW') || 344;
+var pestY = {riel: parseFloat(localStorage.getItem('sesPestRiel')),
+             col: parseFloat(localStorage.getItem('sesPestCol'))};
+var pestMovida = 0;
+// La charla del medio nunca queda más angosta que 420 px: la lista cede primero.
+function topeCol(){
+  const der = parseFloat(getComputedStyle(document.body).getPropertyValue('--der')) || 0;
+  return Math.max(COL_MIN, Math.min(COL_MAX, innerWidth - (rielAncho ? rielW : 64) - 56 - 420 - der));
+}
+function aplicarAnchos(){
+  const s = document.body.style;
+  s.setProperty('--rw', Math.round(rielW) + 'px');
+  s.setProperty('--cw', Math.round(Math.min(colW, topeCol())) + 'px');
+  ubicarPestanas();
+}
+// La altura de cada pestaña es una fracción del alto del riel: así acompaña al achicar la
+// ventana. Contraída la lista, su pestaña comparte hueco con la del riel: si se tocan, se corre.
+function ubicarPestanas(){
+  const a = document.querySelector('aside');
+  if (!a || !document.body) return;
+  const alto = a.getBoundingClientRect().height || innerHeight;
+  // Nunca sobre la curva de las esquinas (radio 24): ahí la pestaña queda colgando del aire.
+  const lim = y => Math.round(Math.max(30, Math.min(alto - 70, y)));
+  const ya = lim(isNaN(pestY.riel) ? 30 : pestY.riel * alto);
+  let yb = lim(isNaN(pestY.col) ? alto / 2 - 18 : pestY.col * alto);
+  if (document.body.classList.contains('col-cerrada') && Math.abs(ya - yb) < 46)
+    yb = ya + 46 <= alto - 70 ? ya + 46 : ya - 46;
+  document.body.style.setProperty('--ya', ya + 'px');
+  document.body.style.setProperty('--yb', yb + 'px');
+}
+// Un clic que vino de arrastrar la pestaña no cuenta como clic.
+function clicPestana(el, hacer){
+  if (Date.now() - pestMovida < 400) return;
+  hacer();
+}
+function moverPestana(el, cual){
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const y0 = e.clientY, top0 = el.getBoundingClientRect().top;
+    const a = document.querySelector('aside').getBoundingClientRect();
+    let movio = false;
+    el.setPointerCapture(e.pointerId);
+    const mover = ev => {
+      if (!movio && Math.abs(ev.clientY - y0) < 5) return;
+      movio = true;
+      el.classList.add('moviendo'); document.body.classList.add('moviendo-pestana');
+      pestY[cual] = Math.max(0, Math.min(1, (top0 + ev.clientY - y0 - a.top) / a.height));
+      ubicarPestanas();
+    };
+    const soltar = () => {
+      el.removeEventListener('pointermove', mover);
+      el.removeEventListener('pointerup', soltar);
+      el.removeEventListener('pointercancel', soltar);
+      el.classList.remove('moviendo'); document.body.classList.remove('moviendo-pestana');
+      if (movio){
+        pestMovida = Date.now();
+        localStorage.setItem(cual === 'riel' ? 'sesPestRiel' : 'sesPestCol', pestY[cual].toFixed(4));
+      }
+    };
+    el.addEventListener('pointermove', mover);
+    el.addEventListener('pointerup', soltar);
+    el.addEventListener('pointercancel', soltar);
+  });
+}
+function estirarBorde(el, cual){
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('activo'); document.body.classList.add('estirando');
+    const izq = (cual === 'riel' ? document.querySelector('aside')
+                                 : document.getElementById('colCharlas')).getBoundingClientRect().left;
+    let cerrar = false, cuadro = 0;
+    const luces = () => { if (cuadro) return; cuadro = requestAnimationFrame(() => {
+      cuadro = 0; if (typeof acomodarLuces === 'function') try { acomodarLuces(); } catch (er) {} }); };
+    const mover = ev => {
+      const w = ev.clientX - izq;
+      if (cual === 'riel'){
+        // Angosto de más, vuelve a la tira; tirando del borde de la tira, se abre con nombres.
+        if (w < 110){ if (rielAncho) ensancharRiel(false); }
+        else { rielW = Math.max(RIEL_MIN, Math.min(RIEL_MAX, w));
+               if (!rielAncho) ensancharRiel(true); else aplicarAnchos(); }
+        luces();
+      } else {
+        cerrar = w < COL_MIN - 70;
+        document.body.classList.toggle('va-a-cerrar', cerrar);
+        colW = Math.max(COL_MIN, Math.min(topeCol(), w));
+        aplicarAnchos();
+      }
+    };
+    const soltar = () => {
+      el.removeEventListener('pointermove', mover);
+      el.removeEventListener('pointerup', soltar);
+      el.removeEventListener('pointercancel', soltar);
+      el.classList.remove('activo');
+      document.body.classList.remove('estirando', 'va-a-cerrar');
+      localStorage.setItem('sesRielW', Math.round(rielW));
+      localStorage.setItem('sesColW', Math.round(colW));
+      if (cerrar) plegarColCharlas(true);
+      luces();
+    };
+    el.addEventListener('pointermove', mover);
+    el.addEventListener('pointerup', soltar);
+    el.addEventListener('pointercancel', soltar);
+  });
+  // Doble clic en el borde: vuelve al ancho de fábrica.
+  el.addEventListener('dblclick', () => {
+    if (cual === 'riel'){ rielW = 220; localStorage.removeItem('sesRielW'); }
+    else { colW = 344; localStorage.removeItem('sesColW'); }
+    aplicarAnchos();
+    if (typeof acomodarLuces === 'function') requestAnimationFrame(() => { try { acomodarLuces(); } catch (er) {} });
+  });
+}
+function iniciarBordes(){
+  const q = id => document.getElementById(id);
+  if (q('anchoRiel')) moverPestana(q('anchoRiel'), 'riel');
+  if (q('abrirCol')) moverPestana(q('abrirCol'), 'col');
+  if (q('bordeRiel')) estirarBorde(q('bordeRiel'), 'riel');
+  if (q('bordeCol')) estirarBorde(q('bordeCol'), 'col');
+  addEventListener('resize', aplicarAnchos);
+  aplicarAnchos();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciarBordes);
+else iniciarBordes();
+// La pestaña del borde del riel (#anchoRiel): la tira de emojis o el riel ancho con el
+// nombre de cada carpeta.
+var rielAncho = localStorage.getItem('sesRielAncho') === '1';
+function ensancharRiel(si){
+  rielAncho = !!si;
+  localStorage.setItem('sesRielAncho', si ? '1' : '0');
+  document.body.classList.toggle('riel-ancho', rielAncho);
+  const b = document.getElementById('anchoRiel');
+  if (b){ b.title = (rielAncho ? 'Achicar a la tira de emojis' : 'Mostrar el nombre de las carpetas') +
+                    ' · arrastrala para moverla';
+          b.setAttribute('aria-label', b.title); }
+  aplicarAnchos();
+  // La luz que marca la carpeta elegida se mide sobre la carpeta: con otro ancho, re-medir.
+  if (typeof acomodarLuces === 'function') requestAnimationFrame(() => { try { acomodarLuces(); } catch (e) {} });
+}
+if (document.readyState === 'loading')
+  document.addEventListener('DOMContentLoaded', () => ensancharRiel(rielAncho));
+else ensancharRiel(rielAncho);
+// [clave, palabra larga, palabra corta]: la corta sale sola cuando la lista es angosta.
+var COL_FILTROS = [['todas', 'Todas', 'Todas'], ['trabajando', 'Trabajando', 'Trabajan'],
+                   ['espera', 'Te esperan', 'Esperan'], ['quieta', 'Quietas', 'Quietas']];
+function colHace(ts){
+  if (!ts) return '';
+  const d = Date.now() / 1000 - ts;
+  if (d < 60) return 'ahora';
+  if (d < 3600) return Math.floor(d / 60) + ' min';
+  if (d < 86400) return Math.floor(d / 3600) + ' h';
+  if (d < 172800) return 'ayer';
+  const f = new Date(ts * 1000);
+  return f.getDate() + '/' + (f.getMonth() + 1);
+}
+function pintarColCharlas(){
+  const col = document.getElementById('colCharlas');
+  if (!col) return;
+  const hay = document.documentElement.classList.contains('vbandeja') && !!activa;
+  const mostrar = hay && !colPlegada;
+  document.body.classList.toggle('con-col', mostrar);
+  document.body.classList.toggle('col-cerrada', hay && colPlegada);
+  const pest = document.getElementById('abrirCol');
+  if (pest){ pest.title = (colPlegada ? 'Mostrar la lista de charlas' : 'Contraer la lista de charlas') +
+                          ' · arrastrala para moverla';
+             pest.setAttribute('aria-label', pest.title); }
+  ubicarPestanas();
+  if (!mostrar){ if (colFirma){ col.innerHTML = ''; colFirma = ''; } return; }
+  // Mientras arrastrás o escribís un nombre, el repintado de cada 3 s no toca la lista: te
+  // cortaría el arrastre a la mitad o te borraría el campo (lo mismo que `editandoNombre`).
+  if (colArrastre || colEditando) return;
+  const cwd = cwdActiva();
+  const p = (cwd && datos.proyectos.find(x => x.cwd === cwd))
+         || datos.proyectos.find(x => x.proyecto === proy);
+  const ahora = Date.now() / 1000;
+  // Qué cuenta cada filtro: "Te esperan" junta lo que necesita que entres (te espera, te
+  // pregunta algo o falló); "Quietas" es todo lo que no trabaja ni te espera.
+  const grupo = s => {
+    const e = estadoSesion(s, ahora);
+    return e === 'trabajando' ? 'trabajando' : e ? 'espera' : 'quieta';
+  };
+  let todas = p ? p.sesiones.filter(s => !s.tapada && !esArchivada(s)) : [];
+  todas = todas.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const cuenta = {todas: todas.length, trabajando: 0, espera: 0, quieta: 0};
+  todas.forEach(s => cuenta[grupo(s)]++);
+  const filas = colFiltro === 'todas' ? todas : todas.filter(s => grupo(s) === colFiltro);
+  const linea = s => {
+    const e = estadoSesion(s, ahora);
+    const que = e === 'fallada' ? 'falló' : e === 'preguntando' ? 'te pregunta algo'
+              : e === 'espera' ? 'te está esperando' : e === 'trabajando' ? 'trabajando'
+              : (s.viva ? 'activa' : 'guardada');
+    return que + (hayBorrador(s.id, s.borrador) ? ' · ✎ ' + vistaBorrador(s.id, s.borrador) : '');
+  };
+  // Las subcarpetas vacías se ven solo con el filtro "Todas": con "Trabajando" no tienen
+  // nada que mostrar y serían ruido.
+  const vacias = p && colFiltro === 'todas' ? subVaciasDe(p) : [];
+  const grupos = p ? agruparSub(filas, p.proyecto, vacias) : null;
+  const plegado = sub => subproyPlegados.has(claveSubproy(p.proyecto, sub));
+  const f = JSON.stringify([p ? p.proyecto : '', p ? nombreGrupo(p.proyecto) + '|' + (iconos[p.proyecto] || '') : '',
+    colFiltro, activa,
+    (grupos || []).map(g => g.sub + (plegado(g.sub) ? '-' : '+') + JSON.stringify(adornoSub(p.proyecto, g.sub))),
+    filas.map(s => s.id + '|' + s.nombre + '|' + s.viva + '|' + estadoSesion(s, ahora) + '|' +
+                   colHace(s.ts) + '|' + (s.sub || '') + '|' + (s.cerebro || '') + '|' + linea(s) +
+                   '|' + (tonos[s.id] || ''))]);
+  if (f === colFirma) return;
+  colFirma = f;
+  const fila = s => {
+    const e = estadoSesion(s, ahora);
+    const luz = 'ast' + (s.viva ? ' viva' : '') + (e === 'preguntando' ? ' espera' : e ? ' ' + e : '');
+    // El color es el de su pestaña (`tonos`), con la misma cuenta de tres tonos.
+    const tn = tresTonos(tonos[s.id]);
+    return '<div class="cc-it' + (s.id === activa ? ' sel' : '') + (tn ? ' pintada' : '') +
+      '" data-sid="' + esc(s.id) +
+      '" data-cwd="' + esc(p.cwd) + '" data-nom="' + esc(s.nombre) + '" data-cer="' +
+      esc(s.cerebro || '') + '" data-g="' + esc(grupos ? (s.sub || '') : '') + '"' +
+      (tn ? ' style="--tn-f:' + tn[0] + ';--tn-m:' + tn[1] + ';--tn-l:' + tn[2] + '"' : '') +
+      ' title="' + esc(s.nombre) + ' · doble clic en el nombre: cambiarlo · botón derecho o ⋯: color y más' +
+      (grupos ? ' · arrastrala a otro subproyecto' : '') + '">' +
+      '<span class="cc-luz"><span class="' + luz + '"></span></span>' +
+      '<b>' + esc(s.nombre) + (s.cerebro === 'codex' ? ' · Codex' : '') + '</b>' +
+      '<time>' + colHace(s.ts) + '</time>' +
+      '<span class="cc-mas" data-cc-menu title="Color, nombre y más">⋯</span>' +
+      '<p>' + (s.sub && !grupos ? '<em>' + esc(s.sub) + ' · </em>' : '') + esc(linea(s)) + '</p></div>';
+  };
+  // ⭐ Las subcarpetas, como las carpetas de ClickUp (Martín, 2026-11-11: "me faltan las
+  // subcarpetas… quiero que sea tal cómo clickup"): cada subproyecto es un renglón con
+  // flechita que se pliega, y adentro sus charlas con sangría; las sueltas van al final, sin
+  // título. Lo plegado es el MISMO de la bandeja y la columna (`subproyPlegados`).
+  const cuerpo = !grupos ? filas.map(fila).join('') : grupos.map(g => {
+    if (!g.sub) return '<div class="cc-sueltas">' + g.filas.map(fila).join('') + '</div>';
+    const a = adornoSub(p.proyecto, g.sub), cerrado = plegado(g.sub);
+    const trabaja = g.filas.some(s => estadoSesion(s, ahora) === 'trabajando');
+    return '<div class="cc-grupo' + (cerrado ? ' plegado' : '') + '">' +
+      '<div class="cc-sub" data-sub="' + esc(g.sub) + '" title="' + (cerrado ? 'Desplegar' : 'Plegar') + '"' + a.estilo + '>' +
+        '<span class="cc-flecha">▸</span>' + a.antes + '<span class="cc-subnom">' + esc(g.sub) + '</span>' +
+        (trabaja && cerrado ? '<span class="ast trabajando"></span>' : '') +
+        '<small>' + g.filas.length + '</small>' +
+        '<span class="cc-mas cc-subnueva" data-cc-subnueva title="Empezar una charla en «' + esc(g.sub) + '»">＋</span>' +
+        '<span class="cc-mas" data-cc-submenu title="Color, fijarlo y nombre">⋯</span></div>' +
+      (cerrado ? '' : '<div class="cc-hijas">' + (g.filas.length ? g.filas.map(fila).join('')
+        : '<div class="cc-subvacia">Vacía · arrastrá charlas acá, o tocá ＋ para empezar una</div>') + '</div>') + '</div>';
+  }).join('') +
+    // Si todas están en subproyectos no hay "sueltas" donde soltar: esta franja aparece
+    // solo mientras arrastrás una charla y sirve para sacarla de su subproyecto.
+    (grupos.some(g => !g.sub) ? '' : '<div class="cc-sueltas cc-soltar-fuera" hidden>Soltala acá para sacarla del subproyecto</div>');
+  // ⭐ La cabecera edita la CARPETA (Martín, 2026-11-12: "me gustaría poder cambiar el
+  // nombre del proyecto y el ícono acá"): el ícono abre el menú de la carpeta (ícono, color,
+  // navegador, fondo…), el mismo del botón derecho en el riel; tocar el nombre lo edita ahí.
+  // ⚠ Es el APODO (`apodos`), igual que "Cambiarle el nombre" del riel: la carpeta del disco
+  // no se toca.
+  const icoP = p ? iconos[p.proyecto] : '';
+  const cab = p
+    ? '<button class="cc-ico" data-cc-ico title="Ícono, color y más de la carpeta" ' +
+        'aria-label="Ícono de la carpeta">' + esc(icoP || '📁') + '</button>' +
+      '<b data-cc-nom title="Tocá para cambiarle el nombre (la carpeta del disco no se toca)">' +
+        esc(sinIconoRepetido(nombreGrupo(p.proyecto), icoP)) + '</b>'
+    : '<b>Charlas</b>';
+  col.innerHTML =
+    '<div class="cc-cab">' + cab +
+      '<small>' + todas.length + '</small>' +
+      (p ? '<span class="cc-nueva cc-nuevasub" data-cc-nuevasub title="Nueva subcarpeta" role="button" ' +
+             'aria-label="Nueva subcarpeta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>' +
+             '<path d="M12 11v5M9.5 13.5h5"/></svg></span>' +
+           '<span class="cc-nueva" title="Empezar una conversación en esta carpeta">＋</span>' : '') +
+    '</div>' +
+    '<div class="cc-filtros">' + COL_FILTROS.map(([k, n, c]) =>
+      '<span data-colf="' + k + '"' + (k === colFiltro ? ' class="sel"' : '') + ' title="' + n + '">' +
+      '<span class="largo">' + n + '</span><span class="corto">' + c + '</span>' +
+      (k !== 'todas' && cuenta[k] ? '<i>' + cuenta[k] + '</i>' : '') + '</span>').join('') + '</div>' +
+    '<div class="cc-lista">' + (filas.length || vacias.length ? cuerpo
+      : '<div class="cc-vacio">' + (p ? 'Ninguna con este filtro.' : 'Esta charla no tiene carpeta a la vista.') +
+        '</div>') + '</div>';
+  col.querySelectorAll('[data-colf]').forEach(x => x.onclick = () => {
+    colFiltro = x.dataset.colf; colFirma = ''; pintarColCharlas();
+  });
+  const nueva = col.querySelector('.cc-nueva:not(.cc-nuevasub)');
+  if (nueva) nueva.onclick = () => abrirSesion(p.cwd, '', 'Nueva', false);
+  const nuevaSub = col.querySelector('[data-cc-nuevasub]');
+  if (nuevaSub) nuevaSub.onclick = () => crearSubcarpeta(col, p);
+  if (p){
+    const menuCarp = (e, cerca) => {
+      const r = cerca.getBoundingClientRect();
+      abrirMenuCarpeta({preventDefault: () => e.preventDefault(), stopPropagation: () => e.stopPropagation(),
+                        clientX: r.left, clientY: r.bottom + 6}, {dataset: {proy: p.proyecto}});
+    };
+    const ico = col.querySelector('[data-cc-ico]');
+    ico.onclick = e => menuCarp(e, ico);
+    col.querySelector('[data-cc-nom]').onclick = e => editarNombreCarpeta(e.currentTarget, p.proyecto);
+    col.querySelector('.cc-cab').oncontextmenu = e => menuCarp(e, ico);
+  }
+  col.querySelectorAll('.cc-sub').forEach(el => {
+    el.onclick = e => {
+      if (e.target.closest('[data-cc-submenu]')) return abrirMenuSubgrupo(e, p.proyecto, el.dataset.sub);
+      if (e.target.closest('[data-cc-subnueva]')){ e.stopPropagation(); return nuevaEnSub(p.cwd, el.dataset.sub); }
+      plegarSubproy(claveSubproy(p.proyecto, el.dataset.sub)); colFirma = ''; pintarColCharlas();
+    };
+    el.oncontextmenu = e => abrirMenuSubgrupo(e, p.proyecto, el.dataset.sub);
+  });
+  col.querySelectorAll('.cc-it').forEach(el => {
+    const sid = el.dataset.sid;
+    el.onmousedown = e => { if (e.button === 1) e.preventDefault(); };
+    el.onclick = e => {
+      if (e.target.closest('[data-cc-menu]')) return abrirMenuCharla(e, sid, el);
+      if (e.target.closest('.cc-nomEdit')) return;
+      if (e.ctrlKey || e.metaKey) return abrirEnNavegador(sid);
+      if (sid === activa) return;
+      abrirSesion(el.dataset.cwd, sid, el.dataset.nom, false, el.dataset.cer);
+    };
+    el.ondblclick = e => { if (e.target.closest('b')) editarNombreEnLista(el); };
+    el.oncontextmenu = e => abrirMenuCharla(e, sid, el);
+    el.onauxclick = e => { if (e.button !== 1) return; e.preventDefault(); abrirEnNavegador(sid); };
+  });
+  if (grupos) engancharArrastreLista(col, p);
+}
+
+// ⭐⭐ EDITAR DESDE LA LISTA (Martín, 2026-11-12, con captura de la lista: "me gustaría poder
+// editar las sesiones desde acá, con nombre y colores y demás · poder hacer drag&drop").
+// Nada nuevo por debajo: el color es `tonos[sid]` (el MISMO de la pestaña de arriba), el
+// nombre va por `guardarNombre`, el subproyecto por `asignarSub`/`abrirMenuSub`, el menú
+// del subproyecto es `abrirMenuSubgrupo` y su orden es `subOrden`. Así lo que cambiás acá
+// se ve igual en la pestaña, la bandeja y la columna de carpetas.
+var colArrastre = null, colEditando = false;
+function abrirMenuCharla(e, sid, fila){
+  e.preventDefault(); e.stopPropagation();
+  const p = datos.proyectos.find(x => x.sesiones.some(s => s.id === sid));
+  if (!p) return;
+  const s = p.sesiones.find(x => x.id === sid);
+  const m = $('#menuTarjeta');
+  const t = tonos[sid];
+  m.innerHTML = '<div class="rub">Conversación</div>' +
+    '<div class="tonos">' +
+      Object.keys(TONOS).map(k =>
+        '<div class="tono' + (t === k ? ' sel' : '') + '" data-tono="' + k +
+        '" title="' + k + '" style="background:' + TONOS[k][0] +
+        ';box-shadow:inset 0 0 0 2px ' + TONOS[k][2] + '"></div>').join('') +
+      '<div class="tono nada' + (t ? '' : ' sel') + '" data-tono="" title="Sin color">✕</div>' +
+      '<span class="ruedaCaja' + (esHex(t) ? ' sel' : '') + '" title="Cualquier otro color">' +
+        '<input type="color" class="rueda" id="ccRueda" value="' + (esHex(t) ? t : '#8ecbff') + '"></span>' +
+    '</div><div class="sep"></div>' +
+    '<div class="op" data-hace="nombre">✎ Cambiarle el nombre</div>' +
+    '<div class="op" data-hace="sub">⊞ ' + (s.sub ? 'Pasarla a otro subproyecto…' : 'Ponerla en un subproyecto…') + '</div>' +
+    '<div class="op" data-hace="navegador" title="En otra pestaña del navegador">↗ Abrir aparte</div>' +
+    '<div class="sep"></div>' +
+    '<div class="op" data-hace="archivar" title="Sale de la lista; se recupera en Archivadas">🗄 Archivarla</div>';
+  const repintar = () => { pintarTabs(); teñirCab(); colFirma = ''; pintarColCharlas(); };
+  const marcar = o => {
+    m.querySelectorAll('.tonos .tono').forEach(x => x.classList.toggle('sel', x === o));
+    m.querySelector('.ruedaCaja').classList.toggle('sel', o === null);
+  };
+  // Como en el menú de la pestaña: el color se ve en el acto y el menú queda abierto.
+  m.querySelectorAll('.tonos .tono').forEach(o => o.onclick = () => {
+    if (o.dataset.tono) tonos[sid] = o.dataset.tono; else delete tonos[sid];
+    guardarTarjetas(); repintar(); marcar(o);
+  });
+  const rueda = m.querySelector('#ccRueda');
+  rueda.oninput = () => { tonos[sid] = rueda.value; repintar(); marcar(null); };
+  rueda.onchange = () => { tonos[sid] = rueda.value; guardarTarjetas(); repintar(); marcar(null); };
+  m.querySelector('[data-hace="nombre"]').onclick = () => {
+    cerrarMenuTarjeta();
+    const f = fila && fila.isConnected ? fila
+            : document.querySelector('#colCharlas .cc-it[data-sid="' + CSS.escape(sid) + '"]');
+    if (f) editarNombreEnLista(f); else renombrar(sid, s.nombre);
+  };
+  m.querySelector('[data-hace="sub"]').onclick = ev => {
+    cerrarMenuTarjeta();
+    abrirMenuSub({preventDefault(){}, stopPropagation(){}, clientX: ev.clientX, clientY: ev.clientY}, sid);
+  };
+  m.querySelector('[data-hace="navegador"]').onclick = () => { cerrarMenuTarjeta(); abrirEnNavegador(sid); };
+  m.querySelector('[data-hace="archivar"]').onclick = () => { cerrarMenuTarjeta(); archivar(sid, true); };
+  ponerMenuAlPuntero(m, e);
+}
+// Doble clic en el nombre (o "Cambiarle el nombre" del ⋯): se edita en el mismo renglón.
+// Enter guarda, Esc deja como estaba, y salir del campo también guarda.
+function editarNombreEnLista(fila){
+  const b = fila.querySelector('b'), sid = fila.dataset.sid;
+  if (!b || colEditando) return;
+  const antes = fila.dataset.nom || '';
+  colEditando = true;
+  const inp = document.createElement('input');
+  inp.className = 'cc-nomEdit'; inp.value = antes; inp.spellcheck = false;
+  inp.setAttribute('aria-label', 'Nombre de la charla');
+  b.replaceWith(inp);
+  fila.draggable = false;
+  inp.focus(); inp.select();
+  let listo = false;
+  const terminar = async guardarlo => {
+    if (listo) return; listo = true;
+    const n = inp.value.trim();
+    colEditando = false;
+    if (guardarlo && n && n !== antes){
+      // Se ve al toque: se anota en memoria y el servidor confirma en el próximo refresco.
+      datos.proyectos.forEach(p => p.sesiones.forEach(s => { if (s.id === sid) s.nombre = n; }));
+      colFirma = ''; pintarColCharlas();
+      await guardarNombre(sid, n);
+    } else { colFirma = ''; pintarColCharlas(); }
+  };
+  inp.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter'){ e.preventDefault(); terminar(true); }
+    else if (e.key === 'Escape'){ e.preventDefault(); terminar(false); }
+  });
+  inp.addEventListener('blur', () => terminar(true));
+  inp.addEventListener('dblclick', e => e.stopPropagation());
+}
+// ⭐ El 📁＋ de la cabecera: un renglón arriba de todo para escribir el nombre de la
+// subcarpeta nueva (Enter la crea, Esc o salir sin nombre cancela). Queda VACÍA y arriba,
+// lista para arrastrarle charlas o empezar una con su ＋. Si ya existe una con ese nombre,
+// no se duplica: se despliega y se la marca.
+// Crear la subcarpeta (vacía, arriba de todo, desplegada). La usan la lista de charlas y la
+// bandeja: una sola regla para las dos. Si ya existe con ese nombre no se duplica.
+function sumarSubVacia(p, n){
+  const existe = subproyectosDe(p).includes(n) || (subVacias[p.proyecto] || []).includes(n);
+  if (!existe){
+    subVacias[p.proyecto] = [n, ...(subVacias[p.proyecto] || [])];
+    // Arriba de todo: la recién creada es la que vas a usar ahora.
+    subOrden[p.proyecto] = [n, ...((subOrden[p.proyecto] || []).filter(x => x !== n))];
+  }
+  subproyPlegados.delete(claveSubproy(p.proyecto, n));
+  localStorage.setItem('sesSubproyPlegados', JSON.stringify([...subproyPlegados]));
+  guardarSubAjustes();
+}
+// La fila "Nueva subcarpeta" de la bandeja: se escribe el nombre en la misma fila.
+var creandoSubB = false;
+function crearSubEnBandeja(el, p){
+  if (creandoSubB || !p) return;
+  creandoSubB = true;
+  const med = el.querySelector('.med');
+  med.innerHTML = '<input class="nomSubB" placeholder="Nombre de la subcarpeta" maxlength="40" ' +
+    'aria-label="Nombre de la subcarpeta">' +
+    '<div class="baj">Enter para crearla · Esc para cancelar</div>';
+  const inp = med.querySelector('input');
+  inp.focus();
+  inp.addEventListener('click', e => e.stopPropagation());
+  let listo = false;
+  const terminar = crear => {
+    if (listo) return; listo = true;
+    creandoSubB = false;
+    const n = limpiarSub(inp.value);
+    if (crear && n) sumarSubVacia(p, n);
+    firma = ''; pintarLista(); colFirma = '';
+  };
+  inp.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter'){ e.preventDefault(); terminar(true); }
+    else if (e.key === 'Escape'){ e.preventDefault(); terminar(false); }
+  });
+  inp.addEventListener('blur', () => terminar(true));
+}
+function crearSubcarpeta(col, p){
+  if (colEditando || !p) return;
+  const lista = col.querySelector('.cc-lista');
+  if (!lista) return;
+  colEditando = true;
+  const fila = document.createElement('div');
+  fila.className = 'cc-sub cc-subcrear';
+  fila.innerHTML = '<span class="cc-flecha">▸</span>' +
+    '<input class="cc-nomEdit" placeholder="Nombre de la subcarpeta" maxlength="40" aria-label="Nombre de la subcarpeta">';
+  lista.prepend(fila);
+  lista.scrollTop = 0;
+  const inp = fila.querySelector('input');
+  inp.focus();
+  let listo = false;
+  const terminar = crear => {
+    if (listo) return; listo = true;
+    colEditando = false;
+    const n = limpiarSub(inp.value);
+    if (crear && n) sumarSubVacia(p, n);
+    colFiltro = crear && n ? 'todas' : colFiltro;
+    colFirma = ''; pintarColCharlas();
+  };
+  inp.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter'){ e.preventDefault(); terminar(true); }
+    else if (e.key === 'Escape'){ e.preventDefault(); terminar(false); }
+  });
+  inp.addEventListener('blur', () => terminar(true));
+}
+// El nombre de la CARPETA en la cabecera de la lista: tocarlo lo vuelve un campo. Guarda el
+// apodo con lo mismo que "Cambiarle el nombre" del riel (`apodos` + `subirCarp`); vacío o
+// igual al de la carpeta, lo borra y vuelve el nombre de siempre.
+function editarNombreCarpeta(b, carpeta){
+  if (!b || colEditando) return;
+  colEditando = true;
+  const inp = document.createElement('input');
+  inp.className = 'cc-nomEdit cc-cabEdit'; inp.value = nombreGrupo(carpeta); inp.spellcheck = false;
+  inp.setAttribute('aria-label', 'Nombre de la carpeta');
+  b.replaceWith(inp);
+  inp.focus(); inp.select();
+  let listo = false;
+  const terminar = guardarlo => {
+    if (listo) return; listo = true;
+    colEditando = false;
+    const v = inp.value.trim();
+    if (guardarlo && v !== nombreGrupo(carpeta)){
+      if (v && v !== carpeta) apodos[carpeta] = v; else delete apodos[carpeta];
+      guardarTarjetas(); subirCarp(carpeta, 'apodo', apodos[carpeta]);
+      pintarCarpetas(); pintarTabs();
+      if (activa) { firma = ''; pintarSesion(); }
+    }
+    colFirma = ''; pintarColCharlas();
+  };
+  inp.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter'){ e.preventDefault(); terminar(true); }
+    else if (e.key === 'Escape'){ e.preventDefault(); terminar(false); }
+  });
+  inp.addEventListener('blur', () => terminar(true));
+}
+// Arrastrar y soltar en la lista, dos cosas:
+//  · una CHARLA sobre otro subproyecto (su título o cualquier charla de adentro, plegado o
+//    no) la pasa ahí; sobre las sueltas, o sobre la franja que aparece si no hay sueltas,
+//    le saca el subproyecto.
+//  · el TÍTULO de un subproyecto sobre otro título lo reordena: arriba de la mitad queda
+//    antes, abajo queda después (el mismo `subOrden` de la bandeja y la columna).
+function engancharArrastreLista(col, p){
+  const zonas = () => [...col.querySelectorAll('.cc-grupo, .cc-sueltas')];
+  const limpiar = () => col.querySelectorAll('.soltar-aca, .soltar-antes, .soltar-despues')
+    .forEach(x => x.classList.remove('soltar-aca', 'soltar-antes', 'soltar-despues'));
+  const gDe = z => z.classList.contains('cc-sueltas') ? '' : (z.querySelector('.cc-sub') || {dataset: {}}).dataset.sub || '';
+  const fuera = col.querySelector('.cc-soltar-fuera');
+  const soltar = () => {
+    col.querySelectorAll('.llevada').forEach(x => x.classList.remove('llevada'));
+    limpiar(); if (fuera) fuera.hidden = true;
+    colArrastre = null;
+  };
+  col.querySelectorAll('.cc-it').forEach(el => {
+    el.draggable = true;
+    el.addEventListener('dragstart', e => {
+      colArrastre = {tipo: 'charla', sid: el.dataset.sid, g: el.dataset.g || ''};
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', el.dataset.nom || '');
+      el.classList.add('llevada');
+      if (fuera && colArrastre.g) fuera.hidden = false;
+    });
+    el.addEventListener('dragend', () => { soltar(); colFirma = ''; pintarColCharlas(); });
+  });
+  col.querySelectorAll('.cc-sub[data-sub]').forEach(el => {
+    el.draggable = true;
+    el.addEventListener('dragstart', e => {
+      colArrastre = {tipo: 'sub', g: el.dataset.sub};
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', el.dataset.sub);
+      el.classList.add('llevada');
+    });
+    el.addEventListener('dragend', () => { soltar(); colFirma = ''; pintarColCharlas(); });
+  });
+  const antes = (el, e) => { const r = el.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; };
+  zonas().forEach(z => {
+    z.addEventListener('dragover', e => {
+      const ll = colArrastre;
+      if (!ll) return;
+      if (ll.tipo === 'charla'){
+        if (gDe(z) === ll.g) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        if (!z.classList.contains('soltar-aca')){ limpiar(); z.classList.add('soltar-aca'); }
+      } else {
+        const t = z.querySelector('.cc-sub[data-sub]');
+        if (!t || t.dataset.sub === ll.g) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        const a = antes(t, e);
+        if (!t.classList.contains(a ? 'soltar-antes' : 'soltar-despues')){
+          limpiar(); t.classList.add(a ? 'soltar-antes' : 'soltar-despues');
+        }
+      }
+    });
+    z.addEventListener('drop', e => {
+      const ll = colArrastre;
+      if (!ll) return;
+      e.preventDefault();
+      const g = gDe(z);
+      if (ll.tipo === 'charla'){
+        soltar();
+        if (g !== ll.g) asignarSub(ll.sid, g);
+        return;
+      }
+      const t = z.querySelector('.cc-sub[data-sub]');
+      if (!t || t.dataset.sub === ll.g){ soltar(); return; }
+      const a = antes(t, e);
+      soltar();
+      // El orden de partida es el que se VE: lo que soltás queda donde lo viste caer.
+      const orden = [...col.querySelectorAll('.cc-sub[data-sub]')].map(x => x.dataset.sub)
+                      .filter(x => x !== ll.g);
+      let i = orden.indexOf(g);
+      if (!a) i++;
+      orden.splice(i, 0, ll.g);
+      subOrden[p.proyecto] = orden;
+      repintarSubs();
+    });
+  });
+}
+
 async function pintar(){
+  try { pintarColCharlas(); } catch (e) { console.error('colCharlas', e); }
   $('#caja').style.display = activa ? 'flex' : 'none';
   sincronizarArbol();
   refrescarSubs();      // la charla que estás leyendo se marca en su subcarpeta
@@ -4797,18 +6559,24 @@ function pintarLista(){
   // subproyecto, la bandeja se parte en grupos plegables. Si ninguna tiene, `grupos`
   // es null y la lista sale exactamente como antes. En "Todas" y en las archivadas no
   // se agrupa: ahí se mezcla o se rescata, no se ordena por subproyecto.
-  const grupos = (!todas && !viendoArchivadas) ? agruparSub(filas) : null;
-  const f = JSON.stringify(['lista', proy, q, viendoArchivadas, cuantasGuardadas, perdida,
+  // ⭐ Las subcarpetas VACÍAS también acá (2026-11-12), salvo filtrando por texto (ahí no
+  // hay nada que mostrar adentro).
+  const vaciasB = (!todas && !viendoArchivadas && p && !q) ? subVaciasDe(p) : [];
+  const grupos = (!todas && !viendoArchivadas) ? agruparSub(filas, p ? p.proyecto : undefined, vaciasB) : null;
+  const f = JSON.stringify(['lista', proy, q, viendoArchivadas, cuantasGuardadas, perdida, vaciasB,
                             filas.map(s => s.id + s.nombre + s.viva + s.detalle + s.ultimo + estado(s)
                                            + (s.cerebro || '') + (s.sigue_en || '') + '|' + (s.sub || '')
                                            + borradorDe(s.id, s.borrador).slice(0, 60)),
                             datos.proyectos.map(x => x.proyecto + x.sesiones.filter(v=>v.viva).length),
                             grupos ? [...subproyPlegados] : 0]);
   if (f === firma) return;
+  // Escribiendo el nombre de una subcarpeta nueva: el repintado no te borra el campo.
+  if (creandoSubB) return;
   firma = f;
   const filaCorreo = s =>
     '<div class="correo ' + estado(s) + '" data-sid="' + s.id + '" data-nom="' + esc(s.nombre) +
-      '" data-cwd="' + esc(s.cwd) + '" data-cer="' + esc(s.cerebro || '') + '">' +
+      '" data-cwd="' + esc(s.cwd) + '" data-cer="' + esc(s.cerebro || '') +
+      '" data-g="' + esc(s.sub || '') + '">' +
       '<div class="ini ' + (s.viva?'viva':'') + '">' + esc((s.nombre||'?')[0].toUpperCase()) + '</div>' +
       '<div class="med"><div class="tit">' +
         // La chapa del proyecto va cuando la lista mezcla carpetas, o sea en "Todas"
@@ -4850,10 +6618,21 @@ function pintarLista(){
     : grupos.map(g => {
         const k = claveSubproy(p.proyecto, g.sub);
         const pleg = subproyPlegados.has(k);
-        return '<div class="subgrupo" data-subpleg="' + esc(k) + '">' +
-               '<span>' + (pleg ? '▸' : '▾') + '</span><span class="nom">' + esc(tituloSub(g.sub)) +
-               '</span><span class="num">' + g.filas.length + '</span></div>' +
-               (pleg ? '' : g.filas.map(filaCorreo).join(''));
+        const ad = adornoSub(p.proyecto, g.sub);
+        return '<div class="subgrupo" data-subpleg="' + esc(k) + '" data-g="' + esc(g.sub || '') +
+               '" data-carp="' + esc(p.proyecto) + '"' + ad.estilo +
+               (g.sub ? ' title="Arrastralo para moverlo · botón derecho o ⋯: color, fijar, nombre"' : '') + '>' +
+               '<span>' + (pleg ? '▸' : '▾') + '</span>' + ad.antes + '<span class="nom">' + esc(tituloSub(g.sub)) +
+               '</span>' +
+               (g.sub ? '<span class="menuSub" data-menu-sub title="Color, fijar y nombre">⋯</span>' : '') +
+               // ⭐ El ＋ de cada subproyecto (Martín, 2026-11-11): arranca una charla nueva
+               // que ya nace adentro de ese grupo. "Sin subproyecto" no lo lleva: para eso
+               // está la fila de "Empezar una conversación" de arriba.
+               (g.sub ? '<span class="masSub" data-nueva-sub="' + esc(g.sub) +
+                        '" title="Empezar una conversación en «' + esc(g.sub) + '»">＋</span>' : '') +
+               '<span class="num">' + g.filas.length + '</span></div>' +
+               (pleg ? '' : g.filas.length ? g.filas.map(filaCorreo).join('')
+                 : '<div class="subvaciaB">Vacía · arrastrá charlas a este título, o tocá ＋ para empezar una</div>');
       }).join('');
   // El botón de las archivadas solo aparece cuando hay alguna: si no, es un cartel
   // que no hace nada. Con el clic derecho se archiva y se desarchiva.
@@ -4903,7 +6682,13 @@ function pintarLista(){
       '<div class="correo" data-sid="" data-nom="Nueva" data-cwd="' + esc(p.cwd) + '">' +
       '<div class="ini mas">✚</div>' +
       '<div class="med"><div class="tit nueva">Empezar una conversación</div>' +
-      '<div class="baj">arranca de cero en este proyecto</div></div></div>') +
+      '<div class="baj">arranca de cero en este proyecto</div></div></div>' +
+      // ⭐ "Nueva subcarpeta" (Martín, 2026-11-12: "no puedo añadir fácilmente subcarpetas
+      // acá"): misma forma que la fila de arriba, así se lee como la otra cosa que se crea.
+      '<div class="correo nuevaSub" data-nueva-subcarpeta="1">' +
+      '<div class="ini mas carpetaMas">📁</div>' +
+      '<div class="med"><div class="tit nueva">Nueva subcarpeta</div>' +
+      '<div class="baj">para juntar las charlas de un mismo tema</div></div></div>') +
     (html || '<div class="vacio">' + (viendoArchivadas
         ? 'No hay ninguna archivada. Clic derecho sobre una conversación para guardarla acá.'
         : 'Nada con ese filtro.') + '</div>');
@@ -4926,6 +6711,8 @@ function pintarLista(){
                                     firma = ''; recienAbierta = true; pintarLista(); };
   document.querySelectorAll('#cuerpo .correo').forEach(el => {
     el.onclick = e => {
+      // "Nueva subcarpeta": no abre nada, se escribe el nombre en la misma fila.
+      if (el.dataset.nuevaSubcarpeta !== undefined) return crearSubEnBandeja(el, p);
       const ren = e.target.dataset.ren;
       if (ren !== undefined) { renombrar(ren, el.dataset.nom); return; }
       const subp = e.target.dataset.subp;
@@ -4968,8 +6755,50 @@ function pintarLista(){
                                 archivar(el.dataset.sid, !viendoArchivadas); };
   });
   document.querySelectorAll('#cuerpo .subgrupo[data-subpleg]').forEach(x => {
-    x.onclick = () => { plegarSubproy(x.dataset.subpleg); repintarBandeja(); pintarCarpetas(); };
+    x.onclick = e => {
+      const mas = e.target.closest('[data-nueva-sub]');
+      if (mas) return nuevaEnSub(p.cwd, mas.dataset.nuevaSub);
+      if (e.target.closest('[data-menu-sub]')) return abrirMenuSubgrupo(e, x.dataset.carp, x.dataset.g);
+      plegarSubproy(x.dataset.subpleg); repintarBandeja(); pintarCarpetas();
+    };
+    x.oncontextmenu = e => abrirMenuSubgrupo(e, x.dataset.carp, x.dataset.g);
   });
+  if (grupos) engancharArrastreSub($('#cuerpo'));
+  // ⭐ Arrastrar una charla de un subproyecto a otro (Martín, 2026-11-11). Se suelta sobre
+  // el TÍTULO del grupo (anda aunque esté plegado) o sobre cualquier charla del grupo.
+  // Soltarla en "Sin subproyecto" le saca el que tenía. Solo hay grupos adentro de una
+  // carpeta que ya usa subproyectos; si no, no hay adónde llevarla.
+  if (grupos){
+    let llevada = null;
+    const limpiar = () => document.querySelectorAll('#cuerpo .soltar-aca')
+                            .forEach(x => x.classList.remove('soltar-aca'));
+    const tituloDe = g => [...document.querySelectorAll('#cuerpo .subgrupo[data-g]')]
+                            .find(x => x.dataset.g === g);
+    document.querySelectorAll('#cuerpo .correo[data-g]').forEach(el => {
+      if (!el.dataset.sid) return;
+      el.draggable = true;
+      el.ondragstart = e => {
+        llevada = {sid: el.dataset.sid, g: el.dataset.g};
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', el.dataset.nom || '');
+        el.classList.add('llevada');
+      };
+      el.ondragend = () => { el.classList.remove('llevada'); limpiar(); llevada = null; };
+    });
+    document.querySelectorAll('#cuerpo .subgrupo[data-g], #cuerpo .correo[data-g]').forEach(el => {
+      el.ondragover = e => {
+        if (!llevada || el.dataset.g === llevada.g) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        const t = tituloDe(el.dataset.g);
+        if (t && !t.classList.contains('soltar-aca')){ limpiar(); t.classList.add('soltar-aca'); }
+      };
+      el.ondrop = e => {
+        e.preventDefault();
+        const ll = llevada; limpiar(); llevada = null;
+        if (ll && el.dataset.g !== ll.g) asignarSub(ll.sid, el.dataset.g);
+      };
+    });
+  }
   // ⭐ Al LLEGAR a una carpeta los renglones entran en escalera. Solo al llegar: esta
   // lista se rearma con cada refresco y con cada letra del filtro.
   const claveLista = proy + '|' + (viendoArchivadas ? 'a' : '');
@@ -5249,12 +7078,13 @@ async function pintarSesion(){
   const filaHtml = enFila[t.sid].map(x => '<div class="msg vos enfila">' + esc(x.texto) +
       '<span class="filaNota">en fila: lo lee en la próxima pausa</span></div>').join('') +
     (avisoFila[t.sid] ? '<div class="pideComp">' + esc(avisoFila[t.sid]) + '</div>' : '');
+  const enQue = pregVisible ? 'te pregunta algo' : (pensa || d.ocupada) ? 'trabajando' : '';
   const html = (viva ? '<div class="aviso">Esta sesión está abierta en una ventana de Claude Code: ' +
       'acá se puede leer en vivo, pero escribirle la partiría en dos.</div>' : '') +
     (nueva && t.desde ? '<div class="aviso">⑂ Copia de «' + esc(t.desdeNombre || 'la charla') +
       '»: lo que escribas acá sigue en una charla NUEVA con todo lo de abajo. ' +
       'La original queda como está.</div>' : '') +
-    cabeceraCarta(t, pregVisible ? 'te pregunta algo' : (pensa || d.ocupada) ? 'trabajando' : '') +
+    cabeceraCarta(t, enQue) +
     '<div id="hilo">' + cuerpo +
     (ev && !yaLlego ? '<div class="msg vos' + (conFoto ? ' con-foto' : '') + '">' + fotosHtml(fotosVuelo[t.sid]) +
       (conFoto && ev === '(imagen)' ? '' : esc(ev)) + '</div>' : '') +
@@ -5266,6 +7096,9 @@ async function pintarSesion(){
      pensa ? '<div class="msg claude pensa"><span class="pts"><i></i><i></i><i></i></span>' +
           'pensando<span class="reloj" id="reloj"></span></div>' : pedirComp) + '</div>';
   if (html === firma){ EnVivo.pintar(); return; }
+  // Le estás cambiando el nombre: el campo no se pisa. `firma` queda vieja a propósito,
+  // así al terminar se repinta con lo que haya llegado mientras tanto.
+  if (editandoNombre === t.sid){ EnVivo.pintar(); return; }
   firma = html;
   const c = $('#cuerpo');
   // Lo que ya habías marcado o tipeado en el selector no se puede perder en el
@@ -5276,8 +7109,12 @@ async function pintarSesion(){
   // sigue el hilo si YA estabas abajo — si te fuiste a leer algo de más arriba, no te
   // tiene que arrastrar.
   const entrando = recienAbierta;
-  const abajo = entrando || c.scrollHeight - c.scrollTop - c.clientHeight < 90;
+  // ⭐ No se mide la distancia acá: se usa `sigueAbajo` (ver `vigilarSubida`). Al entrar a
+  // una charla vuelve a seguirte.
+  if (entrando) sigueAbajo = true;
+  const abajo = entrando || sigueAbajo;
   c.innerHTML = html;
+  teñirCab();
   // ⚠ Antes de medir el scroll: el borrador ocupa alto, y el hilo nuevo del disco puede
   // haber absorbido lo que ya estaba escrito en él (mismo repintado, sin parpadeo).
   EnVivo.pintar();
@@ -5288,11 +7125,15 @@ async function pintarSesion(){
   if (scrollPendiente !== null){
     const donde = scrollPendiente; scrollPendiente = null;
     c.scrollTop = donde;
+    // Si la dejaste leyendo más arriba, al volver tampoco te sigue hacia abajo.
+    sigueAbajo = c.scrollHeight - c.scrollTop - c.clientHeight < 40;
+    ultimoTop = c.scrollTop;
     c.querySelectorAll('img').forEach(i => {
       if (!i.complete) i.addEventListener('load', () => { c.scrollTop = donde; }, {once:true});
     });
   }
   else if (abajo) alFinal(c);
+  cabPegada();
   // Al ENTRAR a una pestaña la charla aparece con un desvanecido corto en vez de
   // aparecer de golpe. Solo al entrar: hacerlo en cada repintado de 3 s sería un
   // parpadeo permanente mientras leés.
@@ -5920,6 +7761,8 @@ if (window.Atajos) Atajos.montar({
   etiqueta: '⚡',
   // En la compu el rayo es un icono de línea, de la misma familia que los de al lado.
   icono: '<svg class="icn"><use href="#i-rayo"/></svg>',
+  // Escribir "/" en la caja va sugiriendo skills y comandos; Tab completa.
+  caja: $('#texto'),
   sesion: () => {
     const t = abiertas.find(x => x.sid === activa) || {};
     return {sid: t.sid && !t.sid.startsWith('nueva-') ? t.sid : '', cwd: t.cwd || ''};
@@ -5967,13 +7810,21 @@ async function parar(){
 }
 
 async function renombrar(sid, actual){
+  // La charla que estás mirando se renombra en su título, sin cartel del navegador:
+  // en la barrita del nombre, que está siempre arriba del hilo.
+  const enCab = sid === activa && $('#cuerpo .cab-fija [data-editar]');
+  if (enCab && enCab.offsetParent) return editarNombre(enCab);
   const n = prompt('¿Cómo querés que se llame esta sesión?', actual);
   if (n === null) return;
+  await guardarNombre(sid, n);
+}
+async function guardarNombre(sid, n){
   await fetch('/movil/nombre', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({sid, nombre: n.trim()})});
   const t = abiertas.find(x => x.sid === sid);
   if (t && n.trim()) t.nombre = n.trim();
   firma=''; guardar(); cargar();
+  if (sid === activa) pintarSesion();
 }
 
 // --- Imágenes: las que quieras, por el clip o pegando con Ctrl+V --------------
@@ -6003,12 +7854,13 @@ async function buscarArchivo(){
     const r = await (await fetch('/movil/elegir_archivo?cwd=' + encodeURIComponent(t.cwd),
                                  {method:'POST'})).json();
     if (!r.ok){ if (!r.cancelado) alert(r.error || 'No pude abrir el buscador de archivos.'); return; }
-    const c = $('#texto'), ruta = r.ruta || '';
+    // ⭐ Puede volver con varios (2026-11-11): van todos, separados por un espacio.
+    const c = $('#texto'), rutas = r.rutas || [r.ruta || ''];
     const ini = c.selectionStart ?? c.value.length, fin = c.selectionEnd ?? ini;
     const antes = c.value.slice(0, ini), despues = c.value.slice(fin);
     const separaAntes = antes && !/\s$/.test(antes) ? ' ' : '';
     const separaDespues = despues && !/^\s/.test(despues) ? ' ' : '';
-    const pegado = '`' + ruta + '`';
+    const pegado = rutas.map(x => '`' + x + '`').join(' ');
     c.value = antes + separaAntes + pegado + separaDespues + despues;
     const pos = antes.length + separaAntes.length + pegado.length;
     c.setSelectionRange(pos, pos); c.dispatchEvent(new Event('input')); c.focus();
@@ -6030,6 +7882,15 @@ document.addEventListener('paste', e => {
 // la pantalla mostraba "Sin mensajes todavía" con la burbuja de pensando — 7 minutos
 // mirando una charla vacía que estaba trabajando (captura de Martín, 2026-08-23). Ahora
 // se llama dos veces: apenas el servidor publica el id, y de nuevo al cerrar el turno.
+// Charla nueva que ya nace en un subproyecto. Hasta el primer mensaje no tiene id propio,
+// así que el grupo viaja anotado en la pestaña (`t.sub`) y `mudarPestana` lo asigna.
+function nuevaEnSub(cwd, sub){
+  const sid = 'nueva-' + Date.now();
+  soltarDePaso();
+  abiertas.push({sid, cwd, nombre: 'Nueva', cerebro: '', sub, fija: false});
+  abrirSesion(cwd, sid, 'Nueva', false, '');
+}
+
 function mudarPestana(t, clave, sidNuevo){
   if (!sidNuevo || sidNuevo === clave) return clave;
   // ⭐⭐ ¿Seguís parado en esta charla? Se pregunta ANTES de tocar nada, con el id viejo
@@ -6047,6 +7908,8 @@ function mudarPestana(t, clave, sidNuevo){
   }
   t.sid = sidNuevo;
   if (seguisAca) activa = sidNuevo;
+  // La charla arrancada con el ＋ de un subproyecto recién ahora tiene id: ahí se anota.
+  if (t.sub && clave.startsWith('nueva-')){ const s = t.sub; delete t.sub; asignarSub(sidNuevo, s); }
   // Recién ahora esta charla existe de verdad y tiene id propio: ahí gana su dirección.
   // Va REEMPLAZANDO, no empujando: la entrada anterior del historial es la misma pantalla
   // con un id provisorio que ya no significa nada. ⚠ Solo si seguís acá: si te fuiste, la
@@ -6222,6 +8085,8 @@ async function mandar(forzado){
   const txt = impuesto || $('#texto').value.trim();
   const ses = datos.proyectos.flatMap(x => x.sesiones).find(s => s.id === t?.sid);
   if (!t || (!txt && !fotos.length)) return;
+  // Mandaste algo: querés ver tu mensaje y la respuesta, así que vuelve a seguirte abajo.
+  sigueAbajo = true;
   // ⭐⭐ Escribirle MIENTRAS trabaja, como en Claude Code (2026-09-27): el mensaje queda en
   // fila y lo toma en la próxima pausa, sin cortar lo que está haciendo. Una charla que
   // todavía no nació (sin id) no se puede: se espera a que lo tenga, son segundos.
@@ -7001,7 +8866,19 @@ const Paneles = (() => {
   let aLaVista = null;                                         // la pieza que hoy se ve
 
   // Hasta dónde puede crecer: que a la charla le queden por lo menos CHARLA_PISO px.
+  // ⚠⚠ Se mide el lugar REAL de la charla (lo que ocupa hoy + lo que ocupa esta columna), no
+  // "la ventana menos el `aside`". Así era hasta el 2026-11-12 y con la columna de charlas a
+  // la vista (dos columnas a la izquierda, y el `aside` es solo la primera) la cuenta daba de
+  // más: agrandando el Escritorio la charla quedó de 130 px, con una palabra por renglón.
   function tope(){
+    const charla = document.querySelector('#cuerpo');
+    if (charla){
+      const hoy = derAbierta()
+        ? (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--der-ancho')) || ANCHO_FABRICA)
+        : 0;
+      const libre = charla.getBoundingClientRect().width + hoy;
+      if (libre > 0) return Math.max(ANCHO_PISO, Math.round(libre - CHARLA_PISO));
+    }
     const riel = document.querySelector('aside');
     const izq = riel ? riel.getBoundingClientRect().width : 0;
     return Math.max(ANCHO_PISO, innerWidth - izq - CHARLA_PISO);
@@ -7106,6 +8983,17 @@ const Paneles = (() => {
     const hoy = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--der-ancho'));
     if (hoy) ponerAncho(hoy);
   });
+  // Y lo mismo si la charla se queda sin lugar SIN que cambie la ventana: se abrió la columna
+  // de charlas, o apareció una pieza ancha. Solo actúa por debajo del piso, así que no pelea
+  // con el tirador (que nunca deja pasar de ahí) ni se llama a sí misma en vueltas.
+  if (window.ResizeObserver && document.querySelector('#cuerpo')){
+    new ResizeObserver(() => {
+      if (!derAbierta()) return;
+      if (document.querySelector('#cuerpo').getBoundingClientRect().width >= CHARLA_PISO - 1) return;
+      const hoy = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--der-ancho'));
+      if (hoy > ANCHO_PISO) ponerAncho(hoy);
+    }).observe(document.querySelector('#cuerpo'));
+  }
 
   // ⤢ Agrandar: la columna toma todo lo que puede (dejándole a la charla su piso), y otra
   // vez la devuelve a como estaba. No toca el ancho guardado: es un rato, no una preferencia.
@@ -7171,6 +9059,14 @@ if (window.Consola){
   // vez de abrir una ventana de PowerShell. `marcado.js` pregunta acá antes de seguir.
   window.MD_CORRER = (cmd, cwd) => Consola.escribir(cmd, cwd);
 }
+// ⭐ El ESCRITORIO REMOTO (2026-11-12): la pantalla de otra compu por RustDesk, para verla y
+// manejarla desde acá. El dibujo es `escritorio.js` (`Escritorio`) y lo demás vive en el panel
+// (`app/voz/escritorio.py`). ⚠ Como la terminal: si el panel no la sirve, no aparece.
+if (window.Escritorio){
+  Escritorio.iniciar({agrandar: () => Paneles.agrandar()});
+  Paneles.registrar({id: 'escritorio', titulo: 'Escritorio', anchoMin: 560,
+                     alMostrar: Escritorio.mostrar, alOcultar: Escritorio.ocultar});
+}
 verDerecha(localStorage.getItem('sesDerecha') === '1');
 $('#btnDerecha').onclick = () => verDerecha(!derAbierta());
 document.addEventListener('keydown', e => {
@@ -7184,7 +9080,8 @@ function ubicDerecha(){
   if (!t) return null;
   return {cwd: t.cwd || '', sid: t.sid.startsWith('nueva-') ? '' : t.sid, nombre: t.nombre || ''};
 }
-if (window.Entorno) Entorno.iniciar({ubicacion: ubicDerecha, alCambiar: () => refrescarDerecha(true)});
+if (window.Entorno) Entorno.iniciar({ubicacion: ubicDerecha, alCambiar: () => refrescarDerecha(true),
+  abrir: (c, s, n, cer) => abrirSesion(c, s, n, false, cer)});   // la tarjeta "Despachos"
 
 async function refrescarDerecha(ya){
   if (!window.Entorno || !derAbierta() || derPidiendo || document.visibilityState === 'hidden') return;

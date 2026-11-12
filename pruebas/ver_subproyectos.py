@@ -66,6 +66,9 @@ def contexto(nav, ancho, alto, movil=False):
             return r.fulfill(status=200, content_type="text/html; charset=utf-8", body=panel.MOVIL_HTML)
         if camino == "/movil/sesiones":
             cuerpo = SESIONES
+        elif camino == "/movil/chat":
+            # El ＋ de un subproyecto abre una charla: el hilo vacío viene con su lista.
+            cuerpo = {"ok": True, "mensajes": []}
         elif r.request.method != "GET":
             if camino == "/movil/subproyecto":
                 mandados.append(json.loads(r.request.post_data or "{}"))
@@ -78,7 +81,7 @@ def contexto(nav, ancho, alto, movil=False):
 
     ctx.route("**/*", portero)
     pag = ctx.new_page()
-    pag.on("pageerror", lambda e: errores.append(str(e)))
+    pag.on("pageerror", lambda e: errores.append(str(e) + " | " + (e.stack or "")[:400]))
     pag.add_init_script("localStorage.clear();")
     return ctx, pag, mandados, errores
 
@@ -124,6 +127,26 @@ def compu(nav):
             [{"sid": "subp-0003-0000-0000-000000000000", "subproyecto": "Descalzo"}])
     revisar("no se abrió la charla al tocar el ⊞",
             pag.locator("#cuerpo .correo[data-sid='subp-0003-0000-0000-000000000000']").count(), 1)
+    # ⭐ Arrastrar (2026-11-11): la charla dos (Migración) se suelta sobre el título Descalzo.
+    pag.wait_for_timeout(800)
+    pag.locator("#cuerpo .correo[data-sid='subp-0002-0000-0000-000000000000']").drag_to(
+        pag.locator("#cuerpo .subgrupo[data-g='Descalzo']"))
+    pag.wait_for_timeout(500)
+    revisar("arrastrar al título de otro grupo la cambia de subproyecto", mandados[-1:],
+            [{"sid": "subp-0002-0000-0000-000000000000", "subproyecto": "Descalzo"}])
+    pag.wait_for_timeout(800)
+    # Y soltada en "Sin subproyecto" (sobre una charla de ese grupo) le saca el que tenía.
+    pag.locator("#cuerpo .correo[data-sid='subp-0001-0000-0000-000000000000']").drag_to(
+        pag.locator("#cuerpo .correo[data-g='']").first)
+    pag.wait_for_timeout(500)
+    revisar("soltada sobre una charla sin subproyecto le saca el suyo", mandados[-1:],
+            [{"sid": "subp-0001-0000-0000-000000000000", "subproyecto": ""}])
+    n = len(mandados)
+    pag.wait_for_timeout(800)
+    pag.locator("#cuerpo .correo[data-sid='subp-0004-0000-0000-000000000000']").drag_to(
+        pag.locator("#cuerpo .subgrupo[data-g='Descalzo']"))
+    pag.wait_for_timeout(500)
+    revisar("soltarla en su mismo grupo no manda nada", len(mandados), n)
     # La columna de la izquierda: las charlas ABIERTAS de cada carpeta también se agrupan.
     # Se abren como pestañas sin entrar a ninguna, así la bandeja sigue a la vista.
     pag.evaluate("""() => { abiertas = [1, 2, 5].map(i => ({sid: 'subp-000' + i + '-0000-0000-000000000000',
@@ -138,6 +161,92 @@ def compu(nav):
     revisar("izquierda: beta muestra su abierta sin ningún título",
             pag.locator("#carpetas .subcarpeta[data-subsid^='subp-0005']").count(), 1)
     pag.screenshot(path=str(AQUI / "subproy_compu_izquierda.png"))
+    # ⭐ El ＋ de un subproyecto (2026-11-11): abre una charla nueva que lleva el grupo anotado,
+    # y cuando la charla nace con su id de verdad, se le asigna.
+    pag.click("#carpetas .carpeta[data-proy='alfa']")
+    pag.wait_for_timeout(600)
+    revisar("el título 'Sin subproyecto' no lleva ＋",
+            pag.locator("#cuerpo .subgrupo[data-g=''] .masSub").count(), 0)
+    pag.locator("#cuerpo .subgrupo[data-g='Migración'] .masSub").click()
+    pag.wait_for_timeout(500)
+    nueva = pag.evaluate("() => abiertas.find(t => t.sid.startsWith('nueva-') && t.sub) || null")
+    revisar("el ＋ abre una pestaña nueva con el subproyecto anotado",
+            (nueva or {}).get("sub"), "Migración")
+    revisar("y queda parada en ella", pag.evaluate("() => activa.startsWith('nueva-')"), True)
+    pag.evaluate("""() => { const t = abiertas.find(t => t.sid.startsWith('nueva-') && t.sub);
+                            mudarPestana(t, t.sid, 'subp-0099-0000-0000-000000000000'); }""")
+    pag.wait_for_timeout(500)
+    revisar("al nacer la charla se le asigna el subproyecto", mandados[-1:],
+            [{"sid": "subp-0099-0000-0000-000000000000", "subproyecto": "Migración"}])
+    revisar("y la pestaña ya no lo lleva anotado",
+            pag.evaluate("() => abiertas.some(t => t.sub)"), False)
+
+    # ⭐ Cada subproyecto a gusto (2026-11-11): fijarlo arriba, color, moverlo y renombrarlo.
+    pag.click("#carpetas .carpeta[data-proy='alfa']")
+    pag.wait_for_timeout(800)
+    titulos = lambda: [t.strip().lower() for t in pag.locator("#cuerpo .subgrupo .nom").all_inner_texts()]
+    revisar("de entrada, por movimiento reciente", titulos(), ["descalzo", "migración", "sin subproyecto"])
+    revisar("'Sin subproyecto' no tiene menú ni se arrastra",
+            [pag.locator("#cuerpo .subgrupo[data-g=''] .menuSub").count(),
+             pag.locator("#cuerpo .subgrupo[data-g='']").get_attribute("draggable")], [0, None])
+    pag.locator("#cuerpo .subgrupo[data-g='Migración']").click(button="right")
+    pag.wait_for_timeout(300)
+    revisar("el botón derecho del título abre su menú", pag.locator("#menuTarjeta.abierto").count(), 1)
+    pag.screenshot(path=str(AQUI / "subproy_compu_menu_grupo.png"))
+    pag.locator("#menuTarjeta [data-hace='fijar']").click()
+    pag.wait_for_timeout(400)
+    revisar("fijada, Migración pasa arriba", titulos(), ["migración", "descalzo", "sin subproyecto"])
+    revisar("y lleva su 📌", pag.locator("#cuerpo .subgrupo[data-g='Migración'] .pinSub").count(), 1)
+    revisar("la columna de la izquierda también la pone arriba",
+            [t.strip().lower() for t in pag.locator("#carpetas .subgrupo .nom").all_inner_texts()][:1],
+            ["migración"])
+    pag.locator("#cuerpo .subgrupo[data-g='Migración'] .menuSub").click()
+    pag.wait_for_timeout(300)
+    pag.locator("#menuTarjeta .tono[data-tono='rosa']").click()
+    pag.wait_for_timeout(300)
+    revisar("el color se ve en el título (su puntito)",
+            pag.locator("#cuerpo .subgrupo[data-g='Migración'] .ptoSub").count(), 1)
+    revisar("y el menú queda abierto para probar otro", pag.locator("#menuTarjeta.abierto").count(), 1)
+    pag.evaluate("() => cerrarMenuTarjeta()")
+    revisar("queda guardado", pag.evaluate("() => JSON.parse(localStorage.getItem('sesSubAjustes'))"),
+            {"alfa|Migración": {"fija": True, "color": "rosa"}})
+    pag.locator("#cuerpo .subgrupo[data-g='Migración']").click(button="right")
+    pag.wait_for_timeout(300)
+    pag.locator("#menuTarjeta [data-hace='fijar']").click()
+    pag.wait_for_timeout(400)
+    revisar("soltada, vuelve a su lugar", titulos(), ["descalzo", "migración", "sin subproyecto"])
+    # Moverla arrastrando el título: soltada en la mitad de arriba de Descalzo cae antes.
+    pag.locator("#cuerpo .subgrupo[data-g='Migración']").drag_to(
+        pag.locator("#cuerpo .subgrupo[data-g='Descalzo']"), target_position={"x": 20, "y": 1})
+    pag.wait_for_timeout(400)
+    revisar("arrastrada arriba de Descalzo, queda primera", titulos(),
+            ["migración", "descalzo", "sin subproyecto"])
+    revisar("el orden queda guardado", pag.evaluate("() => JSON.parse(localStorage.getItem('sesSubOrden'))"),
+            {"alfa": ["Migración", "Descalzo"]})
+    # Renombrarla: muda sus charlas en el servidor y se lleva color y lugar.
+    pag.once("dialog", lambda d: d.accept("Mudanza"))
+    pag.locator("#cuerpo .subgrupo[data-g='Migración']").click(button="right")
+    pag.wait_for_timeout(300)
+    pag.locator("#menuTarjeta [data-hace='nombre']").click()
+    pag.wait_for_timeout(600)
+    revisar("renombrar manda el nombre nuevo para su charla",
+            {"sid": "subp-0002-0000-0000-000000000000", "subproyecto": "Mudanza"} in mandados, True)
+    revisar("y se lleva el color y el lugar",
+            pag.evaluate("() => [subAjustes['alfa|Mudanza'], subOrden.alfa]"),
+            [{"color": "rosa"}, ["Mudanza", "Descalzo"]])
+
+    # ⭐ La ✕ del «Volver a abrir» (2026-11-11): saca el aviso y las pestañas quedan cerradas.
+    pag.evaluate("() => cerrarTodas()")
+    pag.wait_for_timeout(300)
+    revisar("después de cerrar todas aparece el «Volver a abrir» con su ✕",
+            pag.locator("#tabVolver [data-olvidar]").count(), 1)
+    pag.hover("#tabVolver")
+    pag.locator("#tabVolver [data-olvidar]").click()
+    pag.wait_for_timeout(400)
+    revisar("la ✕ saca el aviso", pag.locator("#tabVolver").count(), 0)
+    revisar("y no reabre ninguna pestaña", pag.evaluate("() => abiertas.length"), 0)
+    revisar("queda guardado así (un F5 no las trae)",
+            pag.evaluate("() => localStorage.getItem('sesTabs')"), "[]")
     revisar("sin errores de la página", errores, [])
     ctx.close()
 

@@ -71,10 +71,11 @@ def montar(nav, aspecto, ancho=1500):
         elif camino == "/movil/entorno":
             pedidos["entorno"] += 1
             cuerpo = ENTORNO
-        elif camino == "/estaticos/terminal.js":
+        elif camino in ("/estaticos/terminal.js", "/estaticos/escritorio.js"):
             # Esta prueba mide el MECANISMO de las piezas, con una de mentira. La terminal de
             # verdad (que el panel sirve desde que se reinició) tiene su propia prueba,
             # `ver_terminal`: acá se la deja afuera para que la columna arranque con una sola.
+            # Lo mismo el Escritorio remoto (`ver_escritorio`), desde el 2026-11-12.
             return r.fulfill(status=200, content_type="application/javascript", body="")
         elif camino == "/aspecto" and r.request.method == "GET":
             cuerpo = aspecto
@@ -228,6 +229,41 @@ with sync_playwright() as p:
       return !!a && e.contains(a); }""")
     revisar("Vidrio: la tarjeta de Entorno está a la vista (nada la tapa)", lee)
     revisar("sin errores de JS con Vidrio", errores, [])
+    ctx.close()
+
+    # --- 4. Dos columnas a la izquierda: la charla igual conserva su piso (2026-11-12) -------
+    # El bug real: con la columna de charlas a la vista, la primera columna de la grilla es
+    # MÁS ANCHA que el `aside`, y el tope se calculaba con "la ventana menos el aside". Al
+    # agrandar el Escritorio la charla quedó de 130 px. Acá se arma ese caso a mano (primera
+    # columna de 640 px con un `aside` de 230) para no depender del nombre de ningún estilo.
+    ctx, pag, errores, pedidos = montar(nav, dict(ASPECTO, estilo="vidrio", **campos_del_estilo("vidrio")), ancho=1700)
+    pag.add_style_tag(content="aside{max-width:230px !important;justify-self:start}")
+    pag.evaluate("""() => { for (const e of [document.documentElement, document.body, document.querySelector('main')])
+                              if (e) e.style.setProperty('--lat', '640px'); }""")
+    pag.wait_for_timeout(250)
+    caso = pag.evaluate("""() => { const a = document.querySelector('aside').getBoundingClientRect().width;
+      const c = document.querySelector('#cuerpo').getBoundingClientRect();
+      return {aside: Math.round(a), izquierda: Math.round(c.left), vieja: Math.round(innerWidth - a - 420)}; }""")
+    revisar(f"el caso está bien armado: la charla empieza bastante más allá del aside ({caso})",
+            caso["izquierda"] - caso["aside"] >= 250)
+    arrastrar(pag, -3000)
+    m = pag.evaluate(MEDIR)
+    revisar(f"⭐ con dos columnas a la izquierda, tirando a fondo la charla conserva sus 420 px ({m['charla']})",
+            m["charla"] >= 415)
+    revisar(f"…y la cuenta vieja la habría aplastado (daba {caso['vieja']} px de columna; hoy mide {m['col']})",
+            caso["vieja"] - m["col"] >= 250)
+    pag.evaluate("() => Paneles.agrandar()")
+    pag.wait_for_timeout(200)
+    m = pag.evaluate(MEDIR)
+    revisar(f"⭐ y con ⤢ Agrandar tampoco la aplasta ({m['charla']} px de charla)", m["charla"] >= 415)
+    # La charla se queda sin lugar SIN que cambie la ventana (se abre otra columna a la izquierda).
+    pag.evaluate("""() => { for (const e of [document.documentElement, document.body, document.querySelector('main')])
+                              if (e) e.style.setProperty('--lat', '820px'); }""")
+    pag.wait_for_timeout(500)
+    m = pag.evaluate(MEDIR)
+    revisar(f"⭐ si se abre otra columna a la izquierda, la de la derecha cede sola ({m['charla']} px de charla)",
+            m["charla"] >= 415)
+    revisar("sin errores de JS con dos columnas", errores, [])
     ctx.close()
     nav.close()
 

@@ -38,7 +38,7 @@ from app.rutas import (PESTANAS_MOVIL, PAUSA_ESCUCHA, SEGUIR_LECTURA, ESCRIBIR_E
                        MIC_BLOQUEADO, PIZARRA_ESTADO, ESTATICOS, RESULTADOS,
                        CORTAR_VOZ, ESCUCHAR_YA, LEER_PANEL, PENSANDO,
                        NUEVA_SESION, ENV, CLAUDE_SESION, NOMBRES_SESIONES,
-                       CARPETAS_SESIONES, ORDEN_CARPETAS, ASPECTO_CARPETAS,
+                       CARPETAS_SESIONES, ESPACIO_TRABAJO, ORDEN_CARPETAS, ASPECTO_CARPETAS,
                        RAIZ, WINDOWS_FONDOS,
                        SESIONES_ARCHIVADAS, SUBPROYECTOS_SESIONES,
                        ESTUDIO, ESTUDIO_ENTRANTES, ESTUDIO_MINIATURAS, MARCAS_CHAT, ASPECTO,
@@ -915,18 +915,85 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') cerrarVisor(); })
 // viejo y la pagina se recargaria sin haber reiniciado nada. Por eso el poll solo
 // recarga tras un error de red (murio) o pasados 15 s (por si el corte fue tan
 // rapido que no lo vimos).
+// ⭐⭐ El reinicio ESPERA (2026-11-11): si hay charlas a mitad de turno, el panel NO se
+// reinicia en el acto — reiniciar ahi las deja trabajando solas, sin poder pedir permisos.
+// El pedido queda anotado en el servidor y sale solo cuando la ultima termina; mientras
+// tanto se ve a quienes espera, con "reiniciar ya igual" y "cancelar". Como vive en el
+// servidor, se puede cerrar esta pestaña: al volver a abrir el panel el cartel reaparece.
+function veloReinicio(){
+  let v=document.getElementById('veloReinicio');
+  if(!v){
+    v=document.createElement('div'); v.id='veloReinicio';
+    v.style.cssText='position:fixed;inset:0;background:rgba(var(--c0b0e13-rgb,11,14,19),.93);z-index:9999;'+
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--cc8d0dc,#c8d0dc)';
+    document.body.appendChild(v);
+  }
+  return v;
+}
 async function reiniciarTodo(){
   if(!confirm('¿Reiniciar el panel y todos los servicios? La voz tarda unos 20 segundos en volver.')) return;
-  try{ await fetch('/reiniciar-todo',{method:'POST'}); }
-  catch(e){ alert('No pude pedir el reinicio: '+e); return; }
-  const v=document.createElement('div');
-  v.style.cssText='position:fixed;inset:0;background:rgba(var(--c0b0e13-rgb,11,14,19),.93);z-index:9999;'+
-    'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--cc8d0dc,#c8d0dc)';
+  pedirReinicio(false);
+}
+async function pedirReinicio(ya){
+  let r;
+  try{
+    r=await (await fetch('/reiniciar-todo',{method:'POST',headers:{'Content-Type':'application/json'},
+                         body:JSON.stringify(ya?{ya:true}:{})})).json();
+  }catch(e){ alert('No pude pedir el reinicio: '+e); return; }
+  if(r && r.esperando && r.esperando.length) esperarReinicio(r.esperando);
+  else mirarReinicio();
+}
+let relojEspera=null;
+function esperarReinicio(quienes){
+  const limpio=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const boton='padding:6px 13px;border-radius:8px;border:1px solid var(--c333b49,#333b49);'+
+    'background:var(--c181d26,#181d26);color:var(--cc8d0dc,#c8d0dc);cursor:pointer;font-size:13px;white-space:nowrap';
+  const dibujar=lista=>{
+    const v=veloReinicio();
+    v.innerHTML='<div style="font-size:34px">⟳</div>'+
+      '<div style="font-size:17px">Reinicio apenas terminen de trabajar</div>'+
+      '<div style="font-size:13px;color:var(--c616977,#616977)">'+
+        (lista.length===1?'Hay una sesión':'Hay '+lista.length+' sesiones')+' a mitad de turno. Reiniciar ahora las dejaría solas.</div>'+
+      '<div id="veloQuienes" style="font-size:14px;line-height:1.7;text-align:center;max-width:80vw">'+
+        lista.map(q=>'<div>'+limpio(q.nombre)+'</div>').join('')+'</div>'+
+      '<div style="display:flex;gap:10px;margin-top:8px">'+
+        '<button id="veloYa" style="'+boton+'">Reiniciar ya igual</button>'+
+        '<button id="veloNo" style="'+boton+'">Cancelar</button></div>';
+    document.getElementById('veloYa').onclick=()=>{ clearInterval(relojEspera); pedirReinicio(true); };
+    document.getElementById('veloNo').onclick=async()=>{
+      clearInterval(relojEspera);
+      try{ await fetch('/reiniciar-todo/cancelar',{method:'POST'}); }catch(e){}
+      v.remove();
+    };
+  };
+  dibujar(quienes);
+  clearInterval(relojEspera);
+  relojEspera=setInterval(async()=>{
+    let e;
+    try{
+      const r=await fetch('/reiniciar-todo/estado',{cache:'no-store'});
+      if(!r.ok) throw new Error('el panel no contesta bien');
+      e=await r.json();
+    }catch(err){ clearInterval(relojEspera); mirarReinicio(true); return; }   // ya se murio: esta reiniciando
+    // Termino la ultima y el panel salio a reiniciarse: todavia contesta unos segundos.
+    if(e.reiniciando){ clearInterval(relojEspera); mirarReinicio(false); return; }
+    if(!e.pendiente){ clearInterval(relojEspera); veloReinicio().remove(); return; }   // lo cancelaron en otra pantalla
+    if(e.trabajando && e.trabajando.length) dibujar(e.trabajando);
+  },2000);
+}
+// Si quedo un reinicio esperando (se pidio y despues se recargo o se cerro la pagina).
+(async()=>{
+  try{
+    const e=await (await fetch('/reiniciar-todo/estado',{cache:'no-store'})).json();
+    if(e.pendiente) esperarReinicio(e.trabajando||[]);
+  }catch(err){}
+})();
+function mirarReinicio(yaMurio){
+  const v=veloReinicio();
   v.innerHTML='<div style="font-size:34px">⟳</div>'+
     '<div style="font-size:17px">Reiniciando el panel y los servicios…</div>'+
     '<div style="font-size:13px;color:var(--c616977,#616977)">la voz tarda unos 20 segundos en volver</div>';
-  document.body.appendChild(v);
-  const desde=Date.now(); let murio=false;
+  const desde=Date.now(); let murio=!!yaMurio;
   const t=setInterval(async ()=>{
     try{
       const r=await fetch('/status',{cache:'no-store'});
@@ -6593,9 +6660,8 @@ def sesiones_liberar():
             "mb_libres": round(sm._ram_libre_mb())}
 
 
-@app.post("/reiniciar-todo")
-def reiniciar_todo():
-    """El boton ⟳ del encabezado: reinicio completo, panel + todos los servicios.
+def _reiniciar_ya():
+    """El reinicio en si: panel + todos los servicios.
     El panel no puede matarse a si mismo a mitad de una respuesta, asi que apaga
     los servicios, deja lanzado el .bat suelto y contesta; el .bat espera 3 s,
     mata este proceso y lo relanza con --auto, que prende todo de vuelta."""
@@ -6608,6 +6674,101 @@ def reiniciar_todo():
     subprocess.Popen(["cmd", "/c", str(bat), "3", "auto"], cwd=str(PROJ),
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      creationflags=CREATE_NO_WINDOW)
+    return {"ok": True}
+
+
+# ⭐⭐ El ⟳ ESPERA a que nadie este a mitad de turno (2026-11-11). Pedido de Martin: "¿como
+# arreglamos que las sesiones se corten si reinicio el panel?". Ese dia el panel se
+# reinicio once veces; una, un minuto despues de que una sesion le despachara trabajo a
+# otras tres. Reiniciar con un turno en curso deja a ese proceso solo: no puede pedir
+# permisos y el panel nuevo no lo maneja. Ahora el boton anota el pedido y reinicia SOLO
+# cuando la ultima termina; "reiniciar ya igual" (`ya`) sigue existiendo para cuando hace
+# falta. ⚠ El `.bat` corrido a mano no pasa por aca: ese reinicia en el acto.
+_REINICIO = {"pendiente": False, "pedido": 0, "reiniciando": False}
+
+
+def _quienes_trabajan():
+    """Las charlas que estan en medio de un turno AHORA: [{sid, cwd, nombre}]."""
+    from app.voz import sesiones_movil
+    donde = {}
+    with _TURNOS_CANDADO:
+        abiertos = set(_TURNOS_ABIERTOS)
+    for sid in abiertos | _sueltas_seguidas():
+        with _TRABAJOS_CANDADO:
+            vivo, _ = _trabajos_de_sesion(sid)
+        donde[sid] = (vivo or {}).get("cwd") or ""
+    try:
+        # Tambien las que arrancaron un turno SOLAS (algo de segundo plano termino) o
+        # por el control remoto: esas no pasan por el candado de `/movil/mandar`.
+        for cwd, sid in sesiones_movil.trabajando_ahora():
+            if not donde.get(sid or "nueva:" + cwd):
+                donde[sid or "nueva:" + cwd] = cwd
+    except Exception as e:
+        print("reiniciar-todo: no pude mirar las sesiones vivas:", e, flush=True)
+    alias = _nombres_sesiones()
+    salida = []
+    for sid, cwd in donde.items():
+        if sid.startswith("nueva:"):
+            nombre, sid = "una charla nueva", ""
+        else:
+            try:
+                nombre = alias.get(sid) or sesiones_movil._nombre_charla(cwd, sid)
+            except Exception:
+                nombre = sid[:8]
+        salida.append({"sid": sid, "cwd": cwd, "nombre": str(nombre)[:60]})
+    return salida
+
+
+def _reiniciar_cuando_libre(pedido, pausa=2.0):
+    """Reinicia apenas dos miradas seguidas no encuentran a nadie trabajando. Son dos y
+    no una para no caer justo en el hueco entre que una termina y la que sigue arranca."""
+    libres = 0
+    while _REINICIO["pendiente"] and _REINICIO["pedido"] == pedido:
+        libres = 0 if _quienes_trabajan() else libres + 1
+        if libres >= 2:
+            # `reiniciando` es para la pantalla que estaba esperando: entre este momento
+            # y que el panel muera pasan unos segundos, y sin esto leia "ya no hay nada
+            # pendiente" y sacaba el cartel como si lo hubieran cancelado.
+            _REINICIO.update(pendiente=False, reiniciando=True)
+            print("reiniciar-todo: ya no trabaja nadie, reinicio ahora", flush=True)
+            _reiniciar_ya()
+            return
+        time.sleep(pausa)
+
+
+@app.post("/reiniciar-todo")
+def reiniciar_todo(d: dict = Body(default=None)):
+    """El boton ⟳ del encabezado. Si hay charlas a mitad de turno NO reinicia: queda
+    pendiente y lo hace solo cuando terminan. Con `{"ya": true}` reinicia en el acto."""
+    return _pedir_reinicio(bool((d or {}).get("ya")))
+
+
+def _pedir_reinicio(ya):
+    quienes = [] if ya else _quienes_trabajan()
+    if not quienes:
+        _REINICIO.update(pendiente=False, reiniciando=True)
+        return _reiniciar_ya()
+    if not _REINICIO["pendiente"]:
+        _REINICIO["pedido"] += 1
+        _REINICIO["pendiente"] = True
+        threading.Thread(target=_reiniciar_cuando_libre, args=(_REINICIO["pedido"],),
+                         daemon=True, name="reinicio-espera").start()
+        print("reiniciar-todo: pendiente, esperando a " +
+              ", ".join(q["nombre"] for q in quienes), flush=True)
+    return {"ok": True, "esperando": quienes}
+
+
+@app.get("/reiniciar-todo/estado")
+def reiniciar_estado():
+    """Si hay un reinicio esperando, y a quienes espera. Lo consulta la pantalla."""
+    return {"ok": True, "pendiente": bool(_REINICIO["pendiente"]),
+            "reiniciando": bool(_REINICIO["reiniciando"]),
+            "trabajando": _quienes_trabajan()}
+
+
+@app.post("/reiniciar-todo/cancelar")
+def reiniciar_cancelar():
+    _REINICIO["pendiente"] = False
     return {"ok": True}
 
 
@@ -8295,7 +8456,7 @@ function buscarCarp(v){ buscaCarp = v.toLowerCase(); elegirFirma = ''; pintarEle
 
 // Sumar una carpeta que todavia no tiene conversaciones, igual que en la compu.
 async function sumarCarpeta(){
-  const ruta = prompt('Pegá la ruta completa de la carpeta');
+  const ruta = prompt('Nombre de la carpeta nueva (se crea en EspacioDeTrabajo), o la ruta completa de una que ya existe');
   if (!ruta) return;
   const pedir = cuerpo => fetch('/movil/carpeta', {method:'POST',
         headers:{'Content-Type':'application/json'}, body: JSON.stringify(cuerpo)}).then(r => r.json());
@@ -9326,7 +9487,9 @@ function cerrarEntorno(){
   $('#hojaEntorno').classList.remove('abierta');
   clearInterval(entornoReloj); entornoReloj = null;
 }
-if (window.Entorno) Entorno.iniciar({ubicacion: ubicEntorno, alCambiar: refrescarEntorno});
+// `abrir` es para la tarjeta "Despachos": tocar un renglon cierra la hoja y abre esa charla.
+if (window.Entorno) Entorno.iniciar({ubicacion: ubicEntorno, alCambiar: refrescarEntorno,
+  abrir: (c, s, n) => { cerrarEntorno(); abrir(c, s, n || ''); }});
 
 // De qué proyecto es una pestaña: la última parte de la carpeta del disco
 // ("D:\\IA\\wpp-transcriptor" -> "wpp-transcriptor"), que es como se lo nombra hablando.
@@ -10930,6 +11093,8 @@ def movil_sesiones():
     # pantalla tiene que mostrar el mismo estado que aplicará POST /movil/mandar.
     with _TURNOS_CANDADO:
         ocupadas = set(_TURNOS_ABIERTOS)
+    # Las que quedaron trabajando solas tras un reinicio tambien estan ocupadas.
+    ocupadas |= _sueltas_seguidas()
     for p in proyectos:
         p["sesiones"] = [s for s in p["sesiones"] if s.get("id") != laura]
         # ⚠ Lo que dejaste a medio escribir en una charla que después se compactó o se
@@ -11775,6 +11940,26 @@ try:
 except Exception as _e:
     print("terminal: no se pudo enchufar:", _e, flush=True)
 
+# ⭐ ENLACES Y ARCHIVOS de cada carpeta (2026-11-11): la tarjeta de la columna derecha donde
+# Martin deja lo importante del proyecto. Todo vive en `app/voz/fijados.py` (con la misma
+# puerta que la terminal, y sin ejecutar nunca un programa); aca solo se enchufa.
+try:
+    from app.voz import fijados
+    app.include_router(fijados.router)
+except Exception as _e:
+    print("fijados: no se pudo enchufar:", _e, flush=True)
+
+# ⭐ El ESCRITORIO REMOTO (2026-11-12): la pieza "Escritorio" de la columna derecha, para ver y
+# manejar otra compu por RustDesk desde el panel. Todo vive en `app/voz/escritorio.py` (las
+# rutas `/escritorio/*` con los candados de la terminal, y su vigia, que apaga sola la puerta
+# de RustDesk si nadie la usa); aca solo se enchufa.
+try:
+    from app.voz import escritorio
+    app.include_router(escritorio.router)
+    escritorio.encender_vigia()
+except Exception as _e:
+    print("escritorio: no se pudo enchufar:", _e, flush=True)
+
 
 def _nombres_sesiones():
     try:
@@ -11864,7 +12049,7 @@ def movil_chat(cwd: str, sid: str, ultimos: int = 40):
     with _TURNOS_CANDADO:
         ocupada = sid in _TURNOS_ABIERTOS
     if not ocupada:
-        ocupada = _codex_turno_realmente_activo(sid)
+        ocupada = _codex_turno_realmente_activo(sid) or sid in _sueltas_seguidas()
     # ⭐ Si al turno que corre ahora ya le pediste aviso, tiene que VERSE encendido en
     # cualquier pantalla y sobrevivir a un F5: el estado vive en la ficha del trabajo,
     # no en la memoria del navegador que apretó el botón (2026-08-29).
@@ -11991,6 +12176,16 @@ def movil_donde(sid: str = ""):
 
 _TURNOS_ABIERTOS = set()      # sesiones con un turno corriendo ahora mismo
 _TURNOS_CANDADO = threading.Lock()
+# ⭐ Charlas cuyo turno sigue corriendo SUELTO despues de un reinicio del panel y que el
+# panel sigue por el disco (`_seguir_suelta`, 2026-11-11): sid -> cuantos trabajos la
+# siguen. Para la pantalla estan ocupadas, igual que una con el candado tomado.
+_SUELTAS = {}
+_SUELTAS_CANDADO = threading.Lock()
+
+
+def _sueltas_seguidas():
+    with _SUELTAS_CANDADO:
+        return set(_SUELTAS)
 
 
 def _codex_turno_realmente_activo(sid):
@@ -12036,16 +12231,93 @@ def _arrancar_trabajos():
     from app.ingesta import trabajos
     try:
         trabajos.podar()
-        cortados = trabajos.marcar_interrumpidos()
+        # ⭐ Menos los que SIGUEN (2026-11-11): si el proceso de esa charla quedo
+        # trabajando suelto, el trabajo no se corto. Se lo sigue por el disco.
+        cortados = trabajos.marcar_interrumpidos(conservar=_sigue_suelta)
         cargados = trabajos.cargar()
         with _TRABAJOS_CANDADO:
             for t in cargados:
                 if t.get("id"):
                     _TRABAJOS_MOVIL.setdefault(t["id"], t)
-        print(f"trabajos: {len(cargados)} vueltos del disco, {len(cortados)} interrumpidos",
+        seguidos = [t["id"] for t in cargados
+                    if t.get("id") and t.get("estado") in _ESTADOS_SUELTA]
+        for trabajo_id in seguidos:
+            threading.Thread(target=_seguir_suelta, args=(trabajo_id,), daemon=True,
+                             name="suelta-" + trabajo_id[:8]).start()
+        print(f"trabajos: {len(cargados)} vueltos del disco, {len(cortados)} interrumpidos"
+              + (f", {len(seguidos)} siguen trabajando sueltos" if seguidos else ""),
               flush=True)
     except Exception as e:
         print("trabajos: no pude leer el disco al arrancar:", e, flush=True)
+
+
+# --- ⭐ Los trabajos de una charla que quedo trabajando SUELTA (2026-11-11) --------------
+# El panel se reinicio con ese turno en curso y el proceso del CLI siguio solo (ver el
+# bloque de `suelta_trabajando` en `sesiones_movil.py`). En vez de darlo por interrumpido,
+# se espera a que el proceso termine y se lee la respuesta de la charla.
+# ⚠ No puede contestarle permisos ni mostrar el texto escribiendose: de ese proceso ya no
+# se lee nada, solo se mira su archivo.
+_ESTADOS_SUELTA = ("trabajando", "en_fila")
+
+
+def _sigue_suelta(t):
+    """Si el turno de esa ficha sigue corriendo en un proceso de antes del reinicio."""
+    if t.get("estado") not in _ESTADOS_SUELTA:
+        return False                      # `en_cola` nunca llego a mandarse
+    sid = (t.get("sid_nuevo") or t.get("sid") or "").strip()
+    if not sid:
+        return False
+    try:
+        from app.voz import sesiones_movil
+        return bool(sesiones_movil.suelta_trabajando(t.get("cwd") or "", sid))
+    except Exception as e:
+        print(f"trabajos: no pude mirar si {sid[:8]} sigue suelta: {e}", flush=True)
+        return False
+
+
+def _seguir_suelta(trabajo_id, pausa=3.0):
+    """Espera a que la charla suelta termine su turno y cierra el trabajo con lo que dijo."""
+    from app.voz import sesiones_movil
+    t = _ficha(trabajo_id) or {}
+    cwd, sid = t.get("cwd") or "", (t.get("sid_nuevo") or t.get("sid") or "").strip()
+    if not sid:
+        return
+    sigue = lambda: (_ficha(trabajo_id) or {}).get("estado") in _ESTADOS_SUELTA
+    with _SUELTAS_CANDADO:
+        _SUELTAS[sid] = _SUELTAS.get(sid, 0) + 1
+    try:
+        hasta = time.time() + sesiones_movil.ESPERA_SUELTA_SEG
+        while time.time() < hasta and sesiones_movil.suelta_trabajando(cwd, sid):
+            if not sigue():
+                return                    # alguien ya lo cerro (lo cancelaron)
+            time.sleep(pausa)
+    finally:
+        with _SUELTAS_CANDADO:
+            if _SUELTAS.get(sid, 0) <= 1:
+                _SUELTAS.pop(sid, None)
+            else:
+                _SUELTAS[sid] -= 1
+    if not sigue():
+        return
+    # ⚠ Solo vale como terminado si el disco muestra el turno CERRADO. Si el proceso
+    # desaparecio con el turno abierto (lo pararon, se colgo), eso si es un corte.
+    respuesta = _ultima_respuesta(cwd, sid) if sesiones_movil.turno_cerrado(cwd, sid) else ""
+    if respuesta:
+        cambios = {"estado": "terminado", "respuesta": respuesta, "error": "",
+                   "aviso": "El panel se reinició mientras trabajaba: siguió sola y esta "
+                            "respuesta se leyó de la charla."}
+    else:
+        cambios = {"estado": "interrumpido",
+                   "error": "Se reinició el panel en medio del trabajo y el turno no llegó "
+                            "a cerrar."}
+    copia = _poner_estado(trabajo_id, terminado=time.time(), sid_nuevo=sid, **cambios)
+    if not copia:
+        return
+    print(f"trabajos: {trabajo_id[:8]} (charla {sid[:8]}, suelta tras el reinicio) "
+          f"cerro como {cambios['estado']}", flush=True)
+    if copia.get("avisar") and cambios["estado"] == "terminado":
+        _avisar(_aviso_tarea(cwd, {"sid": sid, "respuesta": respuesta,
+                                   "cerebro": copia.get("cerebro")}, "terminado"))
 
 
 def _trabajo_publico(t):
@@ -12283,11 +12555,13 @@ async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = F
                        cerebro: str = Form(""), modelo: str = Form(""),
                        esfuerzo: str = Form(""), velocidad: str = Form(""),
                        segundo_plano: str = Form(""), avisar: str = Form(""),
-                       desde: str = Form(""),
+                       desde: str = Form(""), jefe: str = Form(""),
                        imagenes: list[UploadFile] = File(None)):
     """Un turno contra esa sesion. Puede tardar: el CLI piensa de verdad.
 
     Con `desde` y sin `sid`, la charla nueva nace como COPIA de esa (bifurcar, 2026-09-27).
+    Con `jefe` (2026-11-11), el id de la sesion que DESPACHA el pedido (la skill chief): solo
+    se anota en la ficha del trabajo, para la tarjeta "Despachos" de su columna derecha.
     """
     from app.voz import sesiones_movil
     marca, error = await _guardar_imagenes(imagenes, "el celular")
@@ -12302,6 +12576,10 @@ async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = F
     if sid and sid == _sesion_de_laura():
         return {"ok": False, "error": "Esa es la sesión de Laura: hablale por la pestaña "
                                       "Hablar o por el chat, no por acá."}
+    # Quien se manda algo a si misma no esta despachando nada.
+    jefe = (jefe or "").strip()[:80]
+    if jefe == sid:
+        jefe = ""
     # ⭐ Un turno por sesion, y no mas. Dos `claude --resume` a la vez sobre la MISMA
     # sesion la parten al medio: cada proceso escribe su version de la charla. Con el
     # celular en la mano es facil mandar dos seguidos, o mandar desde el telefono
@@ -12314,6 +12592,8 @@ async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = F
         ok_fila, motivo = sesiones_movil.encolar(cwd, sid, texto)
         if ok_fila:
             _guardar_borrador(sid, "")
+            if jefe:
+                return _despacho_en_fila(cwd, sid, jefe)
             return {"ok": True, "encolado": True}
         if motivo:
             return {"ok": False, "error": motivo}
@@ -12336,6 +12616,9 @@ async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = F
                    "cerebro": cerebro, "modelo": modelo, "esfuerzo": esfuerzo,
                    "velocidad": velocidad, "ruteo": "", "avisar": bool(avisar),
                    "creado": time.time(), "terminado": None}
+        # Solo si vino: una ficha sin jefe queda identica a las de siempre.
+        if jefe:
+            trabajo["jefe"] = jefe
         with _TRABAJOS_CANDADO:
             _TRABAJOS_MOVIL[trabajo_id] = trabajo
         _persistir(trabajo)
@@ -12357,6 +12640,135 @@ def movil_trabajo(trabajo_id: str):
         if not t:
             return {"ok": False, "error": "No encuentro ese trabajo."}
         return {"ok": True, **_trabajo_publico(t)}
+
+
+# --- ⭐ Los DESPACHOS de la sesion chief (2026-11-11) ----------------------------------
+# Mientras el chief espera a otra sesion no habia ninguna señal de vida ("parecia
+# terminada y no"). La skill `chief` manda sus pedidos con el campo `jefe`, la ficha del
+# trabajo lo guarda, y de ahi sale la tarjeta "Despachos" de la columna derecha
+# (`app/estaticos/entorno.js`). La logica vive en `app/voz/despachos.py`.
+# ⚠ Va en una ruta APARTE de `/movil/entorno`, como `/fijados`: con el panel sin reiniciar
+# da 404 y la columna queda exactamente como estaba.
+# Cuanto espera un despacho "en fila" a que termine el turno donde se metio.
+ESPERA_FILA_SEG = 6 * 3600
+
+
+def _ficha(trabajo_id):
+    """La ficha de un trabajo: la de memoria, o la del disco si el panel ya no la tiene."""
+    with _TRABAJOS_CANDADO:
+        t = _TRABAJOS_MOVIL.get(trabajo_id)
+        if t:
+            return dict(t)
+    from app.ingesta import trabajos
+    try:
+        return trabajos.leer(trabajo_id)
+    except Exception:
+        return None
+
+
+def _poner_estado(trabajo_id, **cambios):
+    """Cambia la ficha en memoria y en disco. Devuelve la copia, o None si no existe."""
+    with _TRABAJOS_CANDADO:
+        t = _TRABAJOS_MOVIL.get(trabajo_id)
+        if not t:
+            return None
+        t.update(cambios)
+        copia = dict(t)
+    _persistir(copia)
+    return copia
+
+
+def _ultima_respuesta(cwd, sid):
+    """Lo ultimo que dijo Claude en esa charla, leido del archivo de la charla."""
+    from app.voz import sesiones_movil
+    try:
+        for m in reversed(sesiones_movil.conversacion(cwd, sid, ultimos=6)):
+            if m.get("de") == "claude" and (m.get("texto") or "").strip():
+                return m["texto"].strip()
+    except Exception as e:
+        print("trabajos: no pude leer la charla:", e, flush=True)
+    return ""
+
+
+def _seguir_en_fila(hijo_id, cwd, sid, padre_id="", espera=None, pausa=1.0):
+    """Un despacho que se metio en un turno que YA corria (`sesiones_movil.encolar`).
+
+    El CLI lo contesta adentro de ese mismo turno: no hay un resultado aparte. Por eso
+    se espera a que ese turno termine y se copia lo que contesto: la respuesta final del
+    trabajo padre si lo hay, o si no lo ultimo que dijo Claude en la charla.
+    """
+    from app.voz import sesiones_movil
+    hasta = time.time() + (ESPERA_FILA_SEG if espera is None else espera)
+    padre = None
+    while time.time() < hasta:
+        if padre_id:
+            padre = _ficha(padre_id) or {}
+            if padre.get("estado") not in ("trabajando", "en_fila", "en_cola"):
+                break
+        elif not sesiones_movil.en_turno(cwd, sid):
+            break
+        time.sleep(pausa)
+    else:
+        _poner_estado(hijo_id, estado="fallo", terminado=time.time(),
+                      error="El turno donde se metió el mensaje no terminó a tiempo.")
+        return
+    if padre:
+        cambios = {"estado": padre.get("estado"), "respuesta": padre.get("respuesta") or "",
+                   "error": padre.get("error") or "",
+                   "sid_nuevo": padre.get("sid_nuevo") or sid}
+    else:
+        respuesta = _ultima_respuesta(cwd, sid)
+        cambios = ({"estado": "terminado", "respuesta": respuesta} if respuesta else
+                   {"estado": "fallo", "error": "No encontré la respuesta en la charla."})
+        cambios["sid_nuevo"] = sid
+    _poner_estado(hijo_id, terminado=time.time(), **cambios)
+
+
+def _despacho_en_fila(cwd, sid, jefe):
+    """Un despacho que cayo en un turno que YA corria: igual tiene ficha e id.
+
+    Sin esto el chief recibia `{"encolado": true}` pelado, no tenia que esperar y la
+    tarjeta no mostraba nada.
+    """
+    trabajo_id = uuid.uuid4().hex
+    with _TRABAJOS_CANDADO:
+        vivo, _ = _trabajos_de_sesion(sid)
+        padre_id = (vivo or {}).get("id") or ""
+        ficha = {"id": trabajo_id, "estado": "en_fila", "cwd": cwd, "sid": sid,
+                 "sid_nuevo": "", "respuesta": "", "error": "", "aviso": "", "cerebro": "",
+                 "modelo": "", "esfuerzo": "", "velocidad": "", "ruteo": "", "avisar": False,
+                 "padre": padre_id, "jefe": jefe, "creado": time.time(), "terminado": None}
+        _TRABAJOS_MOVIL[trabajo_id] = ficha
+        copia = dict(ficha)
+    _persistir(copia)
+    threading.Thread(target=_seguir_en_fila, args=(trabajo_id, cwd, sid, padre_id),
+                     daemon=True, name="fila-jefe-" + trabajo_id[:8]).start()
+    return {"ok": True, "encolado": True, "trabajo": trabajo_id}
+
+
+@app.get("/movil/despachos")
+def movil_despachos(cwd: str = "", sid: str = ""):
+    """Lo que esa sesion le despacho a otras y como va cada cosa. Sin despachos, lista
+    vacia: la tarjeta existe solo en la charla de un chief."""
+    from app.voz import despachos, sesiones_movil
+    with _TRABAJOS_CANDADO:
+        fichas = [dict(t) for t in _TRABAJOS_MOVIL.values() if t.get("jefe")]
+    if not sid or not fichas:
+        return {"ok": True, "ahora": time.time(), "items": []}
+    alias = _nombres_sesiones()
+
+    def _nombre(cwd_destino, sid_destino, cerebro=""):
+        if alias.get(sid_destino):
+            return str(alias[sid_destino])
+        if cerebro == "codex" or sesiones_movil.es_codex(sid_destino):
+            return sesiones_movil._codex_titulo(sid_destino) or sid_destino[:8]
+        return sesiones_movil._nombre_charla(cwd_destino, sid_destino)
+
+    return {"ok": True, "ahora": time.time(),
+            "items": despachos.armar(fichas, sid,
+                                     resolver=sesiones_movil.resolver_continuacion,
+                                     nombre_de=_nombre,
+                                     pregunta_de=sesiones_movil.pregunta_de)}
 
 
 @app.post("/movil/trabajo/{trabajo_id}/cancelar")
@@ -12532,12 +12944,15 @@ def movil_elegir_archivo(request: Request):
         raiz.withdraw()
         raiz.attributes("-topmost", True)
         raiz.update()
-        elegido = filedialog.askopenfilename(
-            parent=raiz, initialdir=str(base), title="Buscar archivo")
-        if not elegido:
+        # ⭐ Varios de una (Ctrl/Shift + clic), pedido de Martín 2026-11-11.
+        # `ruta` queda con el primero para quien todavía lea un solo archivo.
+        elegidos = filedialog.askopenfilenames(
+            parent=raiz, initialdir=str(base), title="Buscar archivos")
+        if not elegidos:
             return {"ok": False, "cancelado": True}
-        ruta, relativa = _ruta_archivo_para_chat(elegido, str(base))
-        return {"ok": True, "ruta": ruta, "relativa": relativa}
+        rutas = [_ruta_archivo_para_chat(e, str(base))[0] for e in elegidos]
+        ruta, relativa = _ruta_archivo_para_chat(elegidos[0], str(base))
+        return {"ok": True, "ruta": ruta, "relativa": relativa, "rutas": rutas}
     except Exception as e:
         return {"ok": False, "error": "No pude abrir el buscador: " + str(e)}
     finally:
@@ -12812,12 +13227,14 @@ def skills_de_sesion(sid: str = "", cwd: str = "", de: str = ""):
     # en esta charla: pedido de Martin (2026-08-18) para que el menu no aparezca en
     # blanco en una sesion recien abierta. Es lo caro del endpoint la primera vez
     # (~4 s con 305 MB de transcripciones); despues sale cacheado.
+    # ⭐ Desde el 2026-11-11 se pide con `_ya`: el menu no espera esa cuenta, se
+    # contesta con lo que haya y se recuenta de fondo (ver `usadas_proyecto_ya`).
     # `comandos` son los TUYOS (`~/.claude/commands`), no los de siempre: esos los
     # tiene la pantalla. `rotas` son las carpetas de skills sin SKILL.md — pedido del
     # 2026-08-23, para que "la cree y no aparece" tenga una respuesta en el menu.
     return {"ok": True, "skills": skills.catalogo(cwd), "usadas": u["usadas"],
             "corriendo": u["ultima"] if pensando else "",
-            "proyecto": skills.usadas_proyecto(cwd),
+            "proyecto": skills.usadas_proyecto_ya(cwd),
             "comandos": skills.comandos(cwd), "rotas": skills.rotas(cwd)}
 
 
@@ -12940,10 +13357,18 @@ async def movil_carpeta(request: Request):
     if not ruta:
         return {"ok": False, "error": "falta la ruta"}
     carpeta = Path(ruta)
-    if not carpeta.is_absolute():
-        return {"ok": False, "error": "poné la ruta completa, con la letra del disco"}
+    # ⭐ Solo un nombre (sin barras ni letra de disco) = carpeta nueva en el Espacio
+    # de Trabajo, creada sin preguntar (pedido de Martin, 2026-11-11). Una ruta
+    # completa sigue andando como antes, con su "¿la creo?".
+    solo_nombre = not any(c in ruta for c in "\\/:")
+    if solo_nombre:
+        if ruta in (".", ".."):
+            return {"ok": False, "error": "ese nombre no sirve"}
+        carpeta = ESPACIO_TRABAJO / ruta
+    elif not carpeta.is_absolute():
+        return {"ok": False, "error": "poné un nombre, o la ruta completa con la letra del disco"}
     if not carpeta.exists():
-        if not d.get("crear"):
+        if not (d.get("crear") or solo_nombre):
             return {"ok": False, "puede_crear": True, "error": "esa carpeta no existe"}
         try:
             carpeta.mkdir(parents=True, exist_ok=True)
@@ -12960,6 +13385,56 @@ async def movil_carpeta(request: Request):
         CARPETAS_SESIONES.write_text(json.dumps(extra, ensure_ascii=False, indent=1),
                                      encoding="utf-8")
     return {"ok": True, "nombre": carpeta.name, "cwd": str(carpeta)}
+
+
+# ⭐ "Elegir de mis archivos" al agregar una carpeta (Martín, 2026-11-12: "me tiene que
+# dejar elegir de mis archivos o escribir la ruta"). El navegador NO puede darle a la
+# página la ruta completa de una carpeta elegida (protección de Chrome), así que el
+# selector lo abre el PANEL, que corre en esta misma PC: el de Windows (tkinter usa el
+# moderno), por encima de todo, y devuelve la ruta. La página después la agrega con
+# `/movil/carpeta` como si la hubieras escrito.
+# ⚠ `def` y no `async def`: espera a que elijas, y en un `async def` congelaría el panel.
+# ⚠ En un proceso aparte y sin consola (`CREATE_NO_WINDOW`): la única ventana es el
+# selector. Uno a la vez: si ya hay uno abierto, no se apila otro abajo.
+_ELIGIENDO_CARPETA = threading.Lock()
+_GUION_ELEGIR = (
+    "import sys, tkinter as tk\n"
+    "from tkinter import filedialog\n"
+    "r = tk.Tk(); r.withdraw(); r.attributes('-topmost', True); r.update()\n"
+    "p = filedialog.askdirectory(parent=r, title='Elegí la carpeta para el panel',\n"
+    "                            initialdir=sys.argv[1], mustexist=True)\n"
+    "r.destroy()\n"
+    "sys.stdout.write(p or '')\n")
+
+
+@app.post("/movil/elegir-carpeta")
+def movil_elegir_carpeta():
+    if not _ELIGIENDO_CARPETA.acquire(blocking=False):
+        return {"ok": False, "error": "ya hay un selector de carpetas abierto en la PC"}
+    try:
+        res = subprocess.run([sys.executable, "-c", _GUION_ELEGIR, str(ESPACIO_TRABAJO)],
+                             capture_output=True, text=True, encoding="utf-8", timeout=900,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "el selector quedó abierto demasiado tiempo"}
+    except Exception as e:
+        return {"ok": False, "error": f"no pude abrir el selector: {str(e)[:120]}"}
+    finally:
+        _ELIGIENDO_CARPETA.release()
+    ruta = (res.stdout or "").strip()
+    if not ruta:
+        return {"ok": False, "cancelado": True}
+    return {"ok": True, "ruta": str(Path(ruta))}
+
+
+# ⭐ Cuánto del plan de Claude llevás usado, el mismo número de `/usage` (Martín,
+# 2026-11-12: "me gustaría ver en todo momento mi uso de claude"). Lo pinta `menu.js` en
+# todas las pantallas. Todo el cuidado (la llave solo se lee, nunca se renueva) vive en
+# `app/nucleo/uso_claude.py`. `def` y no `async def`: hace un pedido a internet.
+@app.get("/uso-claude")
+def uso_claude_leer(forzar: int = 0):
+    from app.nucleo import uso_claude
+    return uso_claude.uso(forzar=bool(forzar))
 
 
 @app.post("/movil/novedad")

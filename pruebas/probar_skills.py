@@ -102,6 +102,38 @@ with tempfile.TemporaryDirectory() as tmp:
     chequear("y NO se cuela en el catalogo como si anduviera",
              not any(s["nombre"] == "tresde" for s in skills.catalogo()))
 
+    # --- las categorias del menu ⚡ ---------------------------------------------
+    chequear("una skill conocida cae en su categoria",
+             skills.categoria_de("avisar") == "Avisos y comunicación")
+    chequear("los comodines de la tabla tambien agarran (n8n-*)",
+             skills.categoria_de("n8n-logs") == "Servidores y n8n")
+    chequear("una skill desconocida va a 'Otras'",
+             skills.categoria_de("inventada-xyz") == skills.OTRAS)
+    chequear("'categoria:' en el SKILL.md le gana a la tabla",
+             skills.categoria_de("avisar", "Mias") == "Mias")
+    chequear("una desconocida se acomoda por su descripcion",
+             skills.categoria_de("xyz", "", "Crea animaciones 3D con Three.js") == "Animación y 3D")
+    chequear("con una sola palabra suelta no alcanza: va a 'Otras'",
+             skills.categoria_de("xyz", "", "Ordena el proyecto web") == skills.OTRAS)
+    from app.voz import prompt_master_auto
+    chequear("la instruccion de las sesiones nombra los mismos bloques que el menu",
+             all(c in prompt_master_auto.INSTRUCCION for c, _ in skills.CATEGORIAS))
+    chequear("y sigue siendo UNA linea (los saltos rompen el .cmd de Windows)",
+             "\n" not in prompt_master_auto.INSTRUCCION)
+    chequear("la tabla por nombre le gana a la descripcion",
+             skills.categoria_de("avisar", "", "animaciones 3D con blender") == "Avisos y comunicación")
+    (skills.CARPETA_SKILLS / "zeta").mkdir()
+    (skills.CARPETA_SKILLS / "zeta" / "SKILL.md").write_text(
+        "---\nname: zeta\ndescription: Una.\ncategoria: Mias\n---\n", encoding="utf-8")
+    cat = skills.catalogo()
+    cats = [s["categoria"] for s in cat]
+    chequear("el catalogo lee la categoria del frontmatter",
+             any(s["nombre"] == "zeta" and s["categoria"] == "Mias" for s in cat))
+    chequear("cada categoria sale junta, sin cortarse en dos bloques",
+             all(c not in cats[:i] or cats[i - 1] == c for i, c in enumerate(cats)))
+    chequear("las de la tabla primero, las inventadas despues y 'Otras' al final",
+             cats.index("Avisos y comunicación") < cats.index("Mias") < cats.index(skills.OTRAS))
+
     # --- los comandos propios ----------------------------------------------------
     skills.CARPETA_COMANDOS.mkdir()
     (skills.CARPETA_COMANDOS / "limpiar.md").write_text(
@@ -314,6 +346,33 @@ with tempfile.TemporaryDirectory() as tmp:
                  skills.usadas_proyecto(cwd)["graphify"] == 2)
 
         chequear("sin cwd devuelve vacio sin romper", skills.usadas_proyecto("") == {})
+
+        # ⭐ El menu no espera la cuenta (2026-11-11): con la memoria vacia contesta
+        # al toque sin numeros, cuenta de fondo, y la proxima vez ya los tiene.
+        import time as _t
+        skills._proyectos.clear()
+        lento_antes = skills.usadas_proyecto
+        def lento(c):
+            _t.sleep(1.0)
+            return lento_antes(c)
+        skills.usadas_proyecto = lento
+        try:
+            t0 = _t.time()
+            v = skills.usadas_proyecto_ya(cwd)
+            chequear("con la memoria vacia contesta sin esperar la cuenta",
+                     v == {} and _t.time() - t0 < 0.3)
+            chequear("y un segundo pedido no arranca otra cuenta encima",
+                     skills.usadas_proyecto_ya(cwd) == {}
+                     and len(skills._refrescando) == 1)
+            for _ in range(50):
+                if not skills._refrescando:
+                    break
+                _t.sleep(0.1)
+        finally:
+            skills.usadas_proyecto = lento_antes
+        chequear("terminada la cuenta de fondo, ya trae los numeros",
+                 skills.usadas_proyecto_ya(cwd).get("graphify") == 2)
+        chequear("sin cwd tampoco rompe", skills.usadas_proyecto_ya("") == {})
     finally:
         seguir.CLAUDE_PROYECTOS = seguir_antes
 

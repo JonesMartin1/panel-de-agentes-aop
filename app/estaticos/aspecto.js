@@ -423,7 +423,19 @@
     vidrio: {nom: 'Vidrio', bloques: false, campos: {
       fondo: '#0b1020', color: '#f2f6ff', tintaLetras: '#e3e9f8', tintaCajas: '#1b2440',
       aviso: '#7fd0ff', sombra: 'suave', vidrio: 'mucho', tipo: 'Segoe UI Variable Display'}},
+    // ⭐ Vidrio con bandeja (2026-11-11). Martín vio el boceto "Bandeja" (riel de íconos +
+    // lista de charlas al lado, como un correo) y pidió: "crealo como estilo nuevo con la
+    // temática que ya tengo". Es la MISMA piel de Vidrio (lleva las clases `carta` y
+    // `vidrio`) y suma `vbandeja`: las carpetas se achican a una tira de emojis y la lista
+    // de charlas de la carpeta queda siempre a la vista al lado de la charla abierta.
+    // ⚠ Esa columna se había descartado el 2026-08-16 para la pantalla de siempre; acá
+    // vuelve SOLO como estilo a elección. Los demás estilos no la ven. Ver INTERFAZ.md.
+    vbandeja: {nom: 'Vidrio con bandeja', bloques: false, campos: {
+      fondo: '#0b1020', color: '#f2f6ff', tintaLetras: '#e3e9f8', tintaCajas: '#1b2440',
+      aviso: '#7fd0ff', sombra: 'suave', vidrio: 'mucho', tipo: 'Segoe UI Variable Display'}},
   };
+  // Los estilos que llevan la piel de vidrio (y por eso siempre una foto atrás).
+  const deVidrio = () => aspecto.estilo === 'vidrio' || aspecto.estilo === 'vbandeja';
 
   const BASE = {tipo: 'segoe', color: 'celeste', fondo: 'azulado', img: '',
                 letra: 'normal', velo: 'media', rastro: 'tema',
@@ -449,7 +461,16 @@
   const FOTO_WINDOWS = '/fondo/windows';
   let versionFondo = '';
 
-  let aspecto = Object.assign({}, BASE, leerLocal());
+  // ⭐ Lo de fábrica es el estilo Vidrio (2026-11-11, Martín: "cualquier persona que se
+  // descargue el panel, el primer tema que le aparezca sea el del vidrio"). `BASE` sigue
+  // siendo el piso de campos y "El de siempre" (`sacarEstilo`) sigue volviendo a la paleta
+  // vieja: esto solo cambia con qué arranca quien todavía no eligió NADA.
+  // ⚠ Se usa solo si el navegador no tiene nada guardado: un aspecto viejo, de antes de que
+  // existiera el campo `estilo`, no trae esa llave y se le pondría Vidrio sin pedirlo.
+  const FABRICA = Object.assign({}, BASE, LIMPIO, ESTILOS.vidrio.campos, {estilo: 'vidrio'});
+  const guardadoLocal = leerLocal();
+  let aspecto = Object.assign({}, Object.keys(guardadoLocal).length ? BASE : FABRICA,
+                              guardadoLocal);
 
   function leerLocal(){
     try { return JSON.parse(localStorage.getItem('aspecto') || '{}'); }
@@ -823,8 +844,7 @@
     // ⭐ Con el estilo Vidrio siempre hay una foto atrás: es de lo que está hecho. Si no
     // elegiste ninguna se muestra la del escritorio, SIN guardarla en tu aspecto: el día
     // que elijas otra, o cambies de estilo, no queda rastro.
-    const deVidrio = aspecto.estilo === 'vidrio';
-    const base = aspecto.img || (deVidrio ? FOTO_WINDOWS : '');
+    const base = aspecto.img || (deVidrio() ? FOTO_WINDOWS : '');
     const general = base === FOTO_WINDOWS && versionFondo
       ? FOTO_WINDOWS + '?v=' + encodeURIComponent(versionFondo) : base;
     const url = fotoPropia || general;
@@ -1152,13 +1172,15 @@
     // mundos y mezclados no se lee ninguno. Las demás siguen con las formas de Grok.
     // ⭐ `carta` es el CASCO nuevo y lo llevan dos estilos: Carta celeste y Vidrio. Vidrio
     // suma además su clase, que es la piel de vidrio encima del mismo casco.
-    const celeste = aspecto.estilo === 'celeste', vidrio = aspecto.estilo === 'vidrio';
+    const celeste = aspecto.estilo === 'celeste', vidrio = deVidrio();
+    const bandeja = aspecto.estilo === 'vbandeja';
     const carta = (celeste || vidrio) && document.documentElement.hasAttribute('data-carta');
     const conFormas = !!ESTILOS[aspecto.estilo] && !carta, puro = aspecto.estilo === 'grok';
     cl.toggle('estilo-grok', conFormas);
     cl.toggle('grok-puro', puro);
     cl.toggle('carta', carta);
     cl.toggle('vidrio', carta && vidrio);
+    cl.toggle('vbandeja', carta && bandeja);
     fuentesCarta(celeste);
     const piezas = ['--grok-fuerte', '--grok-fuerte-txt', '--grok-fuerte-viva'];
     if (conFormas && !puro && esLibre(col[0])) {
@@ -1901,7 +1923,7 @@ html.tema-claro .menu-pantallas.mini .todo a.aca{background:#16263a;border-color
       // pantallas; lo demás es el material del estilo Vidrio, y lo dice.
       seccion('vidrio', 'Vidrio',
         deslizador('vidrio') +
-        (aspecto.estilo === 'vidrio' ? '' :
+        (deVidrio() ? '' :
           '<div class="avisoVidrio">Lo de abajo se ve con el estilo «Vidrio» puesto.</div>') +
         deslizador('vdOpaco') +
         '<div class="rub">Color del vidrio</div><div class="ops" data-campo="vdTinte">' +
@@ -2067,7 +2089,8 @@ html.tema-claro .menu-pantallas.mini .todo a.aca{background:#16263a;border-color
     // Con nueve tipografías, ocho colores y la rueda, es fácil llegar a algo ilegible y
     // no acordarse de dónde se salió. Esto devuelve TODO a lo de fábrica de una.
     panel.querySelector('#aspFabrica').onclick = () => {
-      aspecto = Object.assign({}, BASE); aplicar(); guardar(); pintarPanel();
+      // Lo de fábrica es Vidrio, lo mismo con lo que arranca un panel recién bajado.
+      aspecto = Object.assign({}, FABRICA); aplicar(); guardar(); pintarPanel();
     };
   }
 
@@ -2171,7 +2194,7 @@ html.tema-claro .menu-pantallas.mini .todo a.aca{background:#16263a;border-color
   // Solo cuando cambia se vuelve a pedir la imagen. Cada 5 minutos alcanza: la rotación
   // de Windows es de horas (pedido de Martín, 2026-08-18).
   function mirarFondo(){
-    if (aspecto.img !== FOTO_WINDOWS && !(aspecto.estilo === 'vidrio' && !aspecto.img)) return;
+    if (aspecto.img !== FOTO_WINDOWS && !(deVidrio() && !aspecto.img)) return;
     fetch('/fondo/windows/version').then(r => r.json()).then(d => {
       if (d && d.v && d.v !== versionFondo){ versionFondo = d.v; aplicar(); }
     }).catch(() => {});

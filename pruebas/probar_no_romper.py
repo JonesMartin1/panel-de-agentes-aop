@@ -258,6 +258,35 @@ INVARIANTES = [
                      "    viva = _arrancar_viva(cwd, sid, modelo, esf, modo_de(sid), desde=desde)"),
     },
     {
+        "clave": "no-pisar-la-suelta",
+        "titulo": "Un mensaje no le mata el proceso a una charla que quedo trabajando tras un reinicio",
+        "por_que": ("Cuando el panel se reinicia, el proceso de una charla a mitad de turno "
+                    "sigue solo. Levantar otro encima lo mataba, y se llevaba puesto justo el "
+                    "trabajo que el reinicio no habia cortado (2026-11-11: once reinicios en "
+                    "un dia, uno un minuto despues de despachar tres pedidos)."),
+        "archivos": ["app/voz/sesiones_movil.py"],
+        "mira": lambda t: antes_que(
+            cuerpo(t["app/voz/sesiones_movil.py"], "def _conseguir_viva("),
+            "esperar_suelta(cwd, sid)", "_matar_huerfanos(sid)"),
+        "mutacion": ("app/voz/sesiones_movil.py",
+                     "        esperar_suelta(cwd, sid)\n",
+                     "        pass\n"),
+    },
+    {
+        "clave": "reinicio-espera-a-las-que-trabajan",
+        "titulo": "El boton ⟳ no reinicia el panel con una charla a mitad de turno",
+        "por_que": ("Reiniciar con un turno en curso deja a ese proceso solo: no puede pedir "
+                    "permisos y el panel nuevo no lo maneja. El pedido queda pendiente y sale "
+                    "cuando la ultima termina; `ya` existe para cuando hace falta igual."),
+        "archivos": ["panel.py"],
+        "mira": lambda t: (
+            "" if "_quienes_trabajan()" in cuerpo(t["panel.py"], "def _pedir_reinicio(")
+            else "_pedir_reinicio() ya no mira quien esta trabajando: el ⟳ volvio a cortar"),
+        "mutacion": ("panel.py",
+                     "    quienes = [] if ya else _quienes_trabajan()",
+                     "    quienes = []"),
+    },
+    {
         "clave": "no-dormir-con-trabajo-abajo",
         "titulo": "El barrendero nunca apaga una sesion que tiene trabajo en segundo plano",
         "por_que": ("Desde el 2026-09-03 las sesiones se duermen por falta de memoria y no "
@@ -485,13 +514,35 @@ INVARIANTES = [
                      "                         origenes_extra, anfitriones_extra)",
                      '        motivo = ""'),
     },
+    {
+        "clave": "escritorio-con-candados",
+        "titulo": "El escritorio remoto no deja pasar un clic sin los candados de la terminal",
+        "por_que": ("La pieza Escritorio (2026-11-12) maneja por RustDesk computadoras de "
+                    "otras personas —incluidas las de clientes— desde una pagina del panel. "
+                    "Si una sola ruta `/escritorio/*` se salteara la puerta de la terminal "
+                    "(nombre, pagina de origen y llave), cualquier sitio abierto en el "
+                    "Chrome de Martin podria mandar clics y teclas a la compu de un cliente, "
+                    "o prenderle la aprobacion automatica a RustDesk. La unica ruta sin "
+                    "llave es la que la entrega. Se prueba de verdad, con sus mutaciones, en "
+                    "pruebas/probar_escritorio.py."),
+        "archivos": ["app/voz/escritorio.py"],
+        "mira": lambda t: _escritorio_con_candados(t["app/voz/escritorio.py"]),
+        "mutacion": ("app/voz/escritorio.py",
+                     "        motivo = puerta(request)\n"
+                     "        if motivo:\n"
+                     "            return no(motivo)\n"
+                     "        d = await cuerpo(request)\n"
+                     "        return await _aparte(_con_puerta, accion, d)",
+                     "        d = await cuerpo(request)\n"
+                     "        return await _aparte(_con_puerta, accion, d)"),
+    },
 ]
 
 # ⭐ El piso. La idea es de Marcus y es simple: el que hace el cambio no puede
 # tocar la vara que lo mide. Sin esto, la salida mas facil para un agente al que
 # el commit se le frena es borrar el invariante que le molesta, y el chequeo
 # quedaria en verde con menos reglas que ayer. Si agregas una, subi el numero.
-MINIMO_INVARIANTES = 25
+MINIMO_INVARIANTES = 26
 
 
 # --- Chequeos que no entran en una linea -----------------------------------------
@@ -525,6 +576,23 @@ def _llamada(texto, i):
 CON_VENTANA_A_PROPOSITO = {
     "app/web/navegador.py": "abre Chrome, que es un programa con ventana y no una consola",
 }
+
+
+def _escritorio_con_candados(t):
+    """Cada ruta `/escritorio/...` llama a la puerta, la puerta es la de la terminal, y la
+    unica que entra sin llave es la que la entrega."""
+    puerta = cuerpo(t, "    def puerta(")
+    if "terminales._puerta(" not in puerta or "pide_llave" not in puerta:
+        return "la puerta del escritorio ya no es la de la terminal"
+    for trozo in t.split("@r.")[1:]:
+        if not trozo.startswith(('get("/escritorio/', 'post("/escritorio/')):
+            continue
+        ruta = trozo.split(")")[0]
+        if "puerta(request" not in trozo:
+            return "una ruta del escritorio no pasa por la puerta: " + ruta
+        if "pide_llave=False" in trozo and '"/escritorio/llave"' not in ruta:
+            return "una ruta del escritorio entra sin llave: " + ruta
+    return ""
 
 
 def _terminal_con_candados(t):

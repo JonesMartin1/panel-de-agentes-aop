@@ -30,7 +30,7 @@ import psutil
 
 from app.rutas import (CLAUDE_PROYECTOS, CARPETAS_SESIONES, AJUSTES_SESIONES,
                        CLAUDE_SESION, CODEX_SESION, CODEX_SESIONES,
-                       NOMBRES_SESIONES, FRENO_AGENTES,
+                       NOMBRES_SESIONES, SUBPROYECTOS_SESIONES, FRENO_AGENTES,
                        PROYECTOS_CONFIABLES, CERT_NODE_CODEX, CERT_BUNDLE_CODEX,
                        ASPECTO_CARPETAS, CHROME_EXE, CHROME_EXE_X86, FOTOS_PASOS)
 from app.voz import almacen_chrome, seguir
@@ -848,6 +848,35 @@ def _marcar_continuacion(sid_viejo, sid_nuevo):
                                     encoding="utf-8")
     except Exception as e:
         print("no pude anotar donde sigue la sesion compactada:", e, flush=True)
+    _heredar_etiquetas(sid_viejo, sid_nuevo)
+
+
+def _heredar_etiquetas(sid_viejo, sid_nuevo):
+    """La continuacion se queda con el nombre y el subproyecto que Martin le puso a la vieja.
+
+    ⭐ Queja de Martin el 2026-11-11: "si compacto una charla, pierde el lindo nombre que
+    le habia puesto". El alias y el subproyecto se guardan por id de charla, y compactar
+    (o mudar de cerebro) arranca una charla con id nuevo: la continuacion aparecia con el
+    titulo que le pone Claude y fuera de su grupo. Solo se copia si la nueva no tiene uno
+    propio, y la vieja conserva el suyo (sigue en la bandeja con la chapa "sigue en").
+    """
+    if not (sid_viejo and sid_nuevo) or sid_viejo == sid_nuevo:
+        return
+    for archivo, tope in ((NOMBRES_SESIONES, 60), (SUBPROYECTOS_SESIONES, 40)):
+        try:
+            d = json.loads(archivo.read_text(encoding="utf-8"))
+        except Exception:
+            continue          # sin archivo todavia = nadie le puso nada a ninguna charla
+        if not isinstance(d, dict):
+            continue
+        valor = d.get(sid_viejo)
+        if not (isinstance(valor, str) and valor.strip()) or d.get(sid_nuevo):
+            continue
+        d[sid_nuevo] = valor[:tope]
+        try:
+            archivo.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+        except Exception as e:
+            print("no pude pasarle a la continuacion su", archivo.name, ":", e, flush=True)
 
 
 def resolver_continuacion(sid):
@@ -1214,6 +1243,204 @@ def _matar_huerfanos(sid):
     return muertos
 
 
+# --- ⭐ Las charlas que quedan SUELTAS cuando el panel se reinicia (2026-11-11) ----------
+# Pedido de Martin: "¿como arreglamos que las sesiones se corten si reinicio el panel?".
+# Ese dia el panel se reinicio once veces, una de ellas un minuto despues de que una sesion
+# le despachara trabajo a otras tres. Lo que pasa de verdad: el proceso del CLI NO muere
+# con el panel; sigue su turno solo (sin poder pedir permisos) y el panel nuevo no sabe
+# nada de el. Eso se resolvia mal por los dos lados: el trabajo figuraba "interrumpido"
+# aunque siguiera andando, y el primer mensaje que llegaba MATABA a ese proceso para
+# levantar otro encima — se llevaba puesto justo el trabajo que parecia perdido.
+# Este es el paso 1 (el de fondo es sacarle al panel el caño de las sesiones):
+#   - `suelta_trabajando` dice si quedo un proceso de antes en medio de su turno;
+#   - `esperar_suelta` lo deja terminar antes de levantar otro (`_conseguir_viva`);
+#   - el panel sigue por el disco los trabajos de esas charlas (`_seguir_suelta`, panel.py)
+#     y el boton ⟳ espera a que nadie este a mitad de turno (`trabajando_ahora`).
+# ⚠ Solo Claude: un turno de Codex ya deja su verdad en el rollout y en su proceso.
+# ⚠ Una charla que NACIO en ese mismo turno no lleva su id en la linea de comando: a esa
+# no se la encuentra y queda "interrumpida", como antes.
+# Se prueba con `python -m pruebas.probar_reinicio_sin_corte --mutar`.
+ESPERA_SUELTA_SEG = 2 * 3600     # cuanto se espera, como mucho, a que una suelta termine
+SUELTA_MUDA_SEG = 600            # callada este rato y sin nada corriendo abajo: colgada
+SOLA_RECIENTE_SEG = 90           # un turno que arranco solo cuenta si escribio hace poco
+_COLA_DISCO = (262144, 4194304)  # cuanto del final del archivo se lee para ver el cierre
+
+
+def sueltos_de(sid):
+    """Los procesos que escriben esa charla, este o no enterado el panel. No mata a nadie.
+
+    ⚠ Es la MISMA busqueda de `_matar_huerfanos`, copiada a proposito en vez de
+    compartida: aquella es la salida de emergencia de Parar y no se toca para sumarle un
+    uso nuevo. Si cambia alla como se reconoce un proceso, cambia aca.
+    """
+    if not sid:
+        return []
+    hallados = []
+    for proc in psutil.process_iter(["name", "cmdline"]):
+        try:
+            if (proc.info.get("name") or "").lower() not in ("node.exe", "claude.exe"):
+                continue
+            linea = " ".join(proc.info.get("cmdline") or [])
+            if sid not in linea:
+                continue
+            if "--fork-session" in linea and "--resume " + sid in linea:
+                continue                      # una copia: escribe OTRA charla
+            hallados.append(proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+        except Exception:
+            continue
+    return hallados
+
+
+def turno_abierto_en_disco(ruta):
+    """Si el ultimo turno de esa charla quedo SIN cerrar, mirando el final de su archivo.
+
+    Medido el 2026-11-11 sobre charlas reales (CLI 2.1.322): al cerrar un turno el CLI
+    escribe el ultimo mensaje del asistente con `stop_reason: end_turn` y despues un
+    renglon `system` / `stop_hook_summary`. Con el turno abierto, lo ultimo es una
+    herramienta pedida (`tool_use`), su resultado (`user`) o un pensamiento suelto. Los
+    renglones de contabilidad del final (`last-prompt`, `cost-state`…) no cuentan.
+    ⚠ Ante la duda contesta que NO esta abierto: quien pregunta es para decidir si
+    espera, y lo que no puede pasar es quedarse esperando algo que no existe.
+    """
+    for tramo in _COLA_DISCO:
+        try:
+            with open(ruta, "rb") as f:
+                f.seek(0, 2)
+                largo = f.tell()
+                f.seek(max(0, largo - tramo))
+                lineas = f.read().decode("utf-8", "replace").split("\n")
+        except OSError:
+            return False
+        if largo > tramo:
+            lineas = lineas[1:]               # el primer renglon llego cortado
+        for linea in reversed(lineas):
+            if not linea.strip():
+                continue
+            try:
+                d = json.loads(linea)
+            except Exception:
+                continue
+            tipo = d.get("type")
+            if tipo == "system" and d.get("subtype") == "stop_hook_summary":
+                return False
+            if tipo == "user":
+                return True
+            if tipo == "assistant":
+                msj = d.get("message") or {}
+                clases = [b.get("type") for b in (msj.get("content") or [])
+                          if isinstance(b, dict)]
+                if "tool_use" in clases:
+                    return True
+                return not (msj.get("stop_reason") == "end_turn" and "text" in clases)
+        if largo <= tramo:
+            break                             # ya se leyo entero: no hay mas que mirar
+        # Lo ultimo es un renglon mas grande que el tramo (una captura, una salida
+        # enorme): se prueba con mas antes de rendirse.
+    return False
+
+
+def _archivo_de(cwd, sid):
+    return seguir.carpeta_de(cwd) / (sid + ".jsonl")
+
+
+def turno_cerrado(cwd, sid):
+    """Si lo ultimo que hay en el disco de esa charla es un turno completo."""
+    return not turno_abierto_en_disco(_archivo_de(cwd, sid))
+
+
+def suelta_trabajando(cwd, sid, ahora=None):
+    """Si a esa charla le quedo un proceso de ANTES de un reinicio en medio de su turno.
+
+    Hacen falta las tres cosas: que el proceso exista, que este panel NO lo maneje, y que
+    el disco diga que el turno sigue abierto. Con el turno cerrado el proceso suelto esta
+    al pedo (o cuidando algo en segundo plano) y no hay nada que esperar.
+    """
+    if not sid or es_codex(sid):
+        return False
+    v = _viva_de(cwd, sid)
+    if v is not None and v.viva():
+        return False                          # la maneja este panel: no esta suelta
+    procs = sueltos_de(sid)
+    if not procs:
+        return False
+    ruta = _archivo_de(cwd, sid)
+    if not turno_abierto_en_disco(ruta):
+        return False
+    try:
+        callada = (time.time() if ahora is None else ahora) - ruta.stat().st_mtime
+    except OSError:
+        return False
+    if callada <= SUELTA_MUDA_SEG:
+        return True
+    # Hace rato que no escribe: solo cuenta si tiene algo corriendo (una herramienta
+    # larga). Sin eso es un proceso colgado, y a ese no se lo espera.
+    for p in procs:
+        try:
+            if p.children(recursive=True):
+                return True
+        except psutil.Error:
+            continue
+    return False
+
+
+def esperar_suelta(cwd, sid, tope=None, pausa=2.0):
+    """Deja terminar al proceso que quedo trabajando de antes del reinicio, en vez de
+    matarlo para levantar otro encima. Devuelve los segundos que espero (0 = no habia).
+
+    El mensaje que llega espera su turno, igual que cuando se le escribe a una charla
+    que trabaja. Parar sigue cortando de verdad: mata al suelto y la espera termina.
+    """
+    tope = ESPERA_SUELTA_SEG if tope is None else tope
+    desde = None
+    while suelta_trabajando(cwd, sid):
+        if desde is None:
+            desde = time.time()
+            print("sesiones: %s quedo trabajando de antes del reinicio; se la espera en "
+                  "vez de pisarla" % sid[:8], flush=True)
+        if time.time() - desde >= tope:
+            print("sesiones: %s no termino en %d min; se sigue igual" % (sid[:8], tope // 60),
+                  flush=True)
+            break
+        time.sleep(pausa)
+    else:
+        if desde is not None:
+            # Un respiro antes de arrancar el turno nuevo: el panel esta mirando ese mismo
+            # final para cerrar el trabajo que seguia por el disco, y tiene que leerlo
+            # ANTES de que este turno escriba encima.
+            time.sleep(pausa * 2)
+    return 0 if desde is None else time.time() - desde
+
+
+def trabajando_ahora():
+    """Las charlas que este panel maneja y estan en medio de un turno: [(cwd, sid)].
+
+    Es para el boton ⟳, que no reinicia mientras haya alguna. Cuenta tambien el turno
+    que el CLI arranca SOLO (cuando termina algo de segundo plano): ese no toma el
+    candado, asi que se lo reconoce por el disco.
+    """
+    with _CANDADO_VIVAS:
+        vivas = list(VIVAS.values())
+    ahora, salida = time.time(), []
+    for v in vivas:
+        if not v.viva():
+            continue
+        if v.turno.locked():
+            salida.append((v.cwd, v.sid))
+            continue
+        if not v.sid or es_codex(v.sid):
+            continue
+        ruta = _archivo_de(v.cwd, v.sid)
+        try:
+            callada = ahora - ruta.stat().st_mtime
+        except OSError:
+            continue
+        if callada <= SOLA_RECIENTE_SEG and turno_abierto_en_disco(ruta):
+            salida.append((v.cwd, v.sid))
+    return salida
+
+
 def _soltar_candado_codex(sid):
     """Saca el candado que Codex deja sobre la charla mientras la escribe.
 
@@ -1561,6 +1788,10 @@ def _conseguir_viva(cwd, sid, modelo, esfuerzo, modo="", desde=""):
         # explicita de `claude-hibernate`, la unica herramienta parecida que existe.
         # Se barre por PROCESO (linea de comando), que es lo unico que sobrevive a que el
         # panel se reinicie; la lista en memoria acá no sirve para nada.
+        # ⭐⭐ Pero si ese proceso suelto esta en MEDIO de su turno, primero se lo deja
+        # terminar (2026-11-11): matarlo aca se llevaba puesto el trabajo que el
+        # reinicio no habia cortado. Ver el bloque de `suelta_trabajando`.
+        esperar_suelta(cwd, sid)
         sueltos = _matar_huerfanos(sid)
         if sueltos:
             print("sesiones: %s tenia %d proceso(s) sueltos de antes del reinicio; los "
@@ -3209,6 +3440,33 @@ _MSJ_DENEGADO = ("Permission to use {tool} has been denied because this session 
                  "work around this denial in unexpected ways.")
 
 
+_HERRAMIENTAS_ARCHIVO = {"Write": "file_path", "Edit": "file_path",
+                         "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
+
+
+def _es_escritura_de_skill(herramienta, entrada):
+    """¿Es escribir un archivo ADENTRO de una carpeta de skills (`.claude/skills/<algo>`)?
+
+    Vale la global (`~/.claude/skills`) y la de un proyecto (`<repo>/.claude/skills`).
+    ⚠ Solo herramientas de archivo, con la ruta mirada entera: nada de Bash, cuyo
+    comando no se puede leer con seguridad. Y una ruta con `..` no pasa aunque al final
+    caiga adentro: si hace falta subir, es que se esta apuntando a otro lado.
+    El resto de `.claude` (ajustes, memoria, credenciales) sigue denegado como siempre.
+    """
+    campo = _HERRAMIENTAS_ARCHIVO.get(str(herramienta or ""))
+    ruta = str((entrada or {}).get(campo) or "") if campo else ""
+    if not ruta:
+        return False
+    partes = [x for x in re.split(r"[\\/]+", ruta) if x]
+    if any(x in (".", "..") for x in partes):
+        return False
+    bajas = [x.lower() for x in partes]
+    for i in range(len(bajas) - 2):
+        if bajas[i] == ".claude" and bajas[i + 1] == "skills":
+            return True
+    return False
+
+
 def _mandar_control(proc, candado, request_id, permiso):
     """Escribe un control_response al stdin del CLI. `permiso` es el dict behavior."""
     linea = json.dumps({"type": "control_response", "response": {
@@ -3971,6 +4229,16 @@ def _atender_pedido(viva, d, clave):
                  "updatedInput": req.get("input") or {}}
                 if permiso else
                 {"behavior": "deny", "message": motivo}))
+        elif _es_escritura_de_skill(req.get("tool_name"),
+                                    req.get("input") or {}):
+            # ⭐ Crear o guardar una skill (2026-11-11). Write/Edit ya estan
+            # permitidas, pero el CLI pide permiso APARTE para todo lo que cae
+            # adentro de una carpeta `.claude` (la considera delicada), y aca
+            # caia en el "denegado" de abajo: la sesion armaba la skill en
+            # C:\tmp y le pedia a Martin que la copiara a mano.
+            _mandar_control(p, viva.candado_stdin, rid, {
+                "behavior": "allow",
+                "updatedInput": req.get("input") or {}})
         else:
             # Todo lo demas: denegado en el acto, como dontAsk.
             _mandar_control(p, viva.candado_stdin, rid, {

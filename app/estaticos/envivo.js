@@ -64,7 +64,11 @@
     if (h === caja._h) return;
     const c = document.getElementById('cuerpo');
     // Mismo criterio que el repintado: te sigue hacia abajo solo si ya estabas abajo.
-    const abajo = c && c.scrollHeight - c.scrollTop - c.clientHeight < 90;
+    // ⭐ Si la pantalla sabe si la querés seguir (`window.chatSigue`, /sesiones desde el
+    // 2026-11-12), manda eso: medir la distancia en el momento te volvía a bajar en medio
+    // de la animación de la rueda, porque llega un pedacito varias veces por segundo.
+    const abajo = c && (typeof window.chatSigue === 'function' ? window.chatSigue()
+                                                              : c.scrollHeight - c.scrollTop - c.clientHeight < 90);
     caja.innerHTML = h;
     caja._h = h;
     if (abajo) c.scrollTop = c.scrollHeight;

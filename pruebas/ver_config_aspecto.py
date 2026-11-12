@@ -189,11 +189,14 @@ def main():
         pag.wait_for_timeout(300)
         pag.click("#aspFabrica")
         pag.wait_for_timeout(700)
-        revisar("volver a lo de fábrica deja todo como salió de la caja",
-                {k: guardado().get(k) for k in ("tipo", "color", "fondo", "img", "letra", "velo")},
-                {"tipo": "segoe", "color": "celeste", "fondo": "azulado", "img": "",
-                 "letra": "normal", "velo": "media"})
-        revisar("y la letra vuelve a la de siempre", letra(pag), 13.6)
+        # ⭐ Desde el 2026-11-11 lo de fábrica es el estilo Vidrio (`FABRICA` en aspecto.js):
+        # es lo mismo que ve quien recién se baja el panel.
+        revisar("volver a lo de fábrica deja todo como salió de la caja (Vidrio)",
+                {k: guardado().get(k) for k in ("estilo", "tipo", "color", "fondo", "img",
+                                                 "letra", "velo")},
+                {"estilo": "vidrio", "tipo": "Segoe UI Variable Display", "color": "#f2f6ff",
+                 "fondo": "#0b1020", "img": "", "letra": "normal", "velo": "media"})
+        revisar("y la letra vuelve a la de Vidrio", letra(pag), 15.0)
 
         # --- Las tipografías nuevas -------------------------------------------------
         for clave, esperada in [("cambria", "Cambria"), ("candara", "Candara"),

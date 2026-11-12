@@ -93,15 +93,20 @@ def cargar(dias=DIAS_GUARDADOS):
 VIVOS = ("trabajando", "en_fila", "en_cola")
 
 
-def marcar_interrumpidos(motivo="Se reinició el panel en medio del trabajo."):
+def marcar_interrumpidos(motivo="Se reinició el panel en medio del trabajo.", conservar=None):
     """Al arrancar: lo que figuraba corriendo ya no lo corre nadie. Devuelve esas fichas.
 
     ⚠ El turno en si puede haber terminado igual (el proceso de la charla no muere con el
     panel) y su respuesta queda en la charla: por eso el error lo dice.
+    ⭐ `conservar(ficha)` (2026-11-11) deja afuera las que SI siguen: el proceso de esa
+    charla quedo trabajando suelto y el panel lo va a seguir por el disco. Esas no se
+    tocan ni se devuelven.
     """
     salida = []
     for t in cargar():
         if t.get("estado") in VIVOS:
+            if conservar is not None and conservar(t):
+                continue
             t["estado"] = "interrumpido"
             t["error"] = t.get("error") or motivo
             t["terminado"] = time.time()

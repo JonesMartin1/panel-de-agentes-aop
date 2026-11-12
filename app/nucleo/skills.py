@@ -32,7 +32,9 @@ se abre el boton, no cada 3 segundos.
 import json
 import os
 import re
+import threading
 import time
+import unicodedata
 from pathlib import Path
 
 from app.voz import seguir
@@ -92,13 +94,89 @@ def _descripcion(texto):
     return d.strip().rstrip(",;")
 
 
+# ⭐ Las categorias del menu ⚡ (pedido de Martin, 2026-11-11: "me gustaria poder agrupar
+# las skills por categoria"). Con 80 skills, entre las suyas y las de los plugins, la
+# lista alfabetica ya no se podia recorrer. El ORDEN de esta tupla es el orden de los
+# bloques en el menu. Cada regla es una expresion contra el nombre de la skill; gana la
+# primera que coincide, y lo que no cae en ninguna va a "Otras".
+# Para mover una skill sin tocar codigo: `categoria: <nombre>` en su SKILL.md.
+CATEGORIAS = (
+    ("Avisos y comunicación", r"^(avisar|buzon|pizarra|paso-a-paso)$"),
+    ("Proyecto y coordinación", r"^(chief|paralelo|notas|kanban|graphify|grill-me|"
+                                r"session-report|receipts|project-artifact)$"),
+    ("Servidores y n8n", r"^(n8n-.*|vps-salud)$"),
+    ("Diseño web", r"^(emil-design-eng|frontend-design|impeccable|web-design-guidelines|"
+                   r"webapp-testing|playground)$"),
+    ("Animación y 3D", r"^(gsap-.*|scroll-.*|webgpu-.*|3d|blender-.*|procedural-film)$"),
+    ("Imágenes, video y voz", r"^(gemini-imagen|video-tutorial|leeme)$"),
+    ("Crear skills, plugins y MCP", r"^(prompt-master|skill-.*|.*-development|mcp-.*|"
+                                    r"build-mcp.*|plugin-.*|writing-hookify-rules|example-.*|"
+                                    r"claude-automation-recommender|claude-md-improver)$"),
+)
+OTRAS = "Otras"
+_ORDEN_CATEGORIAS = {n: i for i, (n, _) in enumerate(CATEGORIAS)}
+
+# ⭐ Ultimo intento antes de "Otras" (pedido de Martin, 2026-11-11: que las skills nuevas
+# se acomoden solas). Se cuentan las palabras de cada categoria que aparecen en la
+# DESCRIPCION; gana la que suma mas, y con empate la que va primero en el menu. Hacen
+# falta DOS palabras: con una sola, cualquier skill que dice "proyecto" o "web" de pasada
+# caia en un bloque que no era el suyo. Puede equivocarse: para eso esta `categoria:`.
+PISTAS = {
+    "Avisos y comunicación": r"avis\w*|telegram|whatsapp|notifica\w*|mensaje\w*|celular|"
+                             r"notif\w*|message\w*",
+    "Proyecto y coordinación": r"sesion\w*|session\w*|obsidian|kanban|tablero|agentes?|"
+                               r"agents?|coordin\w*|planes?|plans?|pendientes?|tareas?|tasks?",
+    "Servidores y n8n": r"n8n|vps|servidor\w*|servers?|docker|deploy\w*|despleg\w*|"
+                        r"backups?|workflows?",
+    "Diseño web": r"diseno|design\w*|frontend|interfa\w*|ui|ux|css|tipograf\w*|typograph\w*|"
+                  r"landing|accesib\w*|accessib\w*|layout",
+    "Animación y 3D": r"animac\w*|animat\w*|3d|three\.?js|webgpu|blender|shaders?|"
+                      r"scroll\w*|gsap|render\w*",
+    "Imágenes, video y voz": r"imagen\w*|images?|fotos?|photos?|videos?|voz|voice|audio|"
+                             r"tts|narra\w*",
+    "Crear skills, plugins y MCP": r"skills?|plugins?|mcp|hooks?|prompts?|claude\.md|"
+                                   r"slash|subagent\w*",
+}
+_PISTAS = {c: re.compile(r"\b(?:" + p + r")\b") for c, p in PISTAS.items()}
+
+
+def _por_descripcion(descripcion):
+    """La categoria que sugiere la descripcion, o "" si no alcanza para decidir."""
+    texto = unicodedata.normalize("NFD", descripcion or "").lower()
+    texto = "".join(ch for ch in texto if unicodedata.category(ch) != "Mn")
+    mejor, puntos = "", 1        # hacen falta por lo menos 2 palabras distintas
+    for cat, _ in CATEGORIAS:
+        n = len(set(_PISTAS[cat].findall(texto)))
+        if n > puntos:
+            mejor, puntos = cat, n
+    return mejor
+
+
+def categoria_de(nombre, propia="", descripcion=""):
+    """La categoria de una skill: la de su SKILL.md, la de la tabla, la que sugiere su
+    descripcion, u "Otras"."""
+    if propia and propia.strip():
+        return propia.strip().strip('"\'')[:40]
+    for cat, patron in CATEGORIAS:
+        if re.match(patron, nombre or ""):
+            return cat
+    return _por_descripcion(descripcion) or OTRAS
+
+
+def _orden_categoria(cat):
+    """Las de la tabla en su orden, despues las inventadas en un SKILL.md, y "Otras" al final."""
+    if cat == OTRAS:
+        return (2, "")
+    return (0, f"{_ORDEN_CATEGORIAS[cat]:03}") if cat in _ORDEN_CATEGORIAS else (1, cat.lower())
+
+
 def _leer_skill(md):
     """El (nombre, descripcion) del frontmatter de un SKILL.md, o None si no se pudo."""
     try:
         crudo = md.read_text(encoding="utf-8", errors="replace")[:4000]
     except OSError:
         return None
-    nombre, desc = md.parent.name, ""
+    nombre, desc, cat, desc_entera = md.parent.name, "", "", ""
     # El frontmatter es el bloque entre los dos primeros "---". Hay skills con el
     # formato roto (una tiene "---" como descripcion): se cae con gracia al nombre
     # de la carpeta y descripcion vacia, que alcanza para el menu.
@@ -111,7 +189,11 @@ def _leer_skill(md):
                 nombre = n
         elif linea.startswith("description:"):
             desc = _descripcion(linea[12:])
-    return {"nombre": nombre, "descripcion": desc}
+            desc_entera = linea[12:]     # entera, con el "Use when": ahi esta lo que hace
+        elif linea.startswith("categoria:"):
+            cat = linea[10:]
+    return {"nombre": nombre, "descripcion": desc,
+            "categoria": categoria_de(nombre, cat, desc_entera)}
 
 
 def _raices_skills(cwd):
@@ -151,6 +233,9 @@ def catalogo(cwd=""):
         if s and s["nombre"] not in vistos:
             vistos.add(s["nombre"])
             salida.append(s)
+    # Ordenadas por categoria (y adentro, como venian): el menu arma un bloque cada vez
+    # que cambia la categoria, asi que tienen que llegar juntas.
+    salida.sort(key=lambda s: _orden_categoria(s["categoria"]))
     return salida
 
 
@@ -498,11 +583,14 @@ def usadas_proyecto(cwd):
     # Es rarisimo (Claude Code solo agrega al final), asi que se recuenta la carpeta
     # entera en vez de llevar la cuenta por archivo: mas simple y no se puede
     # desincronizar.
-    if any(t < e["pos"].get(r, 0) for r, t in tamanos.items()):
-        e["pos"], e["veces"] = {}, {}
+    # Se cuenta sobre COPIAS y se cambian al final: el menu puede estar leyendo
+    # `e["veces"]` desde otro hilo mientras esto corre de fondo (`usadas_proyecto_ya`).
+    pos_n, veces_n = dict(e["pos"]), dict(e["veces"])
+    if any(t < pos_n.get(r, 0) for r, t in tamanos.items()):
+        pos_n, veces_n = {}, {}
 
     for ruta, tam in tamanos.items():
-        pos = e["pos"].get(ruta, 0)
+        pos = pos_n.get(ruta, 0)
         if tam <= pos:
             continue
         try:
@@ -516,7 +604,7 @@ def usadas_proyecto(cwd):
         fin = crudo.rfind(b"\n")
         if fin < 0:
             continue
-        e["pos"][ruta] = pos + fin + 1
+        pos_n[ruta] = pos + fin + 1
         for linea in crudo[:fin].decode("utf-8", errors="replace").splitlines():
             if '"tool_result"' in linea and "<command-name>" not in linea:
                 continue
@@ -528,10 +616,53 @@ def usadas_proyecto(cwd):
             except Exception:
                 continue
             for n in _skills_de_linea(d):
-                e["veces"][n] = e["veces"].get(n, 0) + 1
+                veces_n[n] = veces_n.get(n, 0) + 1
 
+    e["pos"], e["veces"] = pos_n, veces_n
+    e["listo"] = True
     if len(_proyectos) > 20:
         actual = _proyectos.pop(clave)
         _proyectos.clear()
         _proyectos[clave] = actual
-    return dict(e["veces"])
+    return dict(veces_n)
+
+
+# ⭐ El menu NO espera esta cuenta (2026-11-11). Martin abrio ⚡ un minuto despues de
+# reiniciar el panel y se quedo mirando "Leyendo…": con la memoria vacia, la primera
+# pasada leyo las 236 charlas del proyecto (452 MB, ~1,7 s medidos a solas y bastante
+# mas con el panel recien arrancando y todo compitiendo). Y crece con cada charla. La
+# cuenta es un adorno ("usada 12 veces"), la lista es lo que se necesita: se contesta
+# con lo que haya y la cuenta se pone al dia de fondo. La primera vez tras reiniciar
+# sale sin numeros; al volver a abrir ya estan.
+_refrescando = set()
+_refrescando_candado = threading.Lock()
+
+
+def _refrescar_de_fondo(cwd, clave):
+    try:
+        usadas_proyecto(cwd)
+    except Exception:
+        pass
+    finally:
+        with _refrescando_candado:
+            _refrescando.discard(clave)
+
+
+def usadas_proyecto_ya(cwd):
+    """Lo mismo que `usadas_proyecto`, pero sin hacer esperar a nadie: devuelve lo que
+    ya se sabe (vacio si nunca se conto) y, si esta viejo, lo recuenta en otro hilo."""
+    if not cwd:
+        return {}
+    try:
+        clave = str(seguir.carpeta_de(cwd))
+    except OSError:
+        return {}
+    e = _proyectos.get(clave)
+    if e is not None and e.get("listo") and time.time() - e["ts"] < _PROYECTO_SEG:
+        return dict(e["veces"])
+    with _refrescando_candado:
+        if clave not in _refrescando:
+            _refrescando.add(clave)
+            threading.Thread(target=_refrescar_de_fondo, args=(cwd, clave),
+                             daemon=True, name="skills-proyecto").start()
+    return dict(e["veces"]) if e is not None else {}

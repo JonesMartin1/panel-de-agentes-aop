@@ -22,6 +22,7 @@
  *     sesion:   () => ({sid, cwd}) o ({de:'laura'}),   // que sesion preguntar
  *     insertar: texto => ...,                          // pegar en la caja de texto
  *     acciones: {compactar, nueva, modelo},            // comandos que ACA son un boton
+ *     caja:     <textarea>,  // opcional: sugerir mientras escribis "/algo" (ver `sugerir`)
  *   })
  *
  * ⚠ Los comandos de Claude Code no viajan como texto: `/compact` mandado a una
@@ -68,7 +69,9 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
 @keyframes atLate{50%{opacity:.45}}
 .at-menu .pie{padding:7px 10px 3px;font-size:11px;color:#616977;border-top:1px solid #222a36;
   margin-top:5px;line-height:1.4}
-.at-menu .aviso{padding:10px;color:#7d8592}
+/* ⚠ El fondo y el borde se apagan a proposito: las paginas tienen su propio .aviso
+   (un cartel azul; sin comillas invertidas aca, que cortan el texto del CSS) y sin esto el "Leyendo…" salia como un bloque pintado en el medio. */
+.at-menu .aviso{padding:10px;color:#7d8592;background:none;border:0;border-radius:0}
 /* El buscador: pegado arriba mientras la lista corre por debajo. El fondo tapa las
    filas que pasan por atras, y el margen negativo lo estira sobre el padding del menu. */
 .at-menu .at-buscar{position:sticky;top:-7px;z-index:1;margin:-7px -7px 4px;padding:7px;
@@ -81,6 +84,42 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
    pagina entera al tocarlo, y no la vuelve a achicar. */
 @media (pointer:coarse){.at-menu .at-buscar input{font-size:16px;height:40px}}
 .at-menu .fila.primera{background:#1a2433}
+/* La skill que ya elegiste en esta apertura del menu: tildada y apagadita. */
+.at-menu .fila.elegida{opacity:.55;cursor:default}
+.at-menu .fila.elegida .nombre::before{content:'✓ ';color:#7fd1a8}
+/* Los bloques plegables: el titulo es el boton, con flechita y la cantidad adentro. */
+.at-menu .titulo.plegable{cursor:pointer;user-select:none;border-radius:6px}
+.at-menu .titulo.plegable:hover{color:#b9c3d1;background:#1a212c}
+.at-menu .titulo.plegable::before{content:'▾';display:inline-block;width:12px;
+  transition:transform .15s}
+.at-menu .seccion.plegada .titulo.plegable::before{transform:rotate(-90deg)}
+.at-menu .titulo .cuantas{color:#5f6876;font-size:10px;margin-left:4px}.at-menu .at-lista:not(.buscando) .seccion.plegada > :not(.titulo){display:none}
+/* Las sugerencias mientras escribis "/algo" en la caja, como en Claude Code. */
+/* ⭐ 2026-11-11, "quedo bien feo": dos columnas limpias como Claude Code (nombre a la
+   izquierda con ancho fijo, la descripcion apagada al lado) y nada mas. La categoria
+   repetida en cada renglon era ruido: ahora sale una sola vez, de titulito, cuando cambia. */
+.at-sug{position:fixed;z-index:1200;max-height:min(42vh,300px);overflow-y:auto;
+  background:#11151d;border:1px solid #232c3a;border-radius:10px;padding:4px;
+  box-shadow:0 12px 32px rgba(0,0,0,.5);font-size:13px;scrollbar-width:thin}
+.at-sug .fila{display:grid;grid-template-columns:var(--at-col,150px) 1fr;column-gap:14px;
+  align-items:baseline;padding:4px 10px;border-radius:6px;cursor:pointer;line-height:1.4}
+.at-sug .fila.activa{background:#1b2738}
+.at-sug .fila.activa .nombre{color:#cfe7ff}
+.at-sug .nombre{color:#7fb8ec;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.at-sug .desc{color:#6f7886;font-size:12px;min-width:0;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.at-sug .fila.activa .desc{color:#9aa4b2}
+.at-sug .grupo{padding:7px 10px 2px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  color:#4f5867}
+.at-sug .grupo:first-child{padding-top:3px}
+.at-sug .grupo.plegable{cursor:pointer;user-select:none;border-radius:6px}
+.at-sug .grupo.plegable:hover{color:#9aa4b2}
+.at-sug .grupo.plegable::before{content:'▾';display:inline-block;width:12px;transition:transform .12s}
+.at-sug .grupo.plegado::before{transform:rotate(-90deg)}
+.at-sug .grupo .cuantas{opacity:.7;margin-left:3px;letter-spacing:0}
+.at-sug .ayuda{padding:5px 10px 3px;font-size:10.5px;color:#4f5867;border-top:1px solid #1d2531;
+  margin-top:4px}
 `;
 
   /* Los comandos que se ofrecen. `accion` = en esta pantalla son un boton que ya
@@ -149,8 +188,43 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
 
   /* Cada seccion (Skills, Comandos, Prompts) va envuelta: asi el buscador puede
      esconder el titulo de una seccion que se quedo sin nada que mostrar. */
-  const seccion = (titulo, html) =>
-    '<div class="seccion"><div class="titulo">' + titulo + '</div>' + html + '</div>';
+  /* ⭐ Cada bloque se pliega tocando su título (pedido de Martín, 2026-11-11: "esas
+     subcarpetas las tengo que poder compactar"). Lo plegado se recuerda en el navegador
+     por nombre de bloque, así el menú vuelve a abrirse como lo dejaste. Mientras buscás
+     se ve todo igual: un resultado escondido adentro de un bloque plegado sería un
+     buscador que miente. */
+  const CLAVE_PLEGADAS = 'atajos.plegadas';
+  const plegadas = () => {
+    try { return JSON.parse(localStorage.getItem(CLAVE_PLEGADAS) || '[]'); } catch (e) { return []; }
+  };
+  function plegar(titulo, si) {
+    const l = plegadas().filter(t => t !== titulo);
+    if (si) l.push(titulo);
+    try { localStorage.setItem(CLAVE_PLEGADAS, JSON.stringify(l)); } catch (e) {}
+  }
+  const seccion = (titulo, html) => {
+    const n = (html.match(/class="fila /g) || []).length;
+    const plegada = n && plegadas().includes(titulo) ? ' plegada' : '';
+    return '<div class="seccion' + plegada + '" data-titulo="' + titulo.replace(/"/g, '&quot;') + '">' +
+      '<div class="titulo' + (n ? ' plegable' : '') + '">' + titulo +
+      (n ? ' <span class="cuantas">' + n + '</span>' : '') + '</div>' + html + '</div>';
+  };
+  /* Engancha el toque en los títulos de una lista recién pintada. */
+  function plegables(lista, listo) {
+    lista.querySelectorAll('.seccion .titulo.plegable').forEach(t => {
+      t.onclick = () => {
+        const sec = t.parentElement;
+        const si = !sec.classList.contains('plegada');
+        sec.classList.toggle('plegada', si);
+        plegar(sec.dataset.titulo, si);
+        if (listo) listo();
+        // El cursor vuelve al buscador: si no, lo que tipeás después cae en los atajos
+        // de una tecla de la pantalla en vez de buscar.
+        const campo = abierto && abierto.menu.querySelector('.at-buscar input');
+        if (campo && !matchMedia('(pointer:coarse)').matches) campo.focus();
+      };
+    });
+  }
 
   /* Sin tildes y en minuscula: "compactacion" tiene que encontrar "compactación". */
   const normal = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -163,6 +237,7 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
   function filtrar(lista, q) {
     const palabras = normal(q).split(/\s+/).filter(Boolean);
     const buscando = palabras.length > 0;
+    lista.classList.toggle('buscando', buscando);   // buscando, lo plegado se abre
     let primera = null;
     lista.querySelectorAll('.seccion').forEach(sec => {
       let alguna = false;
@@ -199,6 +274,21 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
       nada.textContent = 'Nada coincide con «' + q.trim() + '».';
     } else if (nada) {
       nada.remove();
+    }
+  }
+
+  /* ⭐ Varias skills de una (pedido de Martin, 2026-11-11): tocar una la escribe en la
+     caja y el menu QUEDA ABIERTO, con la fila tildada, para seguir eligiendo. Se cierra
+     tocando afuera, con Escape o con el mismo rayo. Una ya elegida no se repite. En la
+     compu el buscador se limpia y recupera el cursor, asi se busca la siguiente al toque. */
+  function elegirSkill(f, op) {
+    if (f.classList.contains('elegida')) return;
+    op.insertar(f.dataset.id + ' ');
+    f.classList.add('elegida');
+    const campo = abierto && abierto.menu.querySelector('.at-buscar input');
+    if (campo && !matchMedia('(pointer:coarse)').matches) {
+      if (campo.value) { campo.value = ''; campo.dispatchEvent(new Event('input')); }
+      campo.focus();
     }
   }
 
@@ -274,17 +364,244 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
       esc(r.carpeta || '~/.codex/prompts') + '\\&lt;nombre&gt;.md</b> que se invoca con ' +
       'la barrita. Los dos aparecen acá al abrir el menú, sin reiniciar nada.</div>';
     menu.querySelectorAll('.fila.skill').forEach(f => {
-      f.onclick = () => { op.insertar(f.dataset.id + ' '); cerrar(); };
+      f.onclick = () => elegirSkill(f, op);
     });
     menu.querySelectorAll('.fila.comando').forEach(f => {
       const c = COMANDOS.find(x => x.id === f.dataset.id);
       f.onclick = () => { cerrar(); if (c && acciones[c.accion]) acciones[c.accion](); };
     });
+    plegables(menu, listo);
     listo();
+  }
+
+  /* ⭐ Sugerir mientras escribis (pedido de Martin, 2026-11-11: "cuando escribo / que
+     me vayan apareciendo las skills, que mientras escribo me la sugiera, tal como lo
+     hace Claude Code, y que con Tab se complete").
+     Se dispara cuando la PALABRA donde esta el cursor empieza con "/" (o "$" en una
+     charla de Codex), no solo al principio de la caja: Martin encadena varias skills
+     en un mismo mensaje. Flechas para moverse, Tab o Enter para completar, Escape
+     para cerrar. Un comando que en esta pantalla es un boton (/compact, /model…) lo
+     aprieta, igual que en el menu ⚡.
+     ⚠ Las teclas se atienden en la fase de CAPTURA de la caja y se cortan ahi: si no,
+     el Enter de la pagina manda el mensaje y las flechas recorren tus mensajes viejos. */
+  function sugerir(op) {
+    const caja = op.caja;
+    let datos = null, datosClave = '', datosHora = 0, pidiendo = null;
+    let caja_sug = null, items = [], bloques = [], activa = 0, rango = null, descartado = '';
+    const GRUPOS = {skill: 'Skills', comando: 'Comandos', tuyo: 'Tus comandos', prompt: 'Prompts'};
+    /* Cuantas letras hay que cambiar, sacar o poner para pasar de una palabra a la otra. */
+    function distancia(a, b) {
+      let fila = Array.from({length: b.length + 1}, (_, k) => k);
+      for (let x = 1; x <= a.length; x++) {
+        const nueva = [x];
+        for (let y = 1; y <= b.length; y++)
+          nueva[y] = Math.min(fila[y] + 1, nueva[y - 1] + 1, fila[y - 1] + (a[x - 1] === b[y - 1] ? 0 : 1));
+        fila = nueva;
+      }
+      return fila[b.length];
+    }
+
+    const claveSesion = () => {
+      const s = op.sesion() || {};
+      return s.de ? 'de=' + s.de : 'sid=' + encodeURIComponent(s.sid || '') +
+                                   '&cwd=' + encodeURIComponent(s.cwd || '');
+    };
+    /* La lista se pide al servidor la primera vez que tipeas la barrita y se reusa un
+       minuto: cada tecla filtra lo que ya esta en memoria, sin ir y venir. */
+    function traer() {
+      const clave = claveSesion();
+      if (datos && clave === datosClave && Date.now() - datosHora < 60000) return;
+      if (pidiendo === clave) return;
+      pidiendo = clave;
+      fetch('/skills?' + clave).then(r => r.json()).then(r => {
+        if (pidiendo !== clave) return;
+        datos = r; datosClave = clave; datosHora = Date.now(); pidiendo = null;
+        mirar();
+      }).catch(() => { pidiendo = null; });
+    }
+
+    function catalogo() {
+      if (!datos || !datos.ok || datosClave !== claveSesion()) return [];
+      const acciones = op.acciones || {};
+      if (datos.cerebro === 'codex') {
+        return (datos.skills || []).map(s => ({id: '$' + s.nombre, desc: s.descripcion, cat: 'skill'}))
+          .concat((datos.prompts || []).map(c => ({id: '/' + c.nombre, desc: c.descripcion, cat: 'prompt'})))
+          .concat(COMANDOS.filter(c => c.accion && acciones[c.accion])
+            .map(c => ({id: c.id, desc: descDe(c, 'codex'), cat: 'comando', accion: c.accion})));
+      }
+      return (datos.skills || []).map(s => ({id: '/' + s.nombre, desc: s.descripcion,
+                                             cat: s.categoria || 'skill'}))
+        .concat(COMANDOS.map(c => ({id: c.id, desc: c.desc, cat: 'comando',
+                                    accion: c.accion && acciones[c.accion] ? c.accion : ''})))
+        .concat((datos.comandos || []).map(c => ({id: '/' + c.nombre, desc: c.descripcion, cat: 'tuyo'})));
+    }
+
+    /* La palabra que se esta escribiendo, del espacio anterior hasta el cursor. */
+    function palabra() {
+      const fin = caja.selectionStart;
+      if (fin !== caja.selectionEnd) return null;
+      const antes = caja.value.slice(0, fin);
+      const ini = Math.max(antes.lastIndexOf(' '), antes.lastIndexOf('\n'), antes.lastIndexOf('\t')) + 1;
+      const p = antes.slice(ini);
+      // Una ruta ("/etc/hosts", "C:/algo") no es una skill: una sola barrita, al principio.
+      if (!/^[\/$][\w:.-]*$/.test(p)) return null;
+      // Si el cursor quedo en el medio de una palabra, tampoco: se completaria mal.
+      if (/^\S/.test(caja.value.slice(fin))) return null;
+      return {ini, fin, texto: p};
+    }
+
+    function ocultar() {
+      if (caja_sug) { caja_sug.remove(); caja_sug = null; }
+      items = []; bloques = []; rango = null;
+    }
+
+    function pintar() {
+      if (!caja_sug) {
+        caja_sug = document.createElement('div');
+        caja_sug.className = 'at-sug';
+        document.body.appendChild(caja_sug);
+        // mousedown y no click: que la caja no pierda el foco (y el cursor) al tocar.
+        caja_sug.addEventListener('mousedown', e => {
+          const f = e.target.closest('.fila');
+          const g = e.target.closest('.grupo.plegable');
+          e.preventDefault();
+          if (f) { activa = +f.dataset.i; completar(); }
+          else if (g) {
+            // Lo plegado es lo mismo que en el menu ⚡: se pliega aca y queda plegado alla.
+            plegar(g.dataset.grupo, !g.classList.contains('plegado'));
+            // Que la lista no salte hasta el renglon marcado: queda donde la estabas mirando.
+            const arriba = caja_sug.scrollTop;
+            mirar();
+            if (caja_sug) caja_sug.scrollTop = arriba;
+          }
+        });
+      }
+      let i = 0;
+      caja_sug.innerHTML = bloques.map(b =>
+        '<div class="grupo plegable' + (b.abierto ? '' : ' plegado') + '" data-grupo="' +
+          esc(b.nombre) + '">' + esc(b.nombre) + ' <span class="cuantas">' + b.filas.length +
+          '</span></div>' +
+        (b.abierto ? b.filas.map(it => {
+          const j = i++;
+          return '<div class="fila' + (j === activa ? ' activa' : '') + '" data-i="' + j + '">' +
+            '<span class="nombre">' + esc(it.id) + '</span>' +
+            '<span class="desc">' + esc(it.desc) + '</span></div>';
+        }).join('') : '')
+      ).join('') +
+        '<div class="ayuda">Tab completa · ↑↓ elegir · tocá un bloque para plegarlo · Esc cerrar</div>';
+      // La columna del nombre se ajusta al mas largo de los que se ven (con tope).
+      const largo = items.reduce((m, it) => Math.max(m, it.id.length), 6);
+      caja_sug.style.setProperty('--at-col', Math.min(largo + 1, 24) + 'ch');
+      const r = caja.getBoundingClientRect();
+      const ancho = Math.max(320, Math.min(r.width, 620));
+      caja_sug.style.width = ancho + 'px';
+      caja_sug.style.left = Math.max(8, Math.min(r.left, innerWidth - ancho - 8)) + 'px';
+      caja_sug.style.bottom = (innerHeight - r.top + 6) + 'px';
+      const act = caja_sug.querySelector('.fila.activa');
+      if (act) act.scrollIntoView({block: 'nearest'});
+    }
+
+    function mirar() {
+      const p = palabra();
+      if (!p || p.texto === descartado) { ocultar(); return; }
+      descartado = '';
+      traer();
+      const q = normal(p.texto.slice(1));
+      const marca = p.texto[0];
+      const puntaje = it => {
+        const n = normal(it.id.slice(1));
+        if (n.startsWith(q)) return 0;
+        if (n.includes(q)) return 1;
+        return q && normal(it.desc).includes(q) ? 2 : -1;
+      };
+      // Con "$" solo lo que se invoca con "$" (Codex); con "/" todo lo demas.
+      const hallados = catalogo()
+        .filter(it => (it.id[0] === '$') === (marca === '$'))
+        .map((it, i) => ({it, p: puntaje(it), i}))
+        .filter(x => x.p >= 0);
+      if (!hallados.length) { ocultar(); return; }
+      /* ⭐ Los bloques se pliegan como en el ⚡ (pedido de Martin, 2026-11-11: "tengo que
+         poder compactar las carpetas desde aca tambien, a menos que escriba la skill que
+         sea exacta o muy cerca por 3 caracteres"). Un bloque plegado muestra solo su
+         titulo con cuantas coinciden; se abre solo, mientras buscas, si adentro hay una
+         skill a 3 letras o menos de lo escrito ("/chie" abre el de /chief; "/gr" no). */
+      const plegados = plegadas();
+      const porGrupo = new Map();
+      for (const x of hallados) {
+        const g = GRUPOS[x.it.cat] || x.it.cat;
+        if (!porGrupo.has(g)) porGrupo.set(g, []);
+        porGrupo.get(g).push(x);
+      }
+      bloques = [...porGrupo].map(([nombre, xs]) => {
+        xs.sort((a, b) => a.p - b.p || a.i - b.i);
+        const cerca = q.length >= 2 && xs.some(x => distancia(q, normal(x.it.id.slice(1))) <= 3);
+        return {nombre, filas: xs.map(x => x.it), abierto: !plegados.includes(nombre) || cerca,
+                mejor: Math.min(...xs.map(x => x.p * 1e4 + x.i))};
+      });
+      // Buscando, primero el bloque que tiene lo mas parecido; sin buscar, el orden de siempre.
+      if (q) bloques.sort((a, b) => a.mejor - b.mejor);
+      // Si la que estaba marcada sigue a la vista, sigue marcada.
+      const antes = items[activa] && items[activa].id;
+      items = bloques.filter(b => b.abierto).flatMap(b => b.filas);
+      const j = items.findIndex(it => it.id === antes);
+      activa = j >= 0 ? j : 0;
+      rango = p;
+      pintar();
+    }
+
+    function completar() {
+      const it = items[activa];
+      if (!it || !rango) return;
+      const {ini, fin} = rango;
+      ocultar();
+      if (it.accion) {
+        // Es un boton de la pantalla: se saca la barrita escrita y se aprieta.
+        caja.value = caja.value.slice(0, ini) + caja.value.slice(fin);
+        caja.setSelectionRange(ini, ini);
+        caja.dispatchEvent(new Event('input', {bubbles: true}));
+        (op.acciones || {})[it.accion]();
+        return;
+      }
+      const resto = caja.value.slice(fin).replace(/^ +/, '');
+      caja.value = caja.value.slice(0, ini) + it.id + ' ' + resto;
+      const pos = ini + it.id.length + 1;
+      caja.setSelectionRange(pos, pos);
+      // Que la pagina se entere (alto de la caja, borrador guardado), como si lo tipearas.
+      caja.dispatchEvent(new Event('input', {bubbles: true}));
+      caja.focus();
+    }
+
+    caja.addEventListener('input', mirar);
+    caja.addEventListener('click', mirar);
+    caja.addEventListener('blur', () => setTimeout(() => {
+      if (document.activeElement !== caja) ocultar();
+    }, 120));
+    addEventListener('resize', () => { if (caja_sug) pintar(); });
+    caja.addEventListener('keydown', e => {
+      if (!caja_sug) return;
+      if (e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'Escape') {
+        descartado = rango ? rango.texto : ''; ocultar();
+        e.preventDefault(); e.stopImmediatePropagation(); return;
+      }
+      // Con todos los bloques plegados no hay nada que elegir: las teclas siguen su camino.
+      if (!items.length) return;
+      let usada = true;
+      if (e.key === 'ArrowDown') activa = (activa + 1) % items.length;
+      else if (e.key === 'ArrowUp') activa = (activa - 1 + items.length) % items.length;
+      else if ((e.key === 'Tab' && !e.shiftKey) || (e.key === 'Enter' && !e.shiftKey)) completar();
+      else if (e.key === 'Escape') { descartado = rango ? rango.texto : ''; ocultar(); }
+      else usada = false;
+      if (!usada) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (caja_sug) pintar();
+    }, true);
   }
 
   function montar(op) {
     if (!op || !op.contenedor) return;
+    if (op.caja) sugerir(op);
     if (!document.getElementById('cssAtajos')) {
       const s = document.createElement('style');
       s.id = 'cssAtajos';
@@ -347,8 +664,19 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
            dice y explica dónde se crean, en vez de salir en blanco — que se lee como
            "esta pantalla está rota" y no como "no tenés ninguno todavía". */
         if (ok && r.cerebro === 'codex') return pintarCodex(r, lista, listo, op, acciones);
-        const skillsHtml = ok ? (r.skills || []).map(s =>
-          filaHtml('/' + s.nombre, s.descripcion, chapaDe(s.nombre, r), 'skill')).join('') : '';
+        /* ⭐ Un bloque por categoría (pedido de Martín, 2026-11-11: "me gustaría poder
+           agrupar las skills por categoría"). Las categorías y su orden los pone el
+           servidor (`CATEGORIAS` en app/nucleo/skills.py) y las skills llegan ya juntas;
+           acá se abre un bloque nuevo cada vez que cambia. Cada bloque es una `.seccion`,
+           así el buscador esconde solo el título de una categoría que quedó vacía. Un
+           panel viejo que no manda categoría cae todo en un único bloque "Skills". */
+        const grupos = [];
+        if (ok) (r.skills || []).forEach(s => {
+          const cat = s.categoria || 'Skills';
+          if (!grupos.length || grupos[grupos.length - 1].cat !== cat) grupos.push({cat, html: ''});
+          grupos[grupos.length - 1].html +=
+            filaHtml('/' + s.nombre, s.descripcion, chapaDe(s.nombre, r), 'skill');
+        });
         /* ⭐ Las carpetas de skills sin SKILL.md adentro (2026-08-23). Van al final de
            la lista y NO se pueden tocar: no hay nada que insertar, es un aviso. Es la
            respuesta a "la creé y no aparece": si está acá, el archivo quedó mal puesto;
@@ -363,17 +691,22 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
         const comandosHtml = COMANDOS.map(c => filaHtml(c.id, c.desc,
           c.accion && acciones[c.accion] ? '<span class="chapa">se hace aca</span>' : '',
           'comando')).join('') + propiosHtml;
-        lista.innerHTML = seccion('Skills',
-          r === null ? '<div class="aviso cargando">Leyendo…</div>' :
-           ok ? ((skillsHtml + rotasHtml) || '<div class="aviso">No hay skills instaladas.</div>') :
-           '<div class="aviso">No pude leer las skills (¿el panel viejo? reinicialo).</div>') +
+        const skillsSecciones = r === null
+          ? seccion('Skills', '<div class="aviso cargando">Leyendo…</div>')
+          : !ok
+          ? seccion('Skills', '<div class="aviso">No pude leer las skills (¿el panel viejo? reinicialo).</div>')
+          : (grupos.length || rotasHtml)
+          ? grupos.map(g => seccion(esc(g.cat), g.html)).join('') +
+            (rotasHtml ? seccion('Sin terminar', rotasHtml) : '')
+          : seccion('Skills', '<div class="aviso">No hay skills instaladas.</div>');
+        lista.innerHTML = skillsSecciones +
           seccion('Comandos', comandosHtml) +
           '<div class="pie">Las skills se escriben en la caja. Los comandos con equivalente ' +
           'en esta pantalla ejecutan ese control.<br>Una skill nueva va en ' +
           '<b>~/.claude/skills/&lt;nombre&gt;/SKILL.md</b> y aparece acá al abrir el menú, ' +
           'sin reiniciar nada.</div>';
         lista.querySelectorAll('.fila.skill').forEach(f => {
-          f.onclick = () => { op.insertar(f.dataset.id + ' '); cerrar(); };
+          f.onclick = () => elegirSkill(f, op);
         });
         lista.querySelectorAll('.fila.comando').forEach(f => {
           const c = COMANDOS.find(x => x.id === f.dataset.id);
@@ -383,6 +716,7 @@ button.at-boton.abierto{background:#16263a;border-color:#2c4a6b;color:#cfe6ff}
             else op.insertar(f.dataset.id + ' ');
           };
         });
+        plegables(lista, listo);
         listo();
       };
       pintar(null);

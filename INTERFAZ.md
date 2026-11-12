@@ -553,6 +553,166 @@ Cuando la sesión usa el navegador, el hilo ya no se llena de "hizo clic / miró
   navegador la hoja tardó 22 s en llenarse. Por eso muestra "Cargando…". Sin diagnosticar si
   pasa igual por el túnel (HTTP/2 comparte las conexiones).
 
+### "Enlaces y archivos": lo importante de cada carpeta (2026-11-11)
+
+Pedido de Martín mirando la columna derecha: *"me gustaría que acá pudiera poner links y
+archivos importantes"*. Es una tarjeta más de Entorno, **debajo de la primera**, en la compu y
+en el celular (las dos usan `entorno.js`).
+
+- ⭐ **Quieta es UNA línea tenue, "+ Agregar enlace o archivo"**: ni párrafo explicativo, ni
+  caja con fondo, ni botón relleno. La primera versión tenía las tres cosas y a Martín le
+  pareció "muy feo" al lado de Contexto y Conectores. Al tocarla aparece una línea para
+  escribir (solo borde de abajo): Enter agrega y la cierra, Esc cancela, salir vacía la cierra.
+- ⭐ **Dos apartados** (pedido el mismo día): **Proyecto**, que ven todas las charlas de la
+  carpeta, y **Esta sesión**, que ve solo esta charla (llave `sesion:<sid>` en el mismo
+  archivo). Cada uno con su "+ Agregar"; una sola caja abierta por vez. En una charla sin id
+  todavía (nueva, sin primer mensaje) el apartado de sesión no se dibuja.
+- **Lo que se pega**: un enlace
+  (`http`/`https`; `www.` se completa) o la ruta de un archivo o carpeta: absoluta, relativa
+  al proyecto, o con las comillas de "Copiar como ruta" de Windows. No se copia nada: se
+  guarda la ruta, y si el archivo desaparece la fila sale tachada.
+- **Los enlaces** abren en una pestaña nueva; **los archivos y carpetas se abren EN LA
+  COMPU** (`os.startfile`), aunque el toque venga del celular. La × saca la fila.
+- ⭐⭐ **Abrir nunca ejecuta un programa**: un `.exe`, `.bat`, `.lnk`, `.py`… se muestra
+  marcado en el Explorador (`TIPOS_QUE_EJECUTAN` en `app/voz/fijados.py`). Solo se abre algo
+  que ya está en la lista, **por su id**: la ruta nunca viaja en el pedido de abrir. Y las
+  rutas `/fijados*` pasan por la misma puerta que la terminal (`terminales._puerta`).
+- ⚠ **Lo que escribís en la caja sobrevive al redibujo** de la columna (texto, foco y
+  cursor). La primera versión salteaba el redibujo con la caja llena y la columna entera se
+  congelaba con un enlace rechazado esperando corrección: no volver a eso.
+- Con un panel que no tiene las rutas (sin reiniciar) `/fijados` da 404 y la tarjeta no
+  aparece: la columna queda igual que antes.
+- ⚠ **Plegar una tarjeta se anota en el CLIC del título**, no solo en el `toggle`: el
+  `toggle` llega un momento después y, si la columna se redibujó en el medio, cae en la
+  tarjeta vieja (ya fuera de la página) y se pierde. Vale para todas las tarjetas.
+- Datos: `resultados/fijados.json` (`FIJADOS` en `rutas.py`), fuera de git.
+- Pruebas: `python -m pruebas.probar_fijados --mutar` (44 + 3 mutaciones) y
+  `python -m pruebas.ver_fijados` (27, con Chrome, sin abrir ninguna ventana).
+
+### "Despachos": la señal de vida de la sesión chief (2026-11-11)
+
+Pedido de Martín después de usar la skill `chief` (una sesión que dirige a las demás por el
+panel): *"no me entero solo"*. Lo que había pasado, visto en las charlas de ese día: miró la
+charla de la otra sesión, leyó un mensaje intermedio que parecía un cierre y creyó que había
+terminado; el chief esperaba bien, pero mudo. Eligió él: una tarjeta en la columna derecha,
+**solo en la charla del chief**, con **lo mínimo** por renglón.
+
+- **Va primera, arriba de Entorno, y existe solo si esa charla despachó algo.** En cualquier
+  otra charla la columna queda igual que siempre.
+- **Un renglón por sesión destino** (si le mandó dos cosas, cuenta la más nueva): nombre,
+  estado y hace cuánto — `● trabaja · 4 min`, `✋ te pregunta algo`, `✓ terminó hace 2 min`,
+  `✕ falló`, `⚠ se cortó` (el panel se reinició en el medio), `■ se paró`. Lo que se mueve
+  va arriba. Los cerrados se quedan 12 horas, tope 8 renglones.
+- ⭐ **El rojo es solo para "falló"**; el resto va en tonos suaves, por variables
+  (`--aviso-txt`, `--ok-txt`, `--mal-txt`).
+- **Tocar un renglón abre esa charla** sin recargar (`abrir` en `Entorno.iniciar`, una línea
+  en cada pantalla); con Ctrl o el botón del medio, el enlace `?c=<id>` abre otra pestaña.
+- ⭐ **De dónde sale**: `/movil/mandar` acepta el campo `jefe` (el id de quien despacha; lo
+  pone `chief.py`), la ficha del trabajo lo guarda, y `GET /movil/despachos` arma la lista
+  con `app/voz/despachos.py`. No hay registro aparte: las fichas ya viven en el disco, así
+  que un reinicio no pierde nada. El chief compactado conserva sus despachos (se compara por
+  el id vigente de la cadena).
+- ⚠ **Un despacho que cae en un turno que ya corría ahora tiene id** (`_despacho_en_fila`).
+  `_seguir_en_fila` espera a que cierre el turno donde se metió y copia lo que contestó.
+  Quien llama sin `jefe` recibe lo de siempre.
+- ⚠ **"Te pregunta algo" gana sobre "terminó"**: el plan de una charla se anota con el turno
+  ya cerrado. No tapa un estado malo.
+- **Se refresca sola cada 4 s mientras haya algo en curso** (temporizador en `entorno.js`):
+  una charla quieta —y el chief esperando lo está— pedía la columna cada 10.
+- Con un panel sin reiniciar `/movil/despachos` da 404 y la tarjeta no aparece.
+- ⚠ **Lo que NO arregla** (bug anotado en el cuaderno): el turno que el chief arranca solo
+  al terminar su espera no lo atiende el panel. Mientras escribe el resumen su charla figura
+  quieta, un permiso lo deja colgado y Parar mata la sesión entera.
+- ⚠ **Cada renglón ocupa DOS líneas**: el nombre arriba con todo el ancho y el estado
+  abajo. En una sola (como estaba al principio) con los nombres de verdad el estado se comía
+  el lugar y del nombre quedaban seis letras. Se vio recién con despachos reales.
+- ⚠ **"Se cortó" quiere decir que el PANEL dejó de seguirla** (se reinició en el medio), no
+  que la sesión se haya muerto: el 2026-11-11 un reinicio cortó tres despachos y dos habían
+  terminado igual. Pendiente: que ese renglón mire el estado real de la charla.
+- Pruebas: `python -m pruebas.probar_despachos --mutar` (53 + 5 mutaciones) y
+  `python -m pruebas.ver_despachos` (31, con Chrome, sin tocar el panel).
+
+### El ⟳ espera a que nadie esté trabajando (2026-11-12)
+
+Pedido de Martín: *"¿cómo arreglamos que las sesiones se corten si reinicio el panel?"*. El
+porqué y las tres piezas están en el `CLAUDE.md` ("Reiniciar el panel no puede cortar a una
+charla que trabaja"); acá va lo que se ve.
+
+- **Con alguna charla a mitad de turno, el ⟳ no reinicia**: aparece un cartel "Reinicio apenas
+  terminen de trabajar" con los nombres de las que espera, y dos botones: **Reiniciar ya
+  igual** y **Cancelar**. La lista se achica sola a medida que terminan, y cuando termina la
+  última el panel se reinicia sin que hagas nada. Sin nadie trabajando, reinicia en el acto
+  como siempre.
+- ⭐ **El pedido vive en el servidor**, no en la pestaña: se puede cerrar la página y al volver
+  a abrir el panel el cartel reaparece. Si se cancela desde otra pantalla, se va solo.
+- ⚠ **"Ya no hay nada pendiente" no siempre es "lo cancelaron"**: cuando termina la última, el
+  panel sale a reiniciarse y todavía contesta unos segundos. Por eso el servidor dice
+  `reiniciando` y el cartel pasa a "Reiniciando…" en vez de desaparecer. La primera versión
+  desaparecía; lo cazó la prueba de pantalla.
+- **Una charla que quedó trabajando sola tras un reinicio figura "trabajando"** en la lista y
+  en su cabecera, aunque el panel no la maneje: se la sigue por el disco. El texto no se ve
+  escribirse en vivo (aparece de a tramos, al releer el archivo) y Parar la corta de verdad.
+- ⚠ No toca el confirm de siempre ("¿Reiniciar el panel y todos los servicios?") ni el `.bat`
+  de `lanzadores/`, que corrido a mano reinicia en el acto.
+- Pruebas: `python -m pruebas.ver_reinicio_espera` (16, con Chrome, contra un servidor aparte
+  que sirve la página real) y `python -m pruebas.probar_reinicio_sin_corte --mutar`.
+
+### La pieza "Escritorio": otra compu por RustDesk, adentro del panel (2026-11-12)
+
+Pedido de Martín después de ver a una sesión manejar un server por RustDesk: *"¿no podemos
+embeber RustDesk en el panel?"*. Es la tercera pestaña de la columna derecha (Entorno ·
+Terminal · **Escritorio**) y, para el celular, la página suelta `/escritorio` (se llega desde
+un renglón "🖥 Escritorio remoto" de la tarjeta Entorno). Dibujo: `app/estaticos/escritorio.js`
+(`Escritorio`); todo lo demás, en `app/voz/escritorio.py`. Las reglas de seguridad están en el
+`CLAUDE.md` ("No romper"); acá va lo de pantalla.
+
+- **Cuatro estados, que la pieza recorre sola** (pregunta `/escritorio/estado` cada 3 s):
+  *apagada* (explica y ofrece **Prender**; si el RustDesk de siempre está abierto, el botón
+  dice **"Cerrar mi RustDesk y prender"** y avisa que eso corta sus conexiones) → *elegir*
+  (ID a mano, o un toque en un equipo reciente) → *contraseña* (campo tapado; no se guarda) →
+  *pantalla*. Una conexión que abre Martín desde la ventana de RustDesk de la laptop, o que
+  abre el agente de una sesión, **aparece sola**.
+- ⭐⭐ **Las coordenadas son píxeles de la pantalla REMOTA**, no de la imagen dibujada
+  (`aRemoto`): con la columna angosta la imagen se achica y, sin esa cuenta, el clic caería
+  arriba y a la izquierda de donde se tocó. `ver_escritorio` lo mide con una pantalla de 800
+  dibujada a 400.
+- ⭐ **La pantalla entra SIEMPRE entera**: se achica por el ancho o por el alto, lo que mande,
+  sin deformarse y centrada (visto en uso real el 2026-11-12: con la ventana baja, la barra
+  de tareas de la otra compu quedaba fuera de vista). La caja de la imagen es exactamente lo
+  dibujado —marco con `outline`, no con `border`— porque de ahí sale la cuenta de los clics.
+- ⚠⚠ **Agrandar una pieza no puede aplastar la charla.** El tope de la columna
+  (`Paneles.tope`) se calculaba como "la ventana menos el `aside`"; con la columna de charlas
+  a la vista hay DOS columnas a la izquierda y la cuenta daba de más: la charla quedó de
+  130 px, con una palabra por renglón (captura de Martín). Ahora mide el lugar real de la
+  charla (`#cuerpo` + lo que ocupa la columna), y un `ResizeObserver` la hace ceder sola si la
+  charla baja de sus 420 px sin que cambie la ventana. `ver_columna_derecha`, sección 4.
+- ⭐ **Tocar la imagen ES pedir el control**: si lo tenía la ventana de RustDesk, el panel lo
+  pide solo y repite el clic (cero botones previos). La barra dice *mirando* / *con control*,
+  y "Soltar" lo devuelve. El control es de la conexión: lo comparten el panel y el agente.
+- **Lo que se manda va EN FILA** (`mandar`): un clic y las teclas de después llegan en el orden
+  en que se hicieron. Las letras seguidas se juntan 90 ms y viajan como un solo texto; con Ctrl
+  o Alt, o una tecla con nombre (Enter, flechas, F5), van como tecla.
+- **La imagen se pide de a una** y la siguiente recién cuando llegó la anterior: una captura de
+  RustDesk tarda ~1 s, o sea ~1 cuadro por segundo. Si la pantalla no cambió, el panel contesta
+  304 y no se baja nada. Con la pieza escondida o la pestaña tapada no se pide.
+- **La fila de abajo es para el celular**, donde no hay teclado sobre la imagen: escribir un
+  texto, ↵, Esc, ⊞ (tecla Windows) y **Der** (el próximo toque es clic derecho, y solo ese).
+- ⚠ Los mensajes de la puerta de RustDesk vienen en inglés y escritos para un agente: se
+  traducen en el panel (`_criollo`). Una contraseña mala no saca aviso: lo dice la vista.
+- ⚠ **Falla conocida de la versión de prueba**: la captura a veces no muestra el contenido de
+  alguna ventana (el texto de un Bloc de notas en un Server 2016; Chrome se ve bien).
+- Con un panel sin reiniciar, `escritorio.js` da 404 y la pestaña no aparece.
+- ⭐ **Varias compus a la vez** (pedido del mismo día: *"que pueda seguir conectando equipos,
+  pero no me desconectes el de Farah"*): un solo RustDesk tiene varias conexiones. **"+ Equipo"**
+  en la barra muestra la lista para sumar otra SIN cerrar la que está (con "Volver" y los ya
+  conectados a la vista); con dos o más hay un botón por compu para cambiar cuál se mira.
+  "Desconectar" cierra solo la que se mira. ⚠ **"Apagar" las cierra TODAS**, y por eso con
+  alguna abierta pide un segundo toque diciendo cuántas corta: es el único botón que puede
+  cortarle el trabajo a una sesión que está en otra compu.
+- Pruebas: `python -m pruebas.ver_escritorio` (38, con Chrome y una puerta de mentira) y
+  `python -m pruebas.probar_escritorio --mutar`. Contra el RustDesk real, solo con el OK de
+  Martín: `python -m pruebas.sonda_escritorio --equipo <nombre>`.
+
 ### El explorador de archivos de `/sesiones` (2026-08-17)
 
 Pedido de Martín: *"quiero el explorador de archivos del proyecto al lateral izquierdo,
@@ -2503,6 +2663,188 @@ En el 🎨 hay una sección nueva, **Botones y barras**, con dos filas: el **tam
   2026-08-29 para otras dos partes —la prueba mide su gusto— y a `aviso` le quedó pendiente.
 
 ---
+
+### "Vidrio con bandeja": la misma piel, con la lista de charlas al costado (2026-11-11)
+
+Mirando el boceto "Bandeja" de la ronda 4, Martín: *"Me gustaría agregar esto al estilo que
+ya tengo, me parece útil"* y *"crealo como estilo nuevo con la temática que ya tengo"*. Es
+un **estilo aparte** en el 🎨 (clave `vbandeja` en `ESTILOS` de `aspecto.js`): lleva las
+clases `carta` y `vidrio` enteras —mismo material, colores, foto— más la clase `vbandeja`.
+- ⭐ **Revierte, solo como opción, la decisión del 2026-08-16** de no tener columna de
+  charlas: el Vidrio de siempre queda idéntico, y quien quiera la lista elige este estilo.
+  `deVidrio()` en `aspecto.js` es la pregunta "¿es de la familia Vidrio?": usarla en vez de
+  comparar con `'vidrio'`, o el estilo nuevo se queda sin foto ni sección de material.
+- Las carpetas se achican a una tira de emojis (64 px) y, **solo con una charla abierta**
+  (`body.con-col`), aparece `#colCharlas` al lado: las charlas de esa carpeta sin archivadas
+  ni tapadas, la más nueva arriba, con luz de estado (la misma `.ast` del semáforo),
+  subproyecto, hace cuánto y cuatro filtros (Todas / Trabajando / Te esperan / Quietas).
+  Sin charla abierta la bandeja va en el medio como siempre y la lista no se duplica.
+- Riel y lista comparten la columna 1 de la grilla (`justify-self:start/end`), así las
+  columnas 2 y 3 no se corren y todo lo demás del casco carta sigue valiendo.
+- Los filtros van en **un solo renglón** (`nowrap`): partidos en dos se veía desprolijo.
+- ⭐ **Armada como ClickUp** (Martín, el mismo día: *"me faltan las subcarpetas y la opción de
+  contraer las barras laterales… quiero que sea tal cómo clickup"*): los subproyectos van
+  arriba como grupos con flechita que se pliegan (el plegado es el mismo `subproyPlegados`
+  de la bandeja), con sus charlas adentro con sangría, y las sueltas al final.
+- ⭐ **Pestañas del borde** para contraer (Martín, 2026-11-11: *"no me copan los botones
+  » / «… se pierden"*, después de probarlos al pie —tapaban "Agregar una carpeta…"— y en la
+  cabecera). Cada barra lleva una pestañita de vidrio (18×40, flecha) montada sobre su
+  borde derecho, como Notion/Linear: la flecha apunta para donde se mueve la barra.
+  `#anchoRiel` va ARRIBA en el borde del riel (nombres de carpetas sí/no: `body.riel-ancho`,
+  `sesRielAncho`); `#abrirCol` va AL MEDIO en el borde de la lista (la contrae a la tira de
+  emojis y, contraída, queda en el mismo hueco y la reabre: `sesColPlegada`). Las dos caen
+  en el centro del hueco de 14 px entre piezas; una arriba y otra al medio para que nunca se
+  pisen. No volver a ponerlas en la cabecera ni al pie. Todo lo que achica las carpetas va
+  con `body:not(.riel-ancho)`, y al cambiar se re-mide la luz de la carpeta elegida
+  (`acomodarLuces`). Ctrl+B / el botón de la barra siguen escondiendo las dos barras juntas.
+- ⭐ **Cómo se ven** (Martín, con captura: *"se sigue viendo feo"*): **no** vidrio
+  translúcido —tomaba el color de la foto y quedaba una mancha sobre la curva de la esquina—.
+  Quietas son una rayita fina y clara en el centro del hueco; con el mouse sobre ella o
+  sobre su borde se vuelven un botón oscuro opaco con la flecha. Nunca se ubican sobre la
+  curva de las esquinas (30 px de margen arriba, 70 abajo).
+- ⭐ **Se arrastran y se estiran** (*"poder manipular la disposición de donde está ese
+  botón… estirar los bordes y que sean reactivos"*): cada pestaña se mueve para arriba o
+  abajo por su borde (`sesPestRiel`, `sesPestCol`, fracción del alto: acompaña al achicar
+  la ventana) y moverla no cuenta como clic. Todo el hueco entre piezas es una manija ↔
+  (`#bordeRiel`, `#bordeCol`): el ancho vive en `--rw`/`--cw` (`sesRielW`, `sesColW`) y
+  la columna, las pestañas y los bordes se calculan de ahí. Tirando del borde de la tira se
+  abre el riel con nombres; achicándolo de más vuelve a la tira; achicar la lista de más la
+  contrae al soltar. Doble clic en un borde vuelve al ancho de fábrica. La charla del medio
+  nunca queda más angosta que 420 px (`topeCol`).
+- ⭐ **La barra del nombre de la charla se esconde** (Martín, 2026-11-12, con captura: *"me
+  gustaría poder esconder esto"*; vale para todos los estilos de carta). El ︿ de su
+  izquierda —espejo del ⋯, aparece al pasar por la barra— la guarda; queda una rayita
+  centrada arriba del hilo que con el mouse se vuelve botón ﹀ y la devuelve
+  (`body.cab-oculta`, `sesCabOculta`). La barra sigue siendo el lugar por defecto: esconderla
+  es elección de cada uno, no se cambió la decisión de que esté siempre.
+- ⭐ **Se edita desde la lista** (Martín, 2026-11-12, con captura: *"poder editar las
+  sesiones desde acá, con nombre y colores y demás · poder hacer drag&drop"*). Cada charla
+  tiene ⋯ al pasar (ocupa el lugar de la hora) y el mismo menú con el botón derecho: color,
+  nombre, subproyecto, abrir aparte y archivar. Doble clic en el nombre lo edita en el
+  renglón. Cada subproyecto tiene su ⋯ / botón derecho (`abrirMenuSubgrupo`: color, fijar,
+  nombre). Se arrastra una charla a otro subproyecto (o a las sueltas, o a la franja que
+  aparece si no hay sueltas, para sacárselo) y el título de un subproyecto sobre otro para
+  reordenarlos. ⚠ Nada nuevo por debajo, a propósito: el color es `tonos[sid]` (el de la
+  pestaña de arriba), el nombre va por `guardarNombre`, el subproyecto por `asignarSub` y
+  el orden por `subOrden`, así lo que cambiás acá se ve igual en todos lados. Mientras
+  arrastrás o escribís, el repintado de cada 3 s no toca la lista (`colArrastre`,
+  `colEditando`). El orden de las charlas sigue siendo por fecha: no se arrastran para
+  reordenarlas dentro de un grupo.
+- ⭐ **Crear una subcarpeta desde la lista** (Martín, 2026-11-12, con captura: *"acá no
+  puedo crear fácilmente una subcarpeta"*). El 📁＋ de la cabecera, al lado del ＋ de charla
+  nueva, abre un renglón arriba para escribir el nombre (Enter crea, Esc cancela). La
+  subcarpeta puede quedar **vacía** —antes un subproyecto existía recién con una charla
+  adentro—: se guarda en `subVacias` (por carpeta, en el navegador, como `subOrden`), se ve
+  con el filtro "Todas", dice cómo llenarla, recibe charlas arrastradas y tiene su ＋ para
+  empezar una ahí (`nuevaEnSub`). En cuanto tiene una charla, `subVaciasDe` la saca de
+  `subVacias` y pasa a ser un subproyecto común (del servidor). Solo una VACÍA se puede
+  borrar desde su ⋯; renombrarla también anda. ⚠ `agruparSub` recibe las vacías desde la
+  lista y desde la bandeja de una carpeta (el riel sigue igual).
+- ⭐ **En la bandeja del medio también** (*"acá veo dos errores grandes: el botón de + y que no
+  puedo añadir fácilmente subcarpetas"*): debajo de "Empezar una conversación" va la fila
+  hermana **"Nueva subcarpeta"** (se escribe el nombre en la misma fila; misma
+  `sumarSubVacia`), y las vacías se ven con su indicación. ⚠ El "+" doble ("+➕") era otro
+  choque de nombres: la regla del ⋯ de la barra del nombre era `#cuerpo .mas` con letra de
+  18 px, y el ícono de empezar se llama `.ini.mas` — le devolvía tamaño al "✚" escondido.
+  Ahora es `button.mas`.
+- ⭐ **Los filtros se adaptan al ancho** (Martín, 2026-11-12: *"estos botones no son
+  reactivos"*, con "Quietas 4" cortado): se reparten el renglón; con la lista a 340 px o
+  menos pasan a la palabra corta ("Trabajan", "Esperan") y a 280 o menos achican el
+  relleno. Lo mide la lista con `container-type`, no la ventana, porque la lista se estira.
+- ⭐ **La cabecera de la lista edita la carpeta** (*"cambiar el nombre del proyecto y el
+  ícono acá"*): el ícono es un botón que abre `abrirMenuCarpeta` (el mismo del riel), el
+  botón derecho en la cabecera también, y tocar el nombre lo edita ahí. Es el APODO
+  (`apodos` + `subirCarp`): la carpeta del disco no se toca.
+- ⭐ **"Agregar una carpeta" abre un panelito, no el `prompt()`** (Martín, 2026-11-12: *"me
+  tiene que dejar elegir de mis archivos o escribir la ruta"*): un campo (solo el nombre la
+  crea en EspacioDeTrabajo; una ruta que no existe ofrece "Crearla" ahí mismo) y "📂
+  Elegir…", que le pide al panel `POST /movil/elegir-carpeta`: abre el selector de carpetas
+  de Windows (tkinter, en un proceso aparte sin consola, encima de todo, de a uno) y la
+  ruta elegida se agrega sola. ⚠ El navegador no puede darle a la página la ruta de una
+  carpeta elegida: por eso lo abre el panel. ⚠ Solo aparece entrando por `127.0.0.1` /
+  `localhost`: desde el celular abriría una ventana en la PC que nadie ve.
+- ⭐ **El menú de pantallas de arriba se achica si no entra** (Martín, 2026-11-12, con
+  captura de "Servidores" cortado: *"se rompe la parte de servidor ahí al final"*). Con las
+  columnas de la izquierda anchas, `#barraArriba` se angosta; ahora lleva `data-menu-fila`
+  y `menu.js` mide el renglón (ancho menos los botones de al lado) y pasa a solo íconos.
+  Es opt-in a propósito: la regla general de `menu.js` no mide hermanos porque en otras
+  cabeceras hay vecinos elásticos que se llevan todo el lugar (el Estudio, 2026-08-18).
+  ⚠ `ver_menu_pantallas` y `ver_barra_dos_filas` tienen fallas VIEJAS que no son de esto:
+  esperan 6 pantallas (son 7 desde Servidores) y miden la disposición clásica.
+- Prueba: `python -m pruebas.ver_vbandeja --mutar` (18 mutaciones; mide que las pestañas no se
+  pisen entre ellas ni con ninguna carpeta, que sigan al borde estirado, y que arrastrarlas
+  no las apriete).
+
+### "Se van saliendo carpetas": quedaban abajo, sin ninguna señal (2026-11-12)
+
+Martín, con captura del riel: *"¿por qué puedo tener hasta 21 proyectos acá? A medida que voy
+añadiendo proyectos, se van saliendo otros"*. Lo que se midió ese día:
+- El **21** de "Todas" es la cantidad de **charlas**, no un tope de carpetas (ahora lo dice
+  su globito).
+- El servidor devolvía **42** carpetas (con o sin el `MAX_PROYECTOS = 20` de
+  `sesiones_movil.listar`, porque casi todas entran por `carpetas_sesiones.json`), **20**
+  escondidas a mano → ~22 en el riel. Nada esconde carpetas solo.
+- Lo que pasaba: en "Vidrio con bandeja" el riel se desplaza con la barra escondida, y con
+  ~24 carpetas ya no entran. Cada carpeta nueva empujaba otra (y "Agregar una carpeta…")
+  fuera de la vista sin ninguna señal. Ahora hay un degradé en el borde donde sigue la lista,
+  una pastilla "▾ N más" que baja hasta el final (`medirRiel`, cuenta lo que de verdad no se
+  ve) y, con el riel ancho, una barra fina al pasar el mouse.
+- ⚠ Además la fila **"Escondidas"** estaba oculta en este estilo, y es el único camino para
+  devolver una carpeta sacada. Ahora se ve: en la tira es un 🙈 que abre el riel con nombres
+  y la lista.
+- ⚠ La fila de cada escondida es `.carpeta.escondida`, **no** `.devolver` (*"esto se ve
+  horrible"*, con captura): `.devolver` es el BOTÓN ↩ de las charlas archivadas y su caja con
+  borde se le pegaba a cada fila. Ahora es una carpeta más, apagada (ícono en gris, la letra
+  de las demás) y el ↩ aparece solo al pasar; se devuelve tocándola (o Enter).
+- ⚠ Pendiente, latente: `MAX_PROYECTOS = 20` en `app/voz/sesiones_movil.py` sí recortaría
+  las carpetas con charlas que NO están en `carpetas_sesiones.json` (hoy hay 40 en
+  `~/.claude/projects`). Hoy no recorta nada; si vuelve a pasar "se fue una carpeta" sin
+  haberla escondido, empezar por ahí (es zona del dueño de la máquina y pide reiniciar el
+  panel).
+- Prueba: `python -m pruebas.ver_riel_muchas --mutar` (30 carpetas, 3 escondidas).
+
+### El uso del plan de Claude, en el menú de todas las pantallas (2026-11-12)
+
+Martín: *"me gustaría ver en todo momento mi uso de claude"*. Una pastilla al FINAL del menú
+de pantallas, a la derecha del todo (`menu.js`, así aparece en las siete; primero estuvo
+antes de Panel y no le gustó: *"lo podría a la derecha del todo"*): los límites que CORREN (la ventana
+de 5 horas si hay una abierta, y la semana) con una barrita que se llena; en el globito,
+todos (también los de cada modelo, p. ej. "Semana · Fable") con el día en que se renuevan.
+Tocarla la actualiza. Sin lugar, pasa a la versión corta ("sem 48 %").
+- ⭐ **Es el MISMO número de `/usage`**, no una estimación: `GET /uso-claude` (`panel.py`) →
+  `app/nucleo/uso_claude.py`, que hace el pedido que hace Claude Code
+  (`api.anthropic.com/api/oauth/usage`) con la sesión iniciada. Medido ese día: semana 48 %,
+  Fable 45 %, igual que `/usage`. ⚠ En agosto hubo un medidor que estimaba
+  (`app/voz/cupo.py`, sin usar) y se sacó por mentir: no volver a estimar.
+- ⚠⚠ **La llave se lee y nada más**: nunca se renueva desde acá (renovar rota el refresh
+  token y deja a Claude Code deslogueado), nunca se escribe ni se imprime. Vencida → "Claude
+  ?" con el motivo, hasta que el CLI la renueve solo.
+- No es una API documentada: si cambia, la pastilla dice "sin dato" y no rompe nada. El
+  panel guarda la respuesta 2 min (varias pantallas no multiplican pedidos); con un 429
+  muestra el último dato. Con el panel sin reiniciar (404) la pastilla no aparece.
+- Colores: normal sin color propio; ≥ 80 % el ámbar de "te pregunta algo" (`--pregunta`,
+  **no** `--aviso`, que en /sesiones es el celeste de "trabajando"); ≥ 95 % el de error.
+- ⚠ La pastilla cambia el ancho del menú: al pintarla se vuelve a medir (`anchos = null`),
+  si no, con las columnas anchas el menú quedaba cortado por el ancho de la pastilla.
+- Prueba: `python -m pruebas.probar_uso_claude --mutar` (módulo con respuestas de mentira
+  de la forma real + la pastilla en /sesiones; 6 mutaciones, una es "renovar la llave").
+
+### Subir en una charla no te arrastra para abajo (2026-11-12)
+
+Martín: *"cuando subo en una conversación me arrastra para abajo"*. La charla te sigue hacia
+abajo mientras crece, y antes decidía si seguirte **midiendo** la distancia al final (< 90 px)
+en cada repintado de 3 s y en cada pedacito del texto en vivo (`envivo.js`, varios por
+segundo). La rueda de Chrome sube animada: en medio de la animación seguías "cerca" y te
+devolvía; con el texto llegando sin parar, no había cómo escaparse.
+- ⭐ Ahora manda la **intención** (`sigueAbajo` en `sesiones.html`, expuesta como
+  `window.chatSigue` para `envivo.js`): rueda hacia arriba, ↑, RePág, Inicio, o cualquier
+  subida por la barra o el dedo la sueltan; la recupera llegar vos al final (< 40 px), entrar
+  a una charla o mandar un mensaje. Las imágenes que terminan de cargar tampoco te bajan si
+  ya subiste. Volviendo de otra pantalla a un renglón guardado, sigue solo si ese renglón
+  era el final.
+- ⚠ No volver a "medir la distancia en el momento" para decidir: es exactamente el bug.
+- Prueba: `python -m pruebas.ver_chat_no_arrastra --mutar` (charla que crece en cada
+  repintado; subir poco, subir mucho, volver al final; 3 mutaciones, una es la regla vieja).
 
 ## 6. Lo que está roto o pendiente HOY (2026-08-17)
 

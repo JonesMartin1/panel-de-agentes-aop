@@ -82,6 +82,14 @@ def montar(pag, html, aspecto):
     pag.route(BASE + "/", lambda r: r.fulfill(status=200, content_type="text/html", body=html))
     pag.route("**/pizarra/rough.js", lambda r: r.fulfill(status=200, body=""))
     pag.route("**/fondo/**", lambda r: r.fulfill(status=200, body=""))
+    # ⚠ Todo script de /estaticos que no esté acá cae en la ruta comodín de arriba, que
+    # contesta JSON: el navegador lo lee como JavaScript y tira "Unexpected token ':'".
+    # Los que la página usa apenas carga (EnVivo, por ejemplo) van de verdad, del disco.
+    for est in ("envivo.js", "pasos.js", "arroba.js", "colorcharla.js", "entorno.js",
+                "terminal.js"):
+        archivo = str(RAIZ / "app" / "estaticos" / est)
+        pag.route(f"**/estaticos/{est}", lambda r, *_, a=archivo: r.fulfill(
+            status=200, content_type="application/javascript", path=a))
     for est in ("menu.js", "marcado.js", "atajos.js", "marcas.js", "direccion.js"):
         pag.route(f"**/estaticos/{est}", lambda r: r.fulfill(
             status=200, content_type="application/javascript", body=""))
@@ -228,8 +236,9 @@ def main():
             pag.evaluate("document.getElementById('aspFabrica').click()")
             pag.wait_for_timeout(200)
             cuerpo = numeros(pag.evaluate("getComputedStyle(document.body).backgroundColor"))
-            revisar("'volver a lo de fabrica' devuelve el fondo de siempre",
-                    lejos(cuerpo, hexa("#0b0d12")) <= 1, str(cuerpo))
+            # Lo de fabrica es Vidrio desde el 2026-11-11: su fondo es #0b1020.
+            revisar("'volver a lo de fabrica' devuelve el fondo de Vidrio",
+                    lejos(cuerpo, hexa("#0b1020")) <= 1, str(cuerpo))
 
         # --- El motor no se puede morir en el camino ---------------------------------
         # (mismo motivo que en ver_modo_claro: un error de JS deja la pantalla "casi bien")

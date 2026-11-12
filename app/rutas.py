@@ -95,9 +95,23 @@ NOMBRES_SESIONES = RAIZ / "nombres_sesiones.json"
 # agrupar la vista, igual que los nombres: no cambia el cwd, ni la carpeta, ni nada de
 # los archivos de Claude. Vacio = sin subproyecto (la entrada se borra).
 SUBPROYECTOS_SESIONES = RAIZ / "subproyectos_sesiones.json"
+# Los ENLACES Y ARCHIVOS importantes de cada carpeta ({carpeta: [{id, tipo, destino, nombre}]}),
+# la tarjeta "Enlaces y archivos" de la columna derecha (2026-11-11). Va en resultados/ porque
+# puede tener rutas y direcciones privadas: no se versiona.
+FIJADOS = RAIZ / "resultados" / "fijados.json"
+# El ESCRITORIO REMOTO de la columna derecha (2026-11-12): manejar otra compu por RustDesk desde
+# el panel. Usa una version de PRUEBA de RustDesk (la que trae la puerta para agentes, todavia
+# en revision en el proyecto oficial) que vive suelta en esta carpeta, sin instalar; su clave
+# esta en `respaldo/mcp_token.txt`. Las otras dos son el RustDesk de siempre y su configuracion.
+RUSTDESK_AGENTE = RAIZ.parent / "_prueba-rustdesk-mcp"
+RUSTDESK_OFICIAL = Path(r"C:\Program Files\RustDesk") / "rustdesk.exe"
+RUSTDESK_CONFIG = Path.home() / "AppData" / "Roaming" / "RustDesk" / "config" / "RustDesk_local.toml"
 # Carpetas que Martin sumo a mano a la lista de proyectos (las que todavia no
 # tienen conversaciones no aparecen solas).
 CARPETAS_SESIONES = RAIZ / "carpetas_sesiones.json"
+# Donde nace una carpeta nueva cuando en "Agregar una carpeta" escribis solo el
+# nombre, sin ruta (pedido de Martin, 2026-11-11).
+ESPACIO_TRABAJO = Path(r"C:\EspacioDeTrabajo")
 # Como quiere ver Martin la lista de proyectos de la barra lateral: en que ORDEN van
 # (las que arrastro a mano) y cuales ESCONDIO. Pedido del 2026-08-18: "quiero poder
 # mover las carpetas y sacarlas de aca".
@@ -291,6 +305,10 @@ ESTUDIO_PROYECTOS = ESTUDIO / "proyectos.json"
 # del proyecto "aplanado": los ":" y las "\" se vuelven "-". De ahi sacamos la
 # charla de una sesion vieja para que Laura pueda resumirla sin reabrirla.
 CLAUDE_PROYECTOS = Path.home() / ".claude" / "projects"
+# La sesion iniciada de Claude Code (la cuenta del plan). `app/nucleo/uso_claude.py` la
+# LEE para preguntarle a Anthropic cuanto del plan llevas usado; nunca la escribe ni la
+# renueva (renovarla desde aca podria desloguear al CLI).
+CREDENCIALES_CLAUDE = Path.home() / ".claude" / ".credentials.json"
 CLAUDE_SESIONES  = CLAUDE_PROYECTOS / str(RAIZ).replace(":", "-").replace("\\", "-").replace("/", "-")
 # Codex guarda cada sesion en ~/.codex/sessions/AAAA/MM/DD/rollout-<fecha>-<id>.jsonl.
 # La carpeta cambia con el dia, asi que al archivo se lo busca por el id, no por ruta.

@@ -223,7 +223,23 @@ def main():
         pag.wait_for_timeout(200)
         revisar("tocarla la escribe en la caja",
                 pag.evaluate("() => document.querySelector('#texto').value"), "/notas ")
-        revisar("y el menú se cierra",
+        # ⭐ Desde el 2026-11-11 el menú QUEDA ABIERTO para elegir varias de una.
+        revisar("y el menú queda abierto para elegir otra",
+                pag.evaluate("() => !!document.querySelector('.at-menu')"), True)
+        revisar("la elegida queda tildada",
+                pag.evaluate("""() => document.querySelector(
+                  ".at-menu .fila[data-id='/notas']").classList.contains('elegida')"""), True)
+        pag.click(".at-menu .fila[data-id='/avisar']")
+        pag.wait_for_timeout(200)
+        revisar("una segunda skill se suma a la primera",
+                pag.evaluate("() => document.querySelector('#texto').value"), "/notas /avisar ")
+        pag.click(".at-menu .fila[data-id='/notas']")
+        pag.wait_for_timeout(200)
+        revisar("tocar de nuevo una elegida no la repite",
+                pag.evaluate("() => document.querySelector('#texto').value"), "/notas /avisar ")
+        pag.click("#btnAtajos")          # el mismo rayo lo cierra
+        pag.wait_for_timeout(200)
+        revisar("el rayo lo cierra",
                 pag.evaluate("() => document.querySelector('.at-menu')"), None)
 
         # ⚠ La segunda y la tercera vez también: la lección de marcas.js — una escucha
@@ -240,7 +256,8 @@ def main():
                 pag.evaluate("() => document.querySelector('.at-menu')"), None)
         pag.click("#btnAtajos")
         pag.wait_for_selector(".at-menu .fila", timeout=5000)
-        pag.click("#cuerpo")
+        # En un rincón del cuerpo: el centro puede quedar tapado por el menú mismo.
+        pag.click("#cuerpo", position={"x": 5, "y": 5})
         pag.wait_for_timeout(200)
         revisar("tocar afuera lo cierra",
                 pag.evaluate("() => document.querySelector('.at-menu')"), None)
@@ -271,8 +288,10 @@ def main():
         pag.wait_for_timeout(200)
         revisar("Enter elige la primera que coincide",
                 pag.evaluate("() => document.querySelector('#texto').value"), "/notas ")
-        revisar("y cierra el menú",
-                pag.evaluate("() => document.querySelector('.at-menu')"), None)
+        revisar("y deja el buscador limpio para buscar la siguiente",
+                pag.evaluate("() => document.querySelector('.at-menu .at-buscar input').value"), "")
+        pag.keyboard.press("Escape")     # vacío: cierra
+        pag.wait_for_timeout(200)
         pag.evaluate("() => { document.querySelector('#texto').value = ''; }")
         pag.click("#btnAtajos")
         pag.wait_for_selector(".at-menu .fila.skill", timeout=5000)

@@ -102,6 +102,33 @@
 .menu-pantallas.mini .todo a{font-size:calc(13px * var(--ui,1));
   padding:calc(6px * var(--ui,1)) calc(12px * var(--ui,1))}
 .menu-pantallas.mini .todo a .nom{display:inline}
+/* El uso del plan de Claude (2026-11-12): una pastilla quieta, con una barrita fina abajo
+   que se llena. Normal no tiene color propio: se pinta solo cuando importa (ambar al
+   acercarse al tope, el color de error si ya no queda). */
+.menu-pantallas .uso{position:relative;display:inline-flex;align-items:center;gap:calc(6px * var(--ui,1));
+  padding:calc(3px * var(--ui,1)) calc(11px * var(--ui,1)) calc(4px * var(--ui,1));border-radius:999px;
+  font-size:calc(12px * var(--ui,1));line-height:1.5;white-space:nowrap;cursor:pointer;overflow:hidden;
+  background:#161b23;border:1px solid #262e3a;color:#8b93a1;user-select:none;
+  font-variant-numeric:tabular-nums;transition:border-color .15s,color .15s}
+.menu-pantallas .uso[hidden]{display:none}
+/* A la derecha del todo, un poco apartada de las pantallas: es un dato, no un lugar. */
+.menu-pantallas .uso{margin-left:calc(6px * var(--ui,1))}
+.menu-pantallas .uso:hover{border-color:#3a4658;color:#e8eaed}
+.menu-pantallas .uso b{font-weight:600;color:#cfd5de}
+.menu-pantallas .uso .sep{opacity:.45}
+.menu-pantallas .uso .barra{position:absolute;left:0;bottom:0;height:2px;background:currentColor;opacity:.55;
+  transition:width .4s ease}
+/* ⚠ El ambar es el de "te pregunta algo" (--pregunta), NO --aviso: en /sesiones --aviso es el
+   color de "trabajando" (celeste), y al 86 % la pastilla salia celeste, sin decir nada. */
+.menu-pantallas .uso.alto{color:var(--pregunta-txt,var(--pregunta,#e2b04a))}
+.menu-pantallas .uso.alto b{color:inherit}
+.menu-pantallas .uso.tope{color:var(--mal-txt,#f08a8a)}
+.menu-pantallas .uso.tope b{color:inherit}
+.menu-pantallas .uso.sin{opacity:.6}
+.menu-pantallas .uso .corto{display:none}
+.menu-pantallas.compacto .uso .largo,.menu-pantallas.mini .uso .largo{display:none}
+.menu-pantallas.compacto .uso .corto,.menu-pantallas.mini .uso .corto{display:inline}
+@media (prefers-reduced-motion:reduce){.menu-pantallas .uso .barra{transition:none}}
 `;
 
   /* La pagina de la que uno viene. Se compara solo el camino, sin barra final:
@@ -122,19 +149,96 @@
     }
     caja.classList.add('menu-pantallas');
     const aca = PANTALLAS.find(p => esAca(p.href)) || PANTALLAS[0];
+    // ⭐ La pastilla del uso va AL FINAL, a la derecha del todo (Martín, 2026-11-12: "no me
+    // gusta que esté ahí, lo podría a la derecha del todo"); primero estaba antes de Panel.
     caja.innerHTML =
       '<div class="abrir" title="Ir a otra pantalla"><span class="ic">' + dib(aca.ic) + '</span>' +
         '<span>' + aca.nom + '</span><span style="opacity:.6;font-size:10px">▾</span></div>' +
       '<div class="todo">' + PANTALLAS.map(p =>
         '<a href="' + p.href + '"' + (esAca(p.href) ? ' class="aca"' : '') +
         ' title="' + p.tit + '"><span class="ic">' + dib(p.ic) + '</span>' +
-        '<span class="nom">' + p.nom + '</span></a>').join('') + '</div>';
+        '<span class="nom">' + p.nom + '</span></a>').join('') + '</div>' +
+      '<div class="uso" hidden role="button" tabindex="0"></div>';
     caja.querySelector('.abrir').onclick = e => {
       e.stopPropagation();
       caja.classList.toggle('desplegado');
     };
+    const uso = caja.querySelector('.uso');
+    uso.onclick = e => { e.stopPropagation(); leerUso(true); };
+    uso.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); leerUso(true); } };
+    if (ultimoUso) pintarUso(ultimoUso);
     acomodar();
   }
+
+  /* ⭐⭐ EL USO DEL PLAN DE CLAUDE, SIEMPRE A LA VISTA (Martin, 2026-11-12: "me gustaria ver
+     en todo momento mi uso de claude"). Es el MISMO numero de `/usage`: lo trae el panel
+     (`GET /uso-claude`, `app/nucleo/uso_claude.py`), que le pregunta a Anthropic con la
+     sesion de Claude Code. Va en el menu porque el menu esta en todas las pantallas.
+     ⚠ En agosto hubo un medidor que ESTIMABA y se saco por mentir (25 % contra 46 % real):
+     este no estima nada. Si no hay dato, lo dice; si el panel todavia no tiene el endpoint
+     (falta reiniciarlo), la pastilla no aparece.
+     Se muestran los limites que CORREN (la ventana de 5 horas si hay una abierta, y la
+     semana); los de cada modelo que no corren quedan en el globito. */
+  let ultimoUso = null;
+  const fecha = iso => {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const dias = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    const hh = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    const falta = d - Date.now();
+    if (falta < 20 * 3600 * 1000) return 'hoy ' + hh;
+    return dias[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth() + 1) + ' ' + hh;
+  };
+  const corto = n => n === '5 horas' ? '5 h' : n === 'Semana' ? 'sem' : n.replace(/^Semana · /, '');
+  function pintarUso(r) {
+    const caja = document.getElementById('menuPantallas');
+    const el = caja && caja.querySelector('.uso');
+    if (!el) return;
+    const antes = el.innerHTML + el.className;
+    if (r === 'no') { el.hidden = true; return; }
+    el.hidden = false;
+    el.classList.remove('alto', 'tope', 'sin');
+    if (!r.ok) {
+      el.classList.add('sin');
+      el.innerHTML = '<span>Claude ?</span>';
+      el.title = 'Uso del plan de Claude: sin dato ahora (' + (r.motivo || 'no sé por qué') + ').\nTocá para volver a preguntar.';
+    } else {
+      const corren = r.limites.filter(l => l.activo);
+      const ver = corren.length ? corren : r.limites.slice(0, 1);
+      const mayor = ver.reduce((a, l) => l.pct > a.pct ? l : a, ver[0] || {pct: 0});
+      const nivel = ver.some(l => l.pct >= 95 || (l.nivel && !['normal', 'warning'].includes(l.nivel))) ? 'tope'
+                  : ver.some(l => l.pct >= 80 || l.nivel === 'warning') ? 'alto' : '';
+      if (nivel) el.classList.add(nivel);
+      el.innerHTML =
+        '<span class="largo">' + ver.map(l => l.nombre + ' <b>' + l.pct + ' %</b>').join('<span class="sep"> · </span>') + '</span>' +
+        '<span class="corto">' + (mayor ? corto(mayor.nombre) + ' <b>' + mayor.pct + ' %</b>' : '') + '</span>' +
+        '<span class="barra" style="width:' + Math.min(100, mayor ? mayor.pct : 0) + '%"></span>';
+      el.title = 'Uso del plan de Claude (lo mismo que /usage)' + (r.viejo ? ' — dato de hace un rato' : '') + ':\n' +
+        r.limites.map(l => '• ' + l.nombre + ': ' + l.pct + ' %' +
+          (l.renueva ? ' · se renueva ' + fecha(l.renueva) : '') + (l.activo ? '' : ' (no corre ahora)')).join('\n') +
+        '\nTocá para actualizar.';
+      el.setAttribute('aria-label', 'Uso del plan de Claude: ' + ver.map(l => l.nombre + ' ' + l.pct + ' por ciento').join(', '));
+    }
+    // Cambió el ancho de la pastilla: el menú tiene que volver a medirse.
+    if (antes !== el.innerHTML + el.className) { anchos = null; acomodar(); }
+  }
+  let pidiendo = false;
+  async function leerUso(forzar) {
+    if (pidiendo || (document.hidden && !forzar)) return;
+    pidiendo = true;
+    try {
+      const resp = await fetch('/uso-claude' + (forzar ? '?forzar=1' : ''));
+      if (resp.status === 404) { ultimoUso = 'no'; pintarUso('no'); return; }   // panel sin reiniciar
+      ultimoUso = await resp.json();
+      pintarUso(ultimoUso);
+    } catch (e) { /* sin panel: se queda con lo último que mostró */ }
+    finally { pidiendo = false; }
+  }
+  // Cada 2 minutos (el panel guarda la respuesta lo mismo: varias pantallas no multiplican
+  // los pedidos), y al volver a la pestaña.
+  setTimeout(() => leerUso(false), 300);
+  setInterval(() => leerUso(false), 120000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) leerUso(false); });
 
   /* ⭐ Cuanto lugar le deja el menu a quien comparte el renglon.
 
@@ -171,19 +275,39 @@
     return {completo, compacto, mini};
   }
 
+  /* ⭐ `data-menu-fila` (2026-11-12): el renglon donde vive el menu, cuando sus vecinos
+     tienen ancho FIJO (botones) y el que se estira es el renglon. Pasa en /sesiones con
+     "Vidrio con bandeja": la barra de arriba arranca despues de las dos columnas de la
+     izquierda, y al ensancharlas el menu quedaba cortado ("Servidores" a la mitad, captura
+     de Martin: "se rompe la parte de servidor ahi al final"). Ahi la cuenta es directa:
+     el ancho del renglon menos lo que ocupan los vecinos. ⚠ No sirve con vecinos
+     elasticos (`flex:1`), que es por lo que la regla general de abajo NO mide hermanos:
+     por eso es opt-in, una pantalla lo pide marcando su renglon. */
+  function sobraEnFila(fila, caja, ahora) {
+    const cs = getComputedStyle(fila);
+    const gap = parseFloat(cs.columnGap) || 0;
+    const otros = [...fila.children].filter(h => h !== caja && h.offsetParent !== null &&
+      getComputedStyle(h).position !== 'absolute' && getComputedStyle(h).position !== 'fixed');
+    const usado = otros.reduce((a, h) => a + h.offsetWidth, 0) + gap * otros.length;
+    return fila.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) -
+      usado - ahora;
+  }
+
   function acomodar() {
     const caja = document.getElementById('menuPantallas');
     const rival = document.querySelector('[data-menu-rival]');
+    const filaPropia = !rival && caja && caja.closest('[data-menu-fila]');
     // ⭐ Menu solo en su renglon: no se achica nunca. Se probo la cuenta contraria —
     // medir lo que le dejan sus hermanos en la fila— y NO sirve: en varias cabeceras hay
     // hermanos elasticos (`flex:1`) que se llevan todo el ancho sobrante, asi que la
     // cuenta veia cero lugar y guardaba el menu en una pantalla de 1500 px (le paso al
     // Estudio, 2026-08-18). Cuando el menu esta solo, el navegador ya lo acomoda.
-    if (!caja || !rival) return;
+    // (Salvo que la pantalla marque su renglon con `data-menu-fila`: ver arriba.)
+    if (!caja || (!rival && !filaPropia)) return;
     if (!anchos || !anchos.completo) anchos = medir(caja);
     const ahora = caja.offsetWidth;
     // Lo que le sobra al vecino (negativo = esta cortado) si el menu no cambiara.
-    const sobra = rival.clientWidth - rival.scrollWidth;
+    const sobra = rival ? rival.clientWidth - rival.scrollWidth : sobraEnFila(filaPropia, caja, ahora);
     const entra = ancho => sobra + ahora - ancho >= 8;   // 8 px de aire, para no rozar
     // ⭐ PISO: en una pantalla grande el menu no baja de "solo iconos" aunque el vecino
     // siga sin entrar. Las pestañas se pueden correr con la rueda; el menu escondido en
@@ -219,7 +343,7 @@
   if (window.ResizeObserver) {
     const ojo = new ResizeObserver(() => acomodar());
     const mirar = () => {
-      const rival = document.querySelector('[data-menu-rival]');
+      const rival = document.querySelector('[data-menu-rival]') || document.querySelector('[data-menu-fila]');
       if (rival) { ojo.observe(rival); return true; }
       return false;
     };

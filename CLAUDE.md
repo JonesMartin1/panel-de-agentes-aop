@@ -150,6 +150,27 @@ Si agregás una regla acá, agregale su invariante allá.
     **no** sirve para esto: reinicia panel y servicios y no toca ni un proceso de sesión.
   - Su regla en el chequeo de acá arriba se llama `no-dormir-con-trabajo-abajo`; corrélo
     con `--mutar`, que es la que prueba que el guardián no sea un adorno.
+- ⭐⭐ **Reiniciar el panel no puede cortar a una charla que trabaja** (paso 1, 2026-11-11).
+  Pedido de Martín: *"¿cómo arreglamos que las sesiones se corten si reinicio el panel?"* —
+  ese día el panel se reinició once veces, una de ellas un minuto después de que una sesión
+  le despachara trabajo a otras tres. Lo que pasa de verdad: el proceso del CLI **no muere**
+  con el panel; sigue su turno solo y el panel nuevo no sabe nada de él. Tres piezas:
+  - **El ⟳ espera** (`_pedir_reinicio` en `panel.py`): con alguien a mitad de turno el pedido
+    queda pendiente en el servidor y sale solo cuando la última termina. `{"ya": true}` es el
+    "reiniciar ya igual". ⚠ El `.bat` corrido a mano no pasa por ahí: reinicia en el acto.
+  - **El trabajo de la que quedó suelta no se da por interrumpido**: al arrancar,
+    `_seguir_suelta` la sigue por el disco y lo cierra con lo que contestó.
+  - **Un mensaje nuevo no la pisa**: `_conseguir_viva` llama a `esperar_suelta` **antes** de
+    `_matar_huerfanos`. Matarla ahí se llevaba puesto justo el trabajo que parecía perdido.
+  - ⚠⚠ **"Trabaja" se decide por el DISCO, no por el proceso** (`turno_abierto_en_disco`): un
+    proceso suelto con el turno cerrado está al pedo o cuidando algo de segundo plano, y si
+    contara, un servidor de pruebas olvidado frenaría el mensaje siguiente dos horas. La
+    marca de cierre es el renglón `system`/`stop_hook_summary`, medida sobre charlas reales.
+  - ⚠ **Lo que NO arregla**: una charla suelta no puede pedir permisos ni se ve escribir, y
+    el turno que una sesión arranca sola sigue sin atender. Eso es el paso 2: sacarle al
+    panel el caño de las sesiones (un proceso aparte que no se reinicia).
+  - Reglas `no-pisar-la-suelta` y `reinicio-espera-a-las-que-trabajan` del chequeo de arriba;
+    se prueba con `python -m pruebas.probar_reinicio_sin_corte --mutar` (57 + 8 mutaciones).
 - ⭐⭐ **Con el control remoto prendido, el CLI arranca turnos solo** (le escriben desde
   claude.ai). Los atiende `_vigia_remoto` (`app/voz/sesiones_movil.py`, 2026-10-20), que
   agarra el candado del turno SOLO mientras hay algo que leer, y contesta los permisos por
@@ -197,6 +218,31 @@ Si agregás una regla acá, agregale su invariante allá.
   (`permissions.ask`) por `--settings`. Con una sola, una sesión que arranca mirando qué
   navegadores hay se encuentra con los ajenos y el suyo cerrado. Se mide contra el CLI real
   con `pruebas/sonda_portero_chrome.py` (gasta tokens; `--sin-ask` tiene que fallar).
+
+- ⭐⭐ **El escritorio remoto no deja pasar un clic sin los candados de la terminal**
+  (`app/voz/escritorio.py`, desde el 2026-11-12). La pieza "Escritorio" de `/sesiones` maneja
+  por RustDesk **computadoras de otras personas, incluidas las de clientes**, desde una página
+  del panel: cada ruta `/escritorio/*` pasa por `terminales._puerta` con la llave (la única
+  sin llave es la que la entrega), y una página solo puede pedir cinco cosas acotadas (clic,
+  rueda, tecla, texto, pegar — `_armar`). Regla `escritorio-con-candados`; se prueba con
+  `python -m pruebas.probar_escritorio --mutar` (52 + 5 mutaciones, con una puerta de mentira)
+  y en pantalla con `python -m pruebas.ver_escritorio` (38).
+  - ⚠⚠ **Prendida desde el panel va con aprobación automática**, o cada conexión pediría un
+    cartel en la laptop. Por eso **se apaga sola** (`_vigia_paso`): 20 min sin que nadie mire
+    la pieza si no hay conexiones, 3 h si las hay. No sacar el vigía ni estirar esos tiempos
+    "para que no moleste": una puerta olvidada deja entrar a cualquier sesión sin preguntar.
+  - ⚠ Usa una **versión de PRUEBA de RustDesk** (`RUSTDESK_AGENTE` en `rutas.py`; la puerta
+    para agentes es el PR #16470 de RustDesk, todavía sin aprobar) que **no puede convivir**
+    con el RustDesk instalado: prender cierra el de siempre **solo si la página lo pide**
+    (`cerrar_oficial`), y apagar lo reabre.
+  - ⚠ **Ni la clave de la puerta ni la contraseña de un equipo vuelven en una respuesta** ni
+    se guardan. La puerta a veces repite la contraseña en su mensaje de error: se tapa antes.
+  - ⚠ En esta máquina **algo intercepta los pedidos locales con marca de MCP** (la cabecera
+    `Mcp-Session-Id` o una dirección terminada en `/mcp`) y a un servidor de prueba le deja la
+    respuesta vacía; a la puerta real de RustDesk no. Por eso la puerta de mentira de las
+    pruebas contesta sin pasar por la red. Costó una hora encontrarlo.
+  - La prueba contra el RustDesk real es `pruebas/sonda_escritorio.py`: **cierra el RustDesk
+    de Martín y entra a una compu de verdad**, así que se corre solo con su OK.
 
 ## Estilo
 
