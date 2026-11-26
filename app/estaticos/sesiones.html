@@ -791,6 +791,45 @@
       background:var(--c12261c,#12261c);border:1px solid var(--ok-bd);color:var(--ok-txt);
       font-size:10.5px;line-height:16px;vertical-align:1px}
  .tab .cer{margin-left:4px;line-height:14px;font-size:10.5px}
+ /* ⭐ La chapa de la CUENTA (2026-11-16): esta charla corre en otra máquina, y dice con qué
+    cuenta de Claude. Azul suave cuando la cuenta NO es la de esta compu —es lo que hay que
+    notar, pero no es una alarma: nada de rojo—, y gris cuando es la misma y lo único que
+    cambia es la máquina. */
+ .cer.cta,html.carta .cer.cta,html.carta .tab .cer.cta{background:var(--c13213a,#13213a);
+      border:1px solid var(--c2c4a78,#2c4a78);color:var(--c9ec3ff,#9ec3ff)}
+ .cer.cta.propia,html.carta .cer.cta.propia,html.carta .tab .cer.cta.propia{background:none;
+      border:1px solid var(--c2a3140,#2a3140);color:var(--c8b95a7,#8b95a7)}
+ /* ⭐ Las otras DOS marcas de una charla que corre con otra cuenta (2026-11-16, Martín eligió
+    "las 3": chapa, tinte e ícono). El TINTE: la fila y la pestaña con un velo azul y un filo a
+    la izquierda, para verla de lejos sin leer nada. La NUBE: ocupa el lugar de la luz de
+    estado y TOMA SU COLOR (ámbar trabajando, verde te espera, rojo falló), así no se pierde
+    lo que la luz decía; quieta, va en el azul de la cuenta. Con la misma cuenta en otra
+    máquina (`propia`) el tinte no va: lo distinto ahí es solo dónde corre. */
+ .nube{flex:none;display:inline-block;width:14px;height:14px;vertical-align:-2px;
+      color:var(--c9ec3ff,#9ec3ff)}
+ .propia .nube,.nube.propia{color:var(--c8b95a7,#8b95a7)}
+ .nube.trabajando,.correo.otra-cta.trabajando .nube{color:var(--aviso);
+      animation:nubeLate 1.4s ease-in-out infinite}
+ .nube.espera,.nube.preguntando,.correo.otra-cta.espera .nube{color:var(--ok)}
+ .nube.preguntando,.correo.otra-cta.preguntando .nube{color:var(--aviso)}
+ .nube.fallada,.correo.otra-cta.fallada .nube{color:var(--mal)}
+ @keyframes nubeLate{50%{opacity:.35}}
+ @media (prefers-reduced-motion:reduce){ .nube{animation:none!important} }
+ #colCharlas .cc-it.otra-cta:not(.propia):not(.sel),.correo.otra-cta:not(.propia),
+ .ult.otra-cta:not(.propia),.tab.otra-cta:not(.propia):not(.sel){
+      background-image:linear-gradient(color-mix(in srgb,var(--c5b8def,#5b8def) 13%,transparent),
+                                       color-mix(in srgb,var(--c5b8def,#5b8def) 13%,transparent));
+      box-shadow:inset 3px 0 0 var(--c5b8def,#5b8def)}
+ #colCharlas .cc-it.otra-cta.sel:not(.propia),.tab.otra-cta.sel:not(.propia){
+      box-shadow:inset 3px 0 0 var(--c5b8def,#5b8def)}
+ #colCharlas .cc-it.otra-cta .cc-luz{width:14px}
+ .correo.otra-cta .ini,html.carta .correo.otra-cta .ini,html.carta .correo.otra-cta .ini.viva{
+      font-size:0;background:none;border:0;display:flex;align-items:center;justify-content:center}
+ .correo.otra-cta .ini::before,.correo.otra-cta .ini::after,
+ html.carta .correo.otra-cta .ini::before,html.carta .correo.otra-cta .ini::after,
+ html.carta .correo.otra-cta.trabajando .ini::before,html.carta .correo.otra-cta.trabajando .ini::after,
+ html.carta .correo.otra-cta.espera .ini::before{display:none}
+ .correo.otra-cta .ini .nube{width:16px;height:16px}
  /* La chapa de "esta charla se compactó y sigue en otra" (2026-08-20). Apagada, no es
     alarma: informa cuál es la vieja. Se toca para saltar a la continuación. */
  .sigue{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;
@@ -1893,6 +1932,16 @@ html.carta #cuerpo > .cab-fija{display:block;position:sticky;top:calc(6px - 30px
    background-image:linear-gradient(180deg,rgba(255,255,255,calc(.075 * var(--vd-b,1))),rgba(255,255,255,0)),var(--vd-grano);
    backdrop-filter:var(--vd-esmeril);border:1px solid var(--vd-filo);
    box-shadow:var(--vd-luz),var(--vd-peso)}
+ /* ⭐ El color de cada pieza (2026-11-16, "cambiarle el color a cada tarjeta"): si elegiste
+    uno en el 🎨 (Vidrio → Color de cada pieza), `aspecto.js` define `--pz-<pieza>` y la
+    pieza lo usa; si no, el vidrio de todas. Solo el COLOR: el grano, la luz de arriba y el
+    borde siguen siendo los del vidrio, para que una pieza pintada no deje de ser vidrio.
+    ⚠ Las reglas de cada pieza están dispersas y varias vienen DESPUÉS de esto: el
+    `:not(.sin-pz)` (una clase que no existe) les suma fuerza para ganar sin depender del orden. */
+ html.carta.vidrio:not(.sin-pz) body aside{background-color:var(--pz-riel,var(--vd-vidrio))}
+ html.carta.vidrio:not(.sin-pz) body .caja{background-color:var(--pz-caja,var(--vd-vidrio))}
+ html.carta.vidrio:not(.sin-pz) body::before{background-color:var(--pz-hoja,var(--vd-hoja,color-mix(in srgb,var(--fondo) 50%,transparent)))}
+ html.carta.vbandeja:not(.sin-pz) body.con-col #colCharlas{background-color:var(--pz-lista,var(--vd-vidrio))}
  html.carta.vidrio body.pleno::after,
  html.carta.vidrio body.sin-arriba:has(#barra[style*="display: none"])::after{display:none}
  /* La hoja: vidrio ahumado, con su luz de arriba y su sombra. */
@@ -2077,8 +2126,25 @@ html.carta.vidrio section#cuerpo:has(> .cab-fija){
    background:rgba(22,22,28,.82);box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap}
  html.carta.vbandeja #masAbajo button:hover{background:rgba(34,34,42,.92)}
  html.carta.vbandeja body:not(.riel-ancho) #masAbajo button{padding:3px 7px}
+ /* ⭐ El buscador de carpetas (Martín, 2026-11-13, con captura del riel: "acá me falta un
+    buscador"). Existía, pero este estilo lo escondía. Con el riel ancho va arriba y QUEDA
+    FIJO al bajar por la lista (`sticky`), con fondo propio para que las carpetas no se le
+    vean por debajo; por eso con el riel ancho el degradé va solo abajo (arriba taparía el
+    buscador). En la tira de emojis no entra: hay una 🔍 que abre el riel y te deja escribiendo. */
+ #lupaRiel{display:none}
+ html.carta.vbandeja body:not(.riel-ancho) #lupaRiel{display:flex;cursor:pointer;color:var(--ct-2)}
+ html.carta.vbandeja #lupaRiel svg{width:19px;height:19px;display:block;fill:none;stroke:currentColor;
+   stroke-width:1.8;stroke-linecap:round}
+ html.carta.vbandeja #lupaRiel:hover{color:var(--ct-tinta)}
+ html.carta.vbandeja body.riel-ancho #buscar{position:sticky;top:0;z-index:2;
+   width:calc(100% - 16px);margin:0 8px calc(10px * var(--u));
+   background-color:color-mix(in srgb,var(--ct-pieza,#1b1d24) 92%,transparent)}
+ html.carta.vbandeja body.riel-ancho #paneProy.hay-arriba{-webkit-mask-image:none;mask-image:none}
+ html.carta.vbandeja body.riel-ancho #paneProy.hay-arriba.hay-abajo{
+   -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent);
+   mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent)}
  html.carta.vbandeja #paneArch,html.carta.vbandeja #tirador,html.carta.vbandeja #marcaCarta,
- html.carta.vbandeja #paneProy .rubro,html.carta.vbandeja #buscar,
+ html.carta.vbandeja #paneProy .rubro,html.carta.vbandeja body:not(.riel-ancho) #buscar,
  html.carta.vbandeja body:not(.riel-ancho) .carpeta .nom,html.carta.vbandeja body:not(.riel-ancho) .carpeta .num,
  html.carta.vbandeja .carpeta .estrellas,html.carta.vbandeja .carpeta .hueco,
  html.carta.vbandeja .carpeta .naveg,html.carta.vbandeja .carpeta .plegar,
@@ -2527,6 +2593,7 @@ html.carta.vidrio section#cuerpo:has(> .cab-fija){
 <symbol id="i-imagen" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="9" cy="9" r="1.8"/><path d="m21 15-3.6-3.6a2 2 0 0 0-2.8 0L6 20"/></symbol>
 <symbol id="i-buscar-archivo" viewBox="0 0 24 24"><path d="M10.7 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v4.1"/><circle cx="17" cy="17" r="3"/><path d="m21 21-1.9-1.9"/></symbol>
 <symbol id="i-rayo" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol>
+<symbol id="i-llave" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2.5 2.5"/></symbol>
 <symbol id="i-campana" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
 <symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M4 7h8M16 7h4M4 17h3M11 17h9"/><circle cx="14" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
 <symbol id="i-parar" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></symbol>
@@ -2591,6 +2658,7 @@ html.carta.vidrio section#cuerpo:has(> .cab-fija){
 <script src="/estaticos/menu.js"></script>
 <script src="/estaticos/aspecto.js"></script>
 <script src="/estaticos/atajos.js"></script>
+<script src="/estaticos/claves.js"></script>
 <script src="/estaticos/entorno.js"></script>
 <!-- La terminal de la columna derecha (2026-11-10). Si el panel todavía no la sirve
      (falta reiniciarlo), este archivo no carga y la pieza simplemente no aparece. -->
@@ -2598,6 +2666,9 @@ html.carta.vidrio section#cuerpo:has(> .cab-fija){
 <!-- El escritorio remoto por RustDesk (2026-11-12). Igual que la terminal: con un panel sin
      reiniciar este archivo no carga y la pieza no aparece. -->
 <script src="/estaticos/escritorio.js"></script>
+<!-- La pestaña "Vista" (2026-11-16): los PDF y las fotos de la charla. Igual que las dos de
+     arriba: con un panel sin reiniciar este archivo no carga y la pestaña no aparece. -->
+<script src="/estaticos/vista.js"></script>
 <main>
   <aside>
     <div id="paneProy">
@@ -2606,6 +2677,8 @@ html.carta.vidrio section#cuerpo:has(> .cab-fija){
       <div id="marcaCarta">Servidor IA <small></small></div>
       <div id="cielo"></div>
       <div class="rubro">Proyectos</div>
+      <!-- La 🔍 de la tira de emojis ("Vidrio con bandeja"): abre el riel y te deja en el buscador. -->
+      <div class="carpeta lupa" id="lupaRiel" role="button" tabindex="0" title="Buscar carpeta" aria-label="Buscar carpeta"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></span></div>
       <input id="buscar" placeholder="Buscar carpeta…" autocomplete="off">
       <div id="carpetas"></div>
       <div class="carpeta sumar" id="sumar">＋ Agregar una carpeta…</div>
@@ -2655,6 +2728,10 @@ html.carta.vidrio section#cuerpo:has(> .cab-fija){
             title="Buscar archivo: elegir cualquier archivo de la computadora y pegar su ruta en el mensaje"><svg class="icn"><use href="#i-buscar-archivo"/></svg></button>
     <!-- ⚡ Skills y Comandos: los dibuja /estaticos/atajos.js en un solo botón. -->
     <span id="atajosAqui" style="display:inline-flex"></span>
+    <!-- 🔑 Pegar una clave sin que quede en la charla (2026-11-26, /estaticos/claves.js). -->
+    <button class="archivo-accion icono" id="pegarClave" onclick="pegarClave()"
+            aria-label="Pegar una clave"
+            title="Pegar una clave: se guarda en la laptop y a la charla le llega solo el nombre"><svg class="icn"><use href="#i-llave"/></svg></button>
   </span>
   <textarea id="texto" rows="1" placeholder="Escribile a esta sesión… (Enter manda, Ctrl+V pega)"></textarea>
   <!-- ⭐ Con qué modelo corre ESTA sesión y el botón para compactarla (pedido de Martín,
@@ -3163,6 +3240,49 @@ function verificarFalladas(){
 // dice Claude Code y el guardado se lee del .jsonl, y ahí aparecen cosas como
 // "c:\Espacio…" contra "C:/Espacio…". Comparando tal cual, la pestaña de un proyecto
 // se quedaba sin dueño justo cuando abrís o cerrás su ventana.
+// ⭐ La chapa de la CUENTA (2026-11-16, "quiero diferenciar las sesiones que son de esta cuenta
+// y las que no"). Solo la llevan las charlas que corren en OTRA máquina: la lista le pega
+// `cuenta` = {maquina, mail, propia} a esas y a ninguna más (`app/voz/remotas.py`).
+// ⭐ Dice "servidor" y NO el nombre de la cuenta (pedido de Martín, 2026-11-17: que diga
+// "servidor" en vez del nombre del dueño de la cuenta). El nombre de la persona tampoco va en el cartelito: ahí va la máquina,
+// que es lo que distingue una de otra si algún día hay dos. El color sigue diciendo si la
+// cuenta es otra (azul) o la misma de esta compu (gris).
+function chapaCuenta(c){
+  if (!c) return '';
+  const tit = 'Corre en ' + c.maquina +
+    (c.propia ? ' (con la misma cuenta de esta compu)' : ': NO es la cuenta de esta compu');
+  return ' <span class="cer cta' + (c.propia ? ' propia' : '') + '" title="' +
+    esc(tit).replace(/"/g, '&quot;') + '">servidor</span>';
+}
+// La nube que va en el lugar de la luz. `estado` es la clase de estado de la fila (o '').
+function nubeCuenta(c, estado){
+  if (!c) return '';
+  return '<svg class="nube' + (c.propia ? ' propia' : '') + (estado ? ' ' + estado : '') +
+    '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.34 8.5 4.5 4.5 0 0 0 6.5 19z"/></svg>';
+}
+// Las clases del tinte: van en la fila y en la pestaña.
+function claseCuenta(c){ return c ? ' otra-cta' + (c.propia ? ' propia' : '') : ''; }
+// Las máquinas en las que se puede hacer NACER una charla de esa carpeta: la lista le pega
+// `servidores` solo a las carpetas preparadas (y al cajón de cada máquina, con `fijo`).
+function servidoresDe(cwd){
+  const p = cwd && datos && Array.isArray(datos.proyectos)
+    ? datos.proyectos.find(x => mismaRuta(x.cwd, cwd)) : null;
+  return (p && p.servidores) || [];
+}
+// Con qué cuenta corre la charla de esa pestaña. Nacida: lo que diga la lista (la charla
+// trae `cuenta` o no la trae). Sin estrenar: lo que se eligió en el selector, o el cajón.
+function cuentaDeTab(t){
+  if (!t) return null;
+  const s = datos && Array.isArray(datos.proyectos)
+    ? datos.proyectos.flatMap(p => p.sesiones).find(x => x.id === t.sid) : null;
+  if (s) return s.cuenta || null;
+  const sv = servidoresDe(t.cwd);
+  if ((t.cerebro || '').startsWith('servidor:'))
+    return sv.find(x => 'servidor:' + x.maquina === t.cerebro) || null;
+  return sv.find(x => x.fijo) || null;
+}
 const mismaRuta = (a, b) => {
   const plano = s => (s||'').toLowerCase().replace(/\//g,'\\').replace(/\\+$/,'');
   return !!a && plano(a) === plano(b);
@@ -4929,6 +5049,28 @@ function abrirMenuCarpeta(e, el){
 }
 
 $('#buscar').addEventListener('input', pintarCarpetas);
+// ⭐ Enter entra a la primera carpeta que coincide; Esc borra lo escrito (2026-11-13).
+$('#buscar').addEventListener('keydown', e => {
+  const b = $('#buscar');
+  if (e.key === 'Enter'){
+    const primera = [...document.querySelectorAll('#carpetas .carpeta[data-proy]')]
+      .find(c => c.dataset.proy !== TODAS && c.offsetParent);
+    if (primera && b.value.trim()){ e.preventDefault(); b.value = ''; irProyecto(primera.dataset.proy); }
+  } else if (e.key === 'Escape' && b.value){
+    e.preventDefault(); e.stopPropagation(); b.value = ''; pintarCarpetas();
+  }
+});
+// La 🔍 de la tira: abre el riel con nombres y te deja escribiendo.
+(function(){
+  const l = $('#lupaRiel');
+  if (!l) return;
+  const abrir = () => {
+    if (typeof ensancharRiel === 'function' && !rielAncho) ensancharRiel(true);
+    requestAnimationFrame(() => { const b = $('#buscar'); b.focus(); b.select(); });
+  };
+  l.onclick = abrir;
+  l.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); abrir(); } };
+})();
 
 // Sumar una carpeta que todavía no tiene conversaciones: se escribe la ruta, el
 // servidor comprueba que exista (y la crea si le decís que sí) y queda en la lista
@@ -5147,7 +5289,7 @@ function pintarTabs(){
       const fal = !!falladas[t.sid];
       // Amarillo que parpadea: frenó a preguntarte algo y no la estás mirando.
       const prg = !fal && hayPregunta(t.sid);
-      return '<div class="tab ' + (activa===t.sid?'sel':'') +
+      return '<div class="tab ' + (activa===t.sid?'sel':'') + claseCuenta(cuentaDeTab(t)) +
         (fal ? ' fallada' : prg ? ' preguntando' : esp ? ' espera' : '') + (recienTab===t.sid ? ' recien' : '') +
         '" draggable="true"' + pinta(t.sid) +
         ' data-i="' + i + '" data-sid="' + esc(t.sid) + '"' +
@@ -5160,6 +5302,7 @@ function pintarTabs(){
         (hayBorrador(t.sid) ? '<span class="plu">✎</span>' : '') +
         esc(t.nombre) +
         (t.cerebro === 'codex' ? '<span class="cer">Codex</span>' : '') +
+        chapaCuenta(cuentaDeTab(t)) +
         '<span class="x" data-cerrar="' + i + '">✕</span></div>';
     }).join('');
   }).join('') + colaDeTabs();
@@ -5185,6 +5328,7 @@ function tabSuelta(t, i, viva){
             : (enVuelo[t.sid] || e === 'trabajando') ? 'trabaja'
             : ((esp || e === 'espera') && activa !== t.sid) ? 'espera' : viva(t.sid) ? 'viva' : '';
   return '<div class="tab ' + (activa===t.sid?'sel':'') + (dePaso ? ' de-paso' : '') +
+    claseCuenta(cuentaDeTab(t)) +
     (fal ? ' fallada' : prg ? ' preguntando' : esp ? ' espera' : '') + (recienTab===t.sid ? ' recien' : '') +
     (luz ? ' luz-' + luz : '') +
     '" draggable="true"' + pinta(t.sid) +
@@ -5197,6 +5341,7 @@ function tabSuelta(t, i, viva){
     '<span class="proyTab">' + esc(sinIconoRepetido(nombreGrupo(g), ico)) + '</span>' +
     (dePaso ? '<span class="nom">' + esc(t.nombre) + '</span>' : esc(t.nombre)) +
     (t.cerebro === 'codex' ? '<span class="cer">Codex</span>' : '') +
+    chapaCuenta(cuentaDeTab(t)) +
     // ⭐ La luz va a la DERECHA, al lado de la ✕ (Martín, 2026-11-11): adelante ya están el
     // ícono y el proyecto, y la luz se perdía entre ellos.
     (dePaso ? '<span class="fijar" data-fijar title="Dejarla arriba (o doble clic en la pestaña)">📌</span>' : '') +
@@ -6070,7 +6215,8 @@ function pintarColCharlas(){
     colFiltro, activa,
     (grupos || []).map(g => g.sub + (plegado(g.sub) ? '-' : '+') + JSON.stringify(adornoSub(p.proyecto, g.sub))),
     filas.map(s => s.id + '|' + s.nombre + '|' + s.viva + '|' + estadoSesion(s, ahora) + '|' +
-                   colHace(s.ts) + '|' + (s.sub || '') + '|' + (s.cerebro || '') + '|' + linea(s) +
+                   colHace(s.ts) + '|' + (s.sub || '') + '|' + (s.cerebro || '') + '|' +
+                   ((s.cuenta || {}).mail || '') + '|' + linea(s) +
                    '|' + (tonos[s.id] || ''))]);
   if (f === colFirma) return;
   colFirma = f;
@@ -6080,14 +6226,16 @@ function pintarColCharlas(){
     // El color es el de su pestaña (`tonos`), con la misma cuenta de tres tonos.
     const tn = tresTonos(tonos[s.id]);
     return '<div class="cc-it' + (s.id === activa ? ' sel' : '') + (tn ? ' pintada' : '') +
+      claseCuenta(s.cuenta) +
       '" data-sid="' + esc(s.id) +
       '" data-cwd="' + esc(p.cwd) + '" data-nom="' + esc(s.nombre) + '" data-cer="' +
       esc(s.cerebro || '') + '" data-g="' + esc(grupos ? (s.sub || '') : '') + '"' +
       (tn ? ' style="--tn-f:' + tn[0] + ';--tn-m:' + tn[1] + ';--tn-l:' + tn[2] + '"' : '') +
       ' title="' + esc(s.nombre) + ' · doble clic en el nombre: cambiarlo · botón derecho o ⋯: color y más' +
       (grupos ? ' · arrastrala a otro subproyecto' : '') + '">' +
-      '<span class="cc-luz"><span class="' + luz + '"></span></span>' +
-      '<b>' + esc(s.nombre) + (s.cerebro === 'codex' ? ' · Codex' : '') + '</b>' +
+      '<span class="cc-luz">' + (s.cuenta ? nubeCuenta(s.cuenta, e === 'preguntando' ? 'preguntando' : e)
+                                           : '<span class="' + luz + '"></span>') + '</span>' +
+      '<b>' + esc(s.nombre) + (s.cerebro === 'codex' ? ' · Codex' : '') + chapaCuenta(s.cuenta) + '</b>' +
       '<time>' + colHace(s.ts) + '</time>' +
       '<span class="cc-mas" data-cc-menu title="Color, nombre y más">⋯</span>' +
       '<p>' + (s.sub && !grupos ? '<em>' + esc(s.sub) + ' · </em>' : '') + esc(linea(s)) + '</p></div>';
@@ -6574,10 +6722,11 @@ function pintarLista(){
   if (creandoSubB) return;
   firma = f;
   const filaCorreo = s =>
-    '<div class="correo ' + estado(s) + '" data-sid="' + s.id + '" data-nom="' + esc(s.nombre) +
+    '<div class="correo ' + estado(s) + claseCuenta(s.cuenta) + '" data-sid="' + s.id + '" data-nom="' + esc(s.nombre) +
       '" data-cwd="' + esc(s.cwd) + '" data-cer="' + esc(s.cerebro || '') +
       '" data-g="' + esc(s.sub || '') + '">' +
-      '<div class="ini ' + (s.viva?'viva':'') + '">' + esc((s.nombre||'?')[0].toUpperCase()) + '</div>' +
+      '<div class="ini ' + (s.viva?'viva':'') + '">' +
+        (s.cuenta ? nubeCuenta(s.cuenta, '') : esc((s.nombre||'?')[0].toUpperCase())) + '</div>' +
       '<div class="med"><div class="tit">' +
         // La chapa del proyecto va cuando la lista mezcla carpetas, o sea en "Todas"
         // (también con las archivadas: sin ella no sabés qué estás devolviendo).
@@ -6588,6 +6737,7 @@ function pintarLista(){
         esc(s.nombre) +
         // La chapita del cerebro: solo cuando NO es Claude, que es lo que hay que notar.
         (s.cerebro === 'codex' ? ' <span class="cer">Codex</span>' : '') +
+        chapaCuenta(s.cuenta) +
         // ⭐ La charla que se compactó dice a dónde siguió: sin esto la bandeja se
         // llenaba de gemelas y no se sabía cuál era la viva (Martín, 2026-08-20).
         (s.sigue_en ? ' <span class="sigue" data-sigue="' + esc(s.sigue_en) +
@@ -6829,11 +6979,12 @@ function pintarElegirCarpeta(t){
         (ultimas.length ? '<div class="lapiz despl" data-abrir="' + esc(p.proyecto) + '">' +
            (abierta ? '▴' : '▾ ' + ultimas.length) + '</div>' : '') + '</div>' +
         (abierta ? '<div class="ultimas">' + ultimas.map(s =>
-           '<div class="ult" data-sid="' + s.id + '" data-cwd="' + esc(p.cwd) + '" ' +
+           '<div class="ult' + claseCuenta(s.cuenta) + '" data-sid="' + s.id + '" data-cwd="' + esc(p.cwd) + '" ' +
              'data-nom="' + esc(s.nombre) + '" data-cer="' + esc(s.cerebro || '') + '">' +
              '<span class="pto ' + (s.viva?'viva':'') + '"></span>' +
              '<span class="nom">' + esc(s.nombre) + '</span>' +
              (s.cerebro === 'codex' ? '<span class="cer">Codex</span>' : '') +
+             chapaCuenta(s.cuenta) +
              '<span class="cuando">' + esc(s.detalle||'') + '</span></div>').join('') +
            '</div>' : '');
     }).join('');
@@ -7436,15 +7587,33 @@ async function refrescarModelo(){
   // otro CLI (resumen + sesión nueva). Compactar y Plan siguen siendo de Claude;
   // Modelo y Esfuerzo existen en los dos, y Velocidad solamente en Codex.
   const selC = $('#cerebro'), codex = t && t.cerebro === 'codex';
+  // ⭐ La CUENTA también se elige acá (2026-11-16): en una carpeta preparada en un servidor
+  // aparece "Servidor" al lado de Claude y Codex. Solo al empezar: una charla
+  // nacida no se muda de máquina. Lo que diga `cuentaDeTab` manda sobre `t.cerebro`.
+  const cta = cuentaDeTab(t), srv = cta ? 'servidor:' + cta.maquina : '';
   if (selC){
     selC.style.display = (t && t.cwd) ? '' : 'none';
-    if (t) selC.value = t.cerebro === 'auto' ? 'auto' : (codex ? 'codex' : '');
+    const sv = t ? servidoresDe(t.cwd) : [];
+    const firmaSrv = sv.map(x => x.maquina + '|' + x.mail + '|' + x.propia).join(',');
+    if (selC.dataset.srv !== firmaSrv){
+      selC.dataset.srv = firmaSrv;
+      [...selC.querySelectorAll('option[data-srv]')].forEach(o => o.remove());
+      sv.forEach(x => {
+        const o = document.createElement('option');
+        o.value = 'servidor:' + x.maquina; o.dataset.srv = '1';
+        // "Servidor" a secas; el nombre de la máquina solo si hay más de una para elegir.
+        o.textContent = sv.length > 1 ? 'Servidor · ' + x.maquina : 'Servidor';
+        selC.appendChild(o);
+      });
+    }
+    if (t) selC.value = srv || (t.cerebro === 'auto' ? 'auto' : (codex ? 'codex' : ''));
   }
   // Una charla sin estrenar no tiene nada que compactar ni un id donde guardar el
   // modelo: el turno lo va a arrancar igual con el de fábrica.
-  if (bot) bot.style.display = (real && !codex) ? '' : 'none';
+  // En una charla de otra máquina no van: compactar y bifurcar arrancan un proceso ACÁ.
+  if (bot) bot.style.display = (real && !codex && !srv) ? '' : 'none';
   // Bifurcar: misma regla que compactar (Codex no tiene `--fork-session`).
-  if ($('#bifurcar')) $('#bifurcar').style.display = (real && !codex) ? '' : 'none';
+  if ($('#bifurcar')) $('#bifurcar').style.display = (real && !codex && !srv) ? '' : 'none';
   // 🎨 Con cualquier cerebro. Sin estrenar todavía no hay id donde guardar lo de la charla,
   // pero sí carpeta: ahí se pueden elegir los de la carpeta.
   if ($('#colorCharla')) $('#colorCharla').style.display = (real || (t && t.cwd)) ? '' : 'none';
@@ -7479,7 +7648,8 @@ function pintarModelo(){
   // ⚠ Vacío no se muestra: hasta que el servidor conteste la lista, un <select> sin
   // opciones es una caja en blanco al lado de Enviar (se vio así el 2026-08-18,
   // porque el panel todavía no tenía el endpoint nuevo).
-  sel.style.display = (t && modelos.length) ? '' : 'none';
+  const enOtra = !!cuentaDeTab(t);
+  sel.style.display = (t && modelos.length && !enOtra) ? '' : 'none';
   if (!t){ if (grupo) grupo.style.display = 'none'; return; }
   const real = t.sid.startsWith('nueva-') ? '' : t.sid;
   if (modelos.length){
@@ -7497,7 +7667,7 @@ function pintarModelo(){
     const htmlE = esfuerzos.map(x => '<option value="' + x.id + '"' +
           (x.id === puestoE ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('');
     if (selE.innerHTML !== htmlE) selE.innerHTML = htmlE;
-    selE.style.display = esfuerzos.length ? '' : 'none';
+    selE.style.display = (esfuerzos.length && !enOtra) ? '' : 'none';
     selE.value = puestoE;
     selE.classList.toggle('puesto', !!puestoE);
   }
@@ -7519,7 +7689,7 @@ function pintarModelo(){
     const htmlM = modos.map(x => '<option value="' + x.id + '"' +
           (x.id === puestoM ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('');
     if (selM.innerHTML !== htmlM) selM.innerHTML = htmlM;
-    selM.style.display = (t.cerebro !== 'codex' && real && modos.length) ? '' : 'none';
+    selM.style.display = (t.cerebro !== 'codex' && real && modos.length && !enOtra) ? '' : 'none';
     selM.value = puestoM;
     selM.classList.toggle('puesto', !!puestoM);
   }
@@ -7614,6 +7784,22 @@ function pintarContexto(){
 $('#cerebro').addEventListener('change', async e => {
   const t = abiertas.find(x => x.sid === activa);
   if (!t){ pintarModelo(); return; }
+  // La cuenta (el servidor) se elige al EMPEZAR: una charla nacida no se muda de máquina,
+  // ni para allá ni para acá. Y en el cajón de una máquina no hay otra cosa que elegir.
+  const haciaSrv = e.target.value.startsWith('servidor:');
+  if (haciaSrv || cuentaDeTab(t)){
+    const fijo = servidoresDe(t.cwd).find(x => x.fijo);
+    if (!t.sid.startsWith('nueva-')){
+      alert('Con qué cuenta corre una charla se elige al empezarla. Abrí una conversación nueva.');
+    } else if (fijo && !haciaSrv){
+      alert('En esta carpeta todo corre en ' + fijo.maquina + '.');
+    } else {
+      t.cerebro = haciaSrv ? e.target.value : (e.target.value === 'auto' ? 'auto'
+                                               : e.target.value === 'codex' ? 'codex' : '');
+      modeloPedido = ''; firma = ''; colFirma = ''; guardar(); pintarTabs();
+    }
+    refrescarModelo(); return;
+  }
   if (!t.sid.startsWith('nueva-') && e.target.value === 'auto'){
     alert('Auto se elige al empezar una conversación nueva.'); refrescarModelo(); return;
   }
@@ -7751,6 +7937,16 @@ async function compactar(directo){
   delete enVuelo[viejo]; delete arranque[viejo];
   b.disabled = false; rotular(b, 'Compactar');
   firma=''; pintarTabs(); pintarSesion(); cargar(); refrescarModelo();
+}
+
+// --- 🔑 Pegar una clave (lo dibuja /estaticos/claves.js) ------------------------
+function pegarClave(){
+  if (!window.Claves){ alert('Falta reiniciar el panel para usar esto.'); return; }
+  Claves.abrir({insertar: texto => {
+    const c = $('#texto');
+    c.value = (c.value ? c.value.trimEnd() + ' ' : '') + texto;
+    c.focus(); ajustarCaja();
+  }});
 }
 
 // --- ⚡ Skills y Comandos (los dibuja /estaticos/atajos.js) --------------------
@@ -8526,7 +8722,18 @@ setInterval(() => {
   r.textContent = seg < 60 ? ' · ' + seg + ' s'
                            : ' · ' + Math.floor(seg/60) + ' min ' + (seg % 60) + ' s';
 }, 1000);
-setInterval(cargar, 8000);
+// ⭐ De a UN pedido por vez, igual que el en vivo de arriba (2026-11-23). Este tic salía
+// cada 8 s aunque la lista anterior no hubiera vuelto: con el panel lento se apilaban y
+// cada uno lo frenaba más (la lista llegó a tardar 89 s). ⚠ Solo el tic se saltea: los
+// `cargar()` que salen de una acción tuya (renombrar, archivar, volver a la pestaña) van
+// siempre, porque esos esperan ver el cambio. Con vencimiento (60 s), por lo mismo que
+// arriba: un pedido que no vuelve nunca no puede dejar la bandeja congelada.
+let cargaDesde = 0;
+setInterval(() => {
+  if (cargaDesde && Date.now() - cargaDesde < 60000) return;
+  cargaDesde = Date.now();
+  Promise.resolve(cargar()).catch(() => {}).finally(() => { cargaDesde = 0; });
+}, 8000);
 // Y al volver a esta pestaña del navegador, refresca al instante en vez de esperar
 // el próximo tic: es justo cuando uno viene a mirar cómo quedó.
 document.addEventListener('visibilitychange', () => { if (!document.hidden) cargar(); });
@@ -9066,6 +9273,15 @@ if (window.Escritorio){
   Escritorio.iniciar({agrandar: () => Paneles.agrandar()});
   Paneles.registrar({id: 'escritorio', titulo: 'Escritorio', anchoMin: 560,
                      alMostrar: Escritorio.mostrar, alOcultar: Escritorio.ocultar});
+}
+// ⭐ La VISTA (2026-11-16): los PDF y las fotos que la charla abierta creó, abrió o te mostró,
+// para mirarlos acá sin salir del panel. El dibujo es `vista.js` (`Vista`) y la lista la arma
+// el panel leyendo la charla (`app/voz/vista.py`). ⚠ Como las otras: sin el ⟳, no aparece.
+// Va con 420 de ancho mínimo: un PDF en 300 px no se lee.
+if (window.Vista){
+  Vista.iniciar({ubicacion: () => ubicDerecha(), agrandar: () => Paneles.agrandar()});
+  Paneles.registrar({id: 'vista', titulo: 'Vista', anchoMin: 420,
+                     alMostrar: Vista.mostrar, alOcultar: Vista.ocultar});
 }
 verDerecha(localStorage.getItem('sesDerecha') === '1');
 $('#btnDerecha').onclick = () => verDerecha(!derAbierta());

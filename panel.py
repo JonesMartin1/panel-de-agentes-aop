@@ -412,6 +412,17 @@ def _maestro_llamar(estado):
 
 app = FastAPI(title="Panel Servidor IA")
 
+# ⭐ Que lo que viaja al celular pese poco (2026-11-23): comprime, y no vuelve a mandar lo
+# que no cambio. Solo en una lista corta de rutas, y NUNCA en los canales en vivo. Todo
+# vive en `app/voz/aligerar.py`; aca solo se enchufa. Si no se puede, el panel anda igual
+# que antes, solo que mas pesado.
+try:
+    from app.voz import aligerar
+    app.add_middleware(aligerar.Aligerar)
+except Exception as _e:
+    aligerar = None
+    print("aligerar: no se pudo enchufar:", _e, flush=True)
+
 
 @app.on_event("startup")
 def _autostart():
@@ -7289,6 +7300,7 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
      Laura. Se montó acá el 2026-08-25: el celular era la única de las tres cajas de
      escribir sin él, así que desde el teléfono no había forma de elegir una skill. -->
 <script src="/estaticos/atajos.js"></script>
+<script src="/estaticos/claves.js"></script>
 <style>
  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
  /* El fondo, la tipografia y el acento salen de /estaticos/aspecto.js, que es el
@@ -7559,7 +7571,8 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
  #mandar{width:auto;padding:12px 20px;margin:0;font-size:15.5px;border-radius:999px;
          background:var(--acento-bg);color:var(--acento)}
  /* El clip sin caja propia: es un accesorio del renglón, no otro botón más. */
- #clip{width:auto;padding:12px 6px;margin:0;font-size:21px;background:transparent;flex:0 0 auto}
+ #clip,#llave{width:auto;padding:12px 6px;margin:0;font-size:21px;background:transparent;flex:0 0 auto}
+ #llave{font-size:18px}
  /* El ⚡ vive al lado del clip y con la misma cara: en el teléfono la barra ya tiene
     cuatro cosas y una quinta con marco propio la parte en dos renglones. El tamaño lo
     pone atajos.js, así que hay que pisarlo acá (su <style> se inyecta después). */
@@ -7931,6 +7944,8 @@ MOVIL_HTML = """<!doctype html><html lang="es"><head>
        pantalla de la compu y el chat de Laura. Acá era la única de las tres cajas de
        escribir que no lo tenía (2026-08-25). -->
   <span id="atajosAqui"></span>
+  <!-- 🔑 Pegar una clave sin que quede en la charla (2026-11-26, /estaticos/claves.js). -->
+  <button id="llave" onclick="pegarClave()" title="Pegar una clave">🔑</button>
   <textarea id="texto" rows="1" placeholder="Escribí…"></textarea>
   <button id="avisarTarea" onclick="alternarAviso()" title="Avisarme al celular cuando termine">Avisame</button>
   <button id="mandar" onclick="mandar()">Enviar</button>
@@ -8148,13 +8163,18 @@ async function pintarPanel(enSegundoPlano=false){
   // Desde el telefono cada espera serial es otra vuelta por Tailscale. Estos datos no
   // dependen entre si, asi que viajan juntos y el inicio espera solo al mas lento.
   const pedirJson = ruta => fetch(ruta).then(r => r.json());
-  const pideGasto = Date.now() - gastoPedido > 300000;
-  if (pideGasto) gastoPedido = Date.now();
-  const [e, c, cbCrudo, mjCrudo, gasto] = await Promise.all([
+  // ⭐ El gasto va APARTE (2026-11-23): el inicio espera al más lento de estos pedidos, y
+  // el gasto tarda cerca de un segundo en calcularse. Metido acá adentro, cada cinco
+  // minutos —y siempre al abrir la app— el inicio entero esperaba ese segundo. Ahora
+  // llega cuando llega y la tarjeta aparece en el repintado siguiente (3 s).
+  if (Date.now() - gastoPedido > 300000){
+    gastoPedido = Date.now();
+    pedirJson('/gasto').then(g => { if (g && g.ok) gastoMovil = g; }).catch(() => {});
+  }
+  const [e, c, cbCrudo, mjCrudo] = await Promise.all([
     pedirJson('/status'), pedirJson('/chat'),
     pedirJson('/sesion/cerebro').catch(() => null),
-    pedirJson('/sesion/modelo').catch(() => null),
-    pideGasto ? pedirJson('/gasto').catch(() => null) : Promise.resolve(null)
+    pedirJson('/sesion/modelo').catch(() => null)
   ]);
   if (!enSegundoPlano && (mio !== pintadoNro || activa !== 'panel')) return;
   mensajesPanel = c.items || [];
@@ -8168,8 +8188,7 @@ async function pintarPanel(enSegundoPlano=false){
   if (mj && !mj.ok) mj = null;
   // El gasto de tokens del día, con Codex aparte (en el teléfono no hay mouse que
   // pase por arriba de ningún globito). Se pide cada 5 minutos como en la compu;
-  // si falla, la tarjeta no se dibuja y listo.
-  if (gasto && gasto.ok) gastoMovil = gasto;
+  // si falla, la tarjeta no se dibuja y listo. (Lo trae el pedido suelto de arriba.)
   const prendidos = Object.values(e.servicios).filter(s => s.vivo).length;
   const total = Object.values(e.servicios).length;
   const estado = e.pausado ? 'pausa' : e.encendido ? 'aire' : 'off';
@@ -9667,6 +9686,7 @@ function dibujarSesion(p, mensajes){
 // esté. Se hace al arrancar y al abrir una pestaña nueva: así el primer toque de
 // cada sesión tampoco espera al servidor.
 let cargasChat = {};
+const PRECARGAR_MAX = 5;     // cuántas pestañas se traen solas al abrir la app (ver el arranque)
 
 function guardarChat(p, d){
   cacheChat[p.sid] = d.mensajes;
@@ -10959,6 +10979,16 @@ async function entrarPorDireccion(){
 // cambio (2026-08-18).
 pintarTabs(); pintar();
 
+// --- 🔑 Pegar una clave (lo dibuja /estaticos/claves.js) ------------------------
+function pegarClave(){
+  if (!window.Claves) return;
+  Claves.abrir({insertar: texto => {
+    const c = $('#texto');
+    c.value = (c.value ? c.value.trimEnd() + ' ' : '') + texto;
+    ajustarCaja(c); c.focus();
+  }});
+}
+
 // --- ⚡ Skills y comandos (los dibuja /estaticos/atajos.js) --------------------
 // El mismo botón de las otras dos pantallas. Lo único distinto es la etiqueta (acá
 // entra solo el rayo) y de dónde salen las acciones: en el teléfono el modelo es un
@@ -11015,7 +11045,17 @@ if (window.Atajos) Atajos.montar({
   pintarTabs(); pintar();
   // Traer en segundo plano las conversaciones de las pestañas abiertas: cuando
   // toques una, ya está y se dibuja sin esperar nada.
-  pestanas.forEach(precargar);
+  // ⚠⚠ Solo las PRIMERAS y de a una (2026-11-23). Antes eran todas y todas juntas, y las
+  // pestañas no se cierran solas: ese día había 173, así que cada vez que abrías la app
+  // salían 173 pedidos a la vez — unos 9 MB para bajar al teléfono, y del lado del panel
+  // 3,5 GB de archivos para leer, que además le vaciaban la memoria de las charlas que
+  // estabas mirando en la compu. Las más nuevas van primero en la lista (`abrir` las pone
+  // adelante), así que las primeras son las que más probablemente toques; el resto se
+  // trae al tocarla, como cualquier charla que no estaba precargada.
+  (async () => {
+    for (const p of pestanas.filter(x => x.sid !== activa).slice(0, PRECARGAR_MAX))
+      await precargar(p);
+  })();
   // El "en vivo": relee el archivo de la sesión. ⭐ De a UN pedido por vez (2026-11-10):
   // por el túnel del teléfono un pedido puede tardar más de 3 s, y antes el siguiente
   // salía igual y se apilaban. Con vencimiento (20 s) para que uno que no vuelve nunca
@@ -11041,8 +11081,19 @@ def movil():
     pagina y al volver a abrirla te muestra la de antes: se arregla algo en el panel,
     Martin abre la app y sigue viendo lo viejo — paso el 2026-08-17 con la barra que
     tapaba el teclado ("sigue apareciendo", y ya estaba arreglado). Que la pida siempre.
+
+    ⭐ Sus ARCHIVOS si se guardan en el telefono (2026-11-23): cada `<script>` sale con la
+    fecha de su archivo pegada (`?v=…`), y con esa marca el panel los sirve "para
+    siempre". Eran 380 KB que se bajaban de nuevo en cada apertura. Como la pagina se pide
+    siempre, un archivo que cambia sale con otra direccion y se baja el nuevo.
     """
-    return HTMLResponse(MOVIL_HTML, headers={"Cache-Control": "no-store, must-revalidate"})
+    html = MOVIL_HTML
+    if aligerar is not None:
+        try:
+            html = aligerar.versionar(html, ESTATICOS)
+        except Exception:
+            pass
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 def _sesion_de_laura():
@@ -11062,6 +11113,32 @@ def _sesion_de_laura():
 # encima el trabajo repetido (2026-08-18).
 _SESIONES_ULTIMA = {"cuando": 0.0, "datos": None}
 _SESIONES_VALE_SEG = 2.0
+# ⭐⭐ La lista se arma DE A UNA (2026-11-23). Sin este candado, cada pedido que encontraba
+# la respuesta vencida la armaba entera por su cuenta: con varias pestañas pidiendo cada 8 s
+# y un armado de 2 a 5 s, se juntaban hasta 7 armados a la vez, cada uno frenando a los
+# otros (un solo proceso de Python trabaja de a un hilo), y la lista tardaba 89 segundos
+# —con todo el resto del panel esperando detras—. Ahora:
+#   · mientras alguien la arma, los demas se llevan la de recien aunque este vencida
+#     (unos segundos vieja se nota menos que un minuto esperando);
+#   · si la de recien fue TIRADA a proposito (`["datos"] = None`: renombraste, archivaste,
+#     moviste una carpeta), no se devuelve nada viejo: se espera el armado nuevo;
+#   · y si la tiraron MIENTRAS se armaba, lo armado puede ser de antes del cambio: se le
+#     entrega a quien lo pidio pero no se guarda, asi el proximo arma de nuevo.
+# `_SESIONES_ARMANDO` es la marca de "hay un armado en curso sobre una lista tirada": deja
+# distinguir "nadie la tiro" de "la tiraron mientras armaba" sin tocar los siete lugares que
+# ya escriben `None`.
+_SESIONES_CANDADO = threading.Lock()
+_SESIONES_ARMANDO = object()
+
+
+def _sesiones_guardadas(fresca):
+    """La lista de recien si sirve, o None. Con `fresca`, solo si no vencio."""
+    d = _SESIONES_ULTIMA["datos"]
+    if d is None or d is _SESIONES_ARMANDO:
+        return None
+    if fresca and time.time() - _SESIONES_ULTIMA["cuando"] >= _SESIONES_VALE_SEG:
+        return None
+    return d
 
 
 @app.get("/movil/sesiones")
@@ -11077,10 +11154,36 @@ def movil_sesiones():
     desde el celular esta la pestaña Hablar y el chat del panel, que van por el
     buzon: un solo canal, sin duplicar nada.
     """
-    ahora = time.time()
-    if (_SESIONES_ULTIMA["datos"] is not None
-            and ahora - _SESIONES_ULTIMA["cuando"] < _SESIONES_VALE_SEG):
-        return _SESIONES_ULTIMA["datos"]
+    d = _sesiones_guardadas(fresca=True)
+    if d is not None:
+        return d
+    if not _SESIONES_CANDADO.acquire(blocking=False):
+        d = _sesiones_guardadas(fresca=False)      # otro la esta armando: va la de recien
+        if d is not None:
+            return d
+        _SESIONES_CANDADO.acquire()                # la tiraron a proposito: se espera
+    try:
+        d = _sesiones_guardadas(fresca=True)       # ¿la armo otro mientras yo esperaba?
+        if d is not None:
+            return d
+        if _SESIONES_ULTIMA["datos"] is None:
+            _SESIONES_ULTIMA["datos"] = _SESIONES_ARMANDO
+        try:
+            salida = _armar_sesiones()
+        except BaseException:
+            if _SESIONES_ULTIMA["datos"] is _SESIONES_ARMANDO:
+                _SESIONES_ULTIMA["datos"] = None
+            raise
+        if _SESIONES_ULTIMA["datos"] is not None:  # None = la tiraron mientras se armaba
+            _SESIONES_ULTIMA["datos"] = salida
+            _SESIONES_ULTIMA["cuando"] = time.time()
+        return salida
+    finally:
+        _SESIONES_CANDADO.release()
+
+
+def _armar_sesiones():
+    """El trabajo de `/movil/sesiones`, sin el cache: recorre el disco y arma la lista."""
     from app.voz import sesiones_movil
     laura = _sesion_de_laura()
     alias = _nombres_sesiones()
@@ -11146,8 +11249,6 @@ def movil_sesiones():
                            # nada: viaja por el mismo camino, para que las dos pantallas
                            # puedan mostrar "por defecto: tal" sin un pedido aparte.
                            "defecto": aspecto_carp["defecto"]}}
-    _SESIONES_ULTIMA["datos"] = salida
-    _SESIONES_ULTIMA["cuando"] = time.time()
     return salida
 
 
@@ -11949,6 +12050,14 @@ try:
 except Exception as _e:
     print("fijados: no se pudo enchufar:", _e, flush=True)
 
+# ⭐ CLAVES (2026-11-26): el 🔑 de la caja de escribir guarda una contraseña en un archivo de
+# `~/.claude/claves/` y a la charla le llega solo el nombre. Todo vive en `app/voz/claves.py`.
+try:
+    from app.voz import claves
+    app.include_router(claves.router)
+except Exception as _e:
+    print("claves: no se pudo enchufar:", _e, flush=True)
+
 # ⭐ El ESCRITORIO REMOTO (2026-11-12): la pieza "Escritorio" de la columna derecha, para ver y
 # manejar otra compu por RustDesk desde el panel. Todo vive en `app/voz/escritorio.py` (las
 # rutas `/escritorio/*` con los candados de la terminal, y su vigia, que apaga sola la puerta
@@ -11959,6 +12068,15 @@ try:
     escritorio.encender_vigia()
 except Exception as _e:
     print("escritorio: no se pudo enchufar:", _e, flush=True)
+
+# ⭐ La VISTA (2026-11-16): la pestaña de la columna derecha con los PDF y las fotos de la
+# charla. Todo vive en `app/voz/vista.py` (solo sirve lo que esa charla nombro, por codigo y
+# nunca por ruta, con la puerta de la terminal); aca solo se enchufa.
+try:
+    from app.voz import vista
+    app.include_router(vista.router)
+except Exception as _e:
+    print("vista: no se pudo enchufar:", _e, flush=True)
 
 
 def _nombres_sesiones():
@@ -12024,6 +12142,61 @@ async def movil_subproyecto(request: Request):
                                      encoding="utf-8")
     _SESIONES_ULTIMA["datos"] = None      # que se vea en el acto, en las dos pantallas
     return {"ok": True, "subproyecto": sub}
+
+
+# --- ⭐ Toda charla nueva nace con nombre y subproyecto (Martín, 2026-11-16) ---------------
+# El porqué y las reglas están en `app/voz/bautizo.py`. Acá solo: qué grupos hay en la
+# carpeta, y escribir lo que falte SIN pisar lo que ya se puso (el ＋ de un subproyecto, la
+# skill chief, o Martín renombrándola mientras Haiku pensaba).
+def _grupos_de_carpeta(cwd):
+    clave = os.path.normcase(os.path.normpath(cwd or ""))
+    try:
+        proyectos = movil_sesiones().get("proyectos", [])
+    except Exception:
+        return []
+    for p in proyectos:
+        if os.path.normcase(os.path.normpath(p.get("cwd") or "")) == clave:
+            return sorted({s["sub"] for s in p.get("sesiones", []) if s.get("sub")})
+    return []
+
+
+def _bautizar_nueva(cwd, sid, texto):
+    """Corre en su propio hilo, apenas la charla nueva tiene id. Nunca tira error."""
+    try:
+        from app.voz import bautizo
+        if not sid or sid.startswith("nueva-") or sid == _sesion_de_laura():
+            return
+        if _nombres_sesiones().get(sid) and _subproyectos().get(sid):
+            return
+        nombre, grupo = bautizo.proponer(texto, _grupos_de_carpeta(cwd), Path(cwd).name)
+        alias, subs = _nombres_sesiones(), _subproyectos()   # releídos: lo puesto manda
+        puso = []
+        if nombre and not alias.get(sid):
+            alias[sid] = nombre[:60]
+            NOMBRES_SESIONES.write_text(json.dumps(alias, ensure_ascii=False, indent=1),
+                                        encoding="utf-8")
+            puso.append(f"nombre «{nombre}»")
+        if grupo and not subs.get(sid):
+            subs[sid] = grupo[:40]
+            SUBPROYECTOS_SESIONES.write_text(json.dumps(subs, ensure_ascii=False, indent=1),
+                                             encoding="utf-8")
+            puso.append(f"grupo «{grupo}»")
+        if puso:
+            _SESIONES_ULTIMA["datos"] = None
+            print(f"bautizo: {sid[:8]} ({Path(cwd).name}) → " + ", ".join(puso), flush=True)
+    except Exception as e:
+        print("bautizo: no se pudo:", e, flush=True)
+
+
+_BAUTIZADAS = set()       # una consulta por charla, aunque el aviso de nacer llegue dos veces
+
+
+def _lanzar_bautizo(cwd, sid, texto):
+    if not sid or sid in _BAUTIZADAS:
+        return
+    _BAUTIZADAS.add(sid)
+    threading.Thread(target=_bautizar_nueva, args=(cwd, sid, texto), daemon=True,
+                     name="bautizo-" + (sid or "")[:8]).start()
 
 
 @app.get("/movil/chat")
@@ -12442,6 +12615,9 @@ def _correr_trabajo_movil(trabajo_id, cwd, sid, texto, cerebro, esfuerzo,
                 copia = None
         if copia:
             _persistir(copia)
+        # ⭐ Charla recién nacida: nombre y subproyecto, sin esperar el turno (bautizo.py).
+        if not sid and sid_real:
+            _lanzar_bautizo(cwd, sid_real, texto)
 
     resultado = _ejecutar_turno_movil(
         cwd, sid, texto, cerebro, esfuerzo, modelo, velocidad, al_nacer=_nacio,
@@ -12627,9 +12803,12 @@ async def movil_mandar(cwd: str = Form(...), sid: str = Form(""), texto: str = F
                                velocidad, desde if not sid else ""),
                          daemon=True, name="trabajo-movil-" + trabajo_id[:8]).start()
         return {"ok": True, "segundo_plano": True, "trabajo": trabajo_id}
-    return await asyncio.to_thread(_ejecutar_turno_movil, cwd, sid, texto, cerebro,
-                                   esfuerzo, modelo, velocidad, None,
-                                   desde if not sid else "")
+    resultado = await asyncio.to_thread(_ejecutar_turno_movil, cwd, sid, texto, cerebro,
+                                        esfuerzo, modelo, velocidad, None,
+                                        desde if not sid else "")
+    if not sid and isinstance(resultado, dict) and resultado.get("sid"):
+        _lanzar_bautizo(cwd, resultado["sid"], texto)
+    return resultado
 
 
 @app.get("/movil/trabajo/{trabajo_id}")
@@ -13947,7 +14126,10 @@ async def aspecto_guardar(request: Request):
                                     # vidrio"): cuanto tapan los paneles, su color, el
                                     # brillo del borde y el grano. `vidrio` ya estaba y
                                     # ahora tambien puede ser un numero ('1.35').
-                                    "vdOpaco", "vdTinte", "vdBrillo", "vdGrano")
+                                    "vdOpaco", "vdTinte", "vdBrillo", "vdGrano",
+                                    # ⭐ El color de cada pieza de vidrio de /sesiones
+                                    # (2026-11-16, un dict como `bloques`).
+                                    "piezas")
               if d.get(k) is not None}
     ASPECTO.write_text(json.dumps(limpio), encoding="utf-8")
     # ⚠ Se devuelve lo GUARDADO, no un "ok" pelado: es como la pantalla se entera de que

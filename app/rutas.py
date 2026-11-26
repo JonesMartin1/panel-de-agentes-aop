@@ -99,6 +99,22 @@ SUBPROYECTOS_SESIONES = RAIZ / "subproyectos_sesiones.json"
 # la tarjeta "Enlaces y archivos" de la columna derecha (2026-11-11). Va en resultados/ porque
 # puede tener rutas y direcciones privadas: no se versiona.
 FIJADOS = RAIZ / "resultados" / "fijados.json"
+# Las CLAVES que Martin pega con el 🔑 de la caja de escribir (2026-11-26, `app/voz/claves.py`):
+# un archivo por clave, fuera del repo. La charla recibe solo el nombre y la lee de ahi.
+CLAVES = Path.home() / ".claude" / "claves"
+# Lo que Martin QUITO de la pestaña "Vista" de una charla ({sid: [codigos]}), 2026-11-16: el
+# archivo sigue en el disco, solo deja de mostrarse. En resultados/ por lo mismo que FIJADOS.
+VISTA_QUITADOS = RAIZ / "resultados" / "vista_quitados.json"
+# Las charlas que corren en OTRA maquina (2026-11-16, `app/voz/remotas.py`): cada maquina tiene
+# aca una carpeta local que hace de "proyecto" en el riel, y `maquinas.json` dice como llegar
+# a ella. En resultados/ porque nombra servidores y cuentas: no se versiona.
+REMOTAS = RAIZ / "resultados" / "remotas"
+REMOTAS_MAQUINAS = REMOTAS / "maquinas.json"
+# Mutagen (2026-11-17): el programa que mantiene igual la carpeta de un proyecto preparado y su
+# copia en el servidor. Vive suelto al lado del proyecto, sin instalar. En `REMOTAS_REGLAS` queda,
+# por proyecto, la lista de lo que NO viaja (`herramientas/preparar_servidor.py`).
+MUTAGEN = RAIZ.parent / "mutagen" / "mutagen.exe"
+REMOTAS_REGLAS = REMOTAS / "reglas"
 # El ESCRITORIO REMOTO de la columna derecha (2026-11-12): manejar otra compu por RustDesk desde
 # el panel. Usa una version de PRUEBA de RustDesk (la que trae la puerta para agentes, todavia
 # en revision en el proyecto oficial) que vive suelta en esta carpeta, sin instalar; su clave

@@ -56,6 +56,44 @@ def correr(nav, cambios=None):
             return s.height > 0 && s.top >= p.top - 1 && s.bottom <= p.bottom + 1; }""")
         if not sumar_visible or ver("#masAbajo"):
             fallas.append("tocar la pastilla no bajó hasta 'Agregar una carpeta' (o la pastilla no se fue)")
+        # El buscador (2026-11-13, "acá me falta un buscador"): en la tira es una 🔍 que abre el
+        # riel y deja el cursor en el buscador; filtra, queda fijo al bajar, Enter entra.
+        if not ver("#lupaRiel") or ver("#buscar"):
+            fallas.append("en la tira de emojis no está la 🔍 (o el buscador se ve apretado en la tira)")
+        try:
+            pag.click("#lupaRiel", timeout=3000)
+        except Exception:
+            fallas.append("no se pudo tocar la 🔍")
+        pag.wait_for_timeout(300)
+        estado = pag.evaluate("() => ({ancho: document.body.classList.contains('riel-ancho'),"
+                              " foco: document.activeElement && document.activeElement.id})")
+        if not (estado["ancho"] and estado["foco"] == "buscar"):
+            fallas.append("la 🔍 no abrió el riel con el cursor en el buscador: %s" % estado)
+        pag.keyboard.type("p2")
+        pag.wait_for_timeout(300)
+        nombres = pag.evaluate("() => [...document.querySelectorAll('#carpetas .carpeta[data-proy]')]"
+                               ".filter(c => c.offsetParent).map(c => c.dataset.proy).filter(n => !n.includes('Todas'))")
+        if not nombres or any("p2" not in n for n in nombres):
+            fallas.append("el buscador no filtra las carpetas: %s" % nombres)
+        pag.screenshot(path=str(vb.SALIDA / "riel_buscador.png"), clip={"x": 0, "y": 0, "width": 300, "height": 420})
+        pag.keyboard.press("Escape")
+        pag.wait_for_timeout(200)
+        pag.evaluate("() => { const p = document.getElementById('paneProy'); p.scrollTop = p.scrollHeight; }")
+        pag.wait_for_timeout(300)
+        fijo = pag.evaluate("""() => { const p = document.getElementById('paneProy').getBoundingClientRect();
+            const b = document.getElementById('buscar').getBoundingClientRect();
+            return document.getElementById('buscar').value === '' && b.top >= p.top - 1 && b.bottom <= p.bottom; }""")
+        if not fijo:
+            fallas.append("Esc no borró la búsqueda, o el buscador no queda fijo arriba al bajar por la lista")
+        pag.evaluate("() => { document.getElementById('paneProy').scrollTop = 0; }")
+        try:
+            pag.fill("#buscar", "p05", timeout=3000)
+            pag.keyboard.press("Enter")
+        except Exception:
+            pass
+        pag.wait_for_timeout(500)
+        if pag.evaluate("() => proy") != "p05":
+            fallas.append("Enter en el buscador no entró a la carpeta que coincide")
         if not ver("#verOcultas"):
             fallas.append("'Escondidas' no se ve: no hay cómo devolver una carpeta sacada")
         else:
@@ -100,6 +138,11 @@ MUTACIONES = {
     "'Escondidas' vuelve a estar oculta": {
         "sesiones.html": [(" html.carta.vbandeja body:not(.riel-ancho) .carpeta.escondida{display:none !important}",
                            " html.carta.vbandeja #verOcultas,html.carta.vbandeja .carpeta.escondida{display:none !important}")]},
+    "el buscador vuelve a estar escondido": {
+        "sesiones.html": [("html.carta.vbandeja #paneProy .rubro,html.carta.vbandeja body:not(.riel-ancho) #buscar,",
+                           "html.carta.vbandeja #paneProy .rubro,html.carta.vbandeja #buscar,")]},
+    "el buscador no queda fijo al bajar": {
+        "sesiones.html": [("body.riel-ancho #buscar{position:sticky;top:0;", "body.riel-ancho #buscar{position:static;top:0;")]},
     "la fila vuelve a llamarse como el botón (cajitas)": {
         "sesiones.html": [("'<div class=\"carpeta escondida\" data-volver=", "'<div class=\"carpeta escondida devolver\" data-volver=")]},
 }

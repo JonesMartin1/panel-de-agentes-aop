@@ -57,16 +57,45 @@ def carpeta_de(cwd):
 PIDS_PANEL = set()
 
 
-def _es_del_panel(pid):
+def _mapa_de_padres():
+    """{pid: pid del padre} de TODA la maquina, en una sola consulta a Windows.
+
+    ⚠⚠ Por que existe (2026-11-23). `psutil.Process(pid).parent()` parece barato y no lo es:
+    en Windows, para saber el padre de UN proceso psutil le pide a Windows la lista de
+    padres de TODOS (`ppid_map`), y eso cuesta 55 a 85 milesimas con 600 procesos abiertos.
+    `_es_del_panel` sube hasta tres padres por cada sesion prendida: con 11 sesiones eran
+    ~25 consultas, 2 segundos de cada pasada de la lista. La misma tabla sirve para todas.
+    Devuelve None si no se puede (otra plataforma, otra version de psutil): ahi
+    `_es_del_panel` sigue por el camino de siempre.
+    """
+    try:
+        import psutil
+        return dict(psutil._psplatform.ppid_map())
+    except Exception:
+        return None
+
+
+def _es_del_panel(pid, padres=None):
     """Si ese pid es (o cuelga de) un proceso que dejamos prendido nosotros.
 
     ⚠ Se mira la cadena de padres porque en Windows `claude` es un .cmd: nosotros nos
     quedamos con el pid del .cmd y el que se anota en el registro de Claude Code es el
     del node hijo. Comparando solo el pid de arriba, este filtro no atrapaba ninguno.
+
+    `padres` es la tabla de `_mapa_de_padres()`: quien pregunta por varios la saca una vez
+    y la pasa.
     """
     import psutil
     if pid in PIDS_PANEL:
         return True
+    if padres is not None:
+        for _ in range(3):
+            pid = padres.get(pid)
+            if not pid:
+                return False
+            if pid in PIDS_PANEL:
+                return True
+        return False
     try:
         proc = psutil.Process(pid)
         for _ in range(3):
@@ -94,6 +123,12 @@ def _es_del_panel(pid):
 _VIVAS_FOTO = {"ts": 0.0, "datos": {}}
 _VIVAS_SEG = 1.5
 _vivas_lock = threading.Lock()
+# ⭐ La foto se saca DE A UNA (2026-11-23). El candado de arriba solo cuida el dato: dos
+# hilos que la encontraban vencida la sacaban los dos a la vez, y como sacarla tardaba casi
+# lo mismo que dura (1 s contra 1,5), estaba vencida casi siempre. Con este, el segundo
+# espera a que el primero termine y se lleva la foto de el.
+_vivas_sacando = threading.Lock()
+_VIVAS_OLVIDOS = [0]          # cuantas veces se tiro la foto: para no guardar una vieja
 
 
 def _vivas():
@@ -101,10 +136,18 @@ def _vivas():
     with _vivas_lock:
         if time.time() - _VIVAS_FOTO["ts"] < _VIVAS_SEG:
             return _VIVAS_FOTO["datos"]
-    datos = _vivas_de_verdad()
-    with _vivas_lock:
-        _VIVAS_FOTO["datos"] = datos
-        _VIVAS_FOTO["ts"] = time.time()
+    with _vivas_sacando:
+        with _vivas_lock:         # ¿la saco otro mientras yo esperaba?
+            if time.time() - _VIVAS_FOTO["ts"] < _VIVAS_SEG:
+                return _VIVAS_FOTO["datos"]
+            olvidos = _VIVAS_OLVIDOS[0]
+        datos = _vivas_de_verdad()
+        with _vivas_lock:
+            _VIVAS_FOTO["datos"] = datos
+            # ⚠ Si alguien prendio o apago una sesion MIENTRAS se sacaba, esta foto puede
+            # ser de antes del cambio: se devuelve igual, pero queda marcada como vencida
+            # para que el proximo saque una nueva.
+            _VIVAS_FOTO["ts"] = time.time() if olvidos == _VIVAS_OLVIDOS[0] else 0.0
     return datos
 
 
@@ -113,6 +156,7 @@ def olvidar_vivas():
     esperar hasta 1,5 s para que la pantalla lo refleje."""
     with _vivas_lock:
         _VIVAS_FOTO["ts"] = 0.0
+        _VIVAS_OLVIDOS[0] += 1
 
 
 def _vivas_de_verdad():
@@ -120,6 +164,9 @@ def _vivas_de_verdad():
     resultado = {}
     if not CLAUDE_REGISTRO.is_dir():
         return resultado
+    # Una sola tabla de padres para toda la pasada (ver `_mapa_de_padres`), y solo si hay
+    # con que compararla.
+    padres = _mapa_de_padres() if PIDS_PANEL else None
     for p in CLAUDE_REGISTRO.glob("*.json"):
         try:
             d = json.loads(p.read_text(encoding="utf-8", errors="replace"))
@@ -129,7 +176,7 @@ def _vivas_de_verdad():
         if not sid or not pid:
             continue
         try:
-            if PIDS_PANEL and _es_del_panel(int(pid)):
+            if PIDS_PANEL and _es_del_panel(int(pid), padres):
                 continue          # es un proceso nuestro esperando el proximo mensaje
             if not psutil.pid_exists(int(pid)):
                 continue
@@ -168,25 +215,31 @@ def proyectos():
     return sorted(grupos.values(), key=lambda g: -g["vivas"])
 
 
-_titulos = {}                 # (ruta, mtime) -> titulo, para no releer archivos grandes
+_titulos = {}                 # ruta -> (mtime, titulo), para no releer archivos grandes
+_TITULOS_MAX = 5000
 
 
-def _titulo_de(jsonl):
+def _titulo_de(jsonl, mtime=None):
     """El titulo de la conversacion (el mismo que muestra la pestana de VS Code).
 
     Esta guardado ADENTRO del propio .jsonl, en lineas {"type":"ai-title"}. Cambia
     a lo largo de la charla (esta sesion lleva 223), asi que vale la ULTIMA. Se busca
     de atras para adelante por bloques: los archivos llegan a 8 MB y leerlos enteros
     para sacar un titulo seria pagar el asado para llevarse la servilleta.
+
+    `mtime` es la fecha del archivo si quien llama ya la tiene: mirarla de nuevo cuesta, y
+    la lista de sesiones pasa por aca casi mil veces por pasada.
     """
     ruta = Path(jsonl)
-    try:
-        mtime = ruta.stat().st_mtime
-    except OSError:
-        return None
-    clave = (str(ruta), mtime)
-    if clave in _titulos:
-        return _titulos[clave]
+    if mtime is None:
+        try:
+            mtime = ruta.stat().st_mtime
+        except OSError:
+            return None
+    clave = str(ruta)
+    guardado = _titulos.get(clave)
+    if guardado is not None and guardado[0] == mtime:
+        return guardado[1]
     titulo = None
     try:
         with ruta.open("rb") as f:
@@ -217,10 +270,16 @@ def _titulo_de(jsonl):
     # disco, o el cache no sirve para nada: estaba en 200 con 215 archivos, asi que se
     # vaciaba entero en cada recorrida y los titulos se volvian a leer SIEMPRE — 0,12 s de
     # los 0,18 s que tardaba `listar()`, en cada pedido de la pantalla de sesiones
-    # (2026-08-18). Cada entrada es una ruta y un titulo: 2000 no son nada de memoria.
-    if len(_titulos) > 2000:
-        _titulos.clear()
-    _titulos[clave] = titulo
+    # (2026-08-18).
+    # ⚠⚠ Y NUNCA se vacia entero (2026-11-23). La llave era (ruta, fecha), asi que cada
+    # vez que una charla escribia quedaba una entrada nueva; al pasar el tope se tiraba
+    # TODO y la pasada siguiente releia casi mil archivos: 62 segundos medidos en frio, con
+    # el panel entero esperando detras. Ahora hay UNA entrada por archivo —la fecha va
+    # adentro— y si igual se pasa del tope se tira la mitad mas vieja, no todo.
+    if len(_titulos) >= _TITULOS_MAX and clave not in _titulos:
+        for vieja in list(_titulos)[:_TITULOS_MAX // 2]:
+            _titulos.pop(vieja, None)
+    _titulos[clave] = (mtime, titulo)
     return titulo
 
 
@@ -252,10 +311,14 @@ def sesiones_de(cwd, horas=RECIENTES_HORAS):
     ahora = time.time()
     filas = []
     for p in carpeta.glob("*.jsonl"):
+        # ⭐ La fecha se mira UNA vez por archivo (2026-11-23): antes eran tres (aca, en
+        # `_titulo_de` y en el "ts" de abajo) y entre todas las carpetas sumaban miles de
+        # consultas al disco por pasada.
         try:
-            edad = ahora - p.stat().st_mtime
+            mtime = p.stat().st_mtime
         except OSError:
             continue
+        edad = ahora - mtime
         if edad > horas * 3600:
             continue
         sid = p.stem
@@ -263,7 +326,7 @@ def sesiones_de(cwd, horas=RECIENTES_HORAS):
         # El nombre visible es el TITULO de la conversacion (el de la pestana de
         # VS Code), que vive adentro del propio archivo. El nombre tecnico del
         # registro (wpp-transcriptor-a5) queda de respaldo para las vivas sin titulo.
-        titulo = _titulo_de(p)
+        titulo = _titulo_de(p, mtime)
         if viva:
             nombre = titulo or vivas[sid]["nombre"]
         else:
@@ -276,7 +339,7 @@ def sesiones_de(cwd, horas=RECIENTES_HORAS):
             "detalle": ("activa, " if viva else "guardada, ") + _hace(edad),
             "jsonl": str(p),
             # la fecha cruda, para poder ordenar y filtrar del lado de la pantalla
-            "ts": p.stat().st_mtime,
+            "ts": mtime,
             "_edad": edad,
         })
     filas.sort(key=lambda f: (not f["viva"], f["_edad"]))

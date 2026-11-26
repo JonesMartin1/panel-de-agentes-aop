@@ -257,6 +257,19 @@
     barra:      ['Barra de arriba',       ''],
     pizBarra:   ['Barra de la pizarra',   ''],
   };
+  // ⭐⭐ Cada PIEZA de vidrio de /sesiones con su color (Martín, 2026-11-16, con captura de
+  // la pantalla: "me gustaría poder cambiarle el color a cada tarjeta en este panel"). Hasta
+  // hoy el vidrio tenía UN color para todas las piezas ("Color del vidrio"). Ahora cada una
+  // puede tener el suyo: va adentro de `aspecto.piezas` (un diccionario, como `bloques`) y se
+  // aplica en `--pz-<pieza>`, que la pantalla usa ANTES del vidrio común. Vacío = el de todas.
+  // La barra de arriba ya tenía color propio (la parte `barra`): su fila acá es la misma.
+  const PIEZAS = {
+    riel:  'Las carpetas',
+    lista: 'La lista de charlas',
+    barra: 'La barra de arriba',
+    hoja:  'La charla',
+    caja:  'La caja de escribir',
+  };
   // ⭐⭐ Los BLOQUES del panel principal (2026-08-29, "más colores sobre el panel"): las
   // siete zonas con título. Cinco viven adentro de UNA sola tarjeta, separadas por una
   // línea fina, y dos son tarjetas aparte — por eso se marcan con `data-bloque` en el HTML
@@ -454,12 +467,26 @@
                 // ⭐ El tinte de las letras y de las cajas, y el color de cada bloque del
                 // panel (2026-08-29). Vacío = como siempre. Ver `tenida()` y `BLOQUES`.
                 tintaLetras: '', tintaCajas: '', bloques: {},
+                // ⭐ El color de cada pieza de vidrio de /sesiones (2026-11-16). Vacío = el
+                // vidrio de todas. ⚠ A propósito NO está en `LIMPIO`: cambiar de "Vidrio" a
+                // "Vidrio con bandeja" no te borra los colores que elegiste pieza por pieza.
+                piezas: {},
                 // El estilo puesto y la copia de lo que había antes de aplicarlo, que es
                 // lo que hace posible el "volver a lo mío". Ver `ESTILOS`.
                 estilo: '', previo: null};
   // La foto del escritorio: no es un archivo fijo, es "lo que Windows tenga puesto".
   const FOTO_WINDOWS = '/fondo/windows';
+  // ⭐ La versión de la foto se RECUERDA entre aperturas (2026-11-23). La foto pesa 2 MB y
+  // antes se bajaba dos veces cada vez que abrías la pantalla: una sin versión, para no
+  // esperar, y otra con versión en cuanto el panel decía cuál era. Ahora el primer dibujo
+  // ya sale con la versión de la vez anterior —que el navegador tiene guardada, así que no
+  // baja nada— y solo se pide de nuevo cuando Windows cambió la foto.
+  // La primerísima vez no hay versión guardada: ahí se espera la respuesta (unos bytes)
+  // antes de pedir la foto, en vez de bajarla dos veces. Si el panel no contesta la
+  // versión, se usa la dirección pelada como antes.
   let versionFondo = '';
+  try { versionFondo = localStorage.getItem('aspFondoVersion') || ''; } catch(e){}
+  let fondoPreguntado = false, fondoPidiendo = false;
 
   // ⭐ Lo de fábrica es el estilo Vidrio (2026-11-11, Martín: "cualquier persona que se
   // descargue el panel, el primer tema que le aparezca sea el del vidrio"). `BASE` sigue
@@ -845,8 +872,12 @@
     // elegiste ninguna se muestra la del escritorio, SIN guardarla en tu aspecto: el día
     // que elijas otra, o cambies de estilo, no queda rastro.
     const base = aspecto.img || (deVidrio() ? FOTO_WINDOWS : '');
-    const general = base === FOTO_WINDOWS && versionFondo
-      ? FOTO_WINDOWS + '?v=' + encodeURIComponent(versionFondo) : base;
+    const general = base !== FOTO_WINDOWS ? base
+      : versionFondo ? FOTO_WINDOWS + '?v=' + encodeURIComponent(versionFondo)
+      : (fondoPreguntado ? FOTO_WINDOWS : '');
+    // Recién elegiste la foto del escritorio y todavía no se sabe su versión: se pregunta
+    // ya, sin esperar los cinco minutos del repaso de abajo.
+    if (base === FOTO_WINDOWS && !versionFondo && !fondoPreguntado) mirarFondo();
     const url = fotoPropia || general;
     let velo = (VELOS[aspecto.velo] || VELOS.media)[1];
     // El velo se afloja con Vidrio: los paneles ya oscurecen lo que tienen detrás, y con
@@ -921,6 +952,29 @@
       const g = Math.max(0, Math.min(200, numVd('vdGrano')));
       r.setProperty('--vd-grano', g ? GRANO((.07 * g / 100).toFixed(3)) : 'none');
     } else r.removeProperty('--vd-grano');
+    piezasVidrio(r);
+  }
+  // El color de cada pieza (ver `PIEZAS`). Es el MISMO material que el vidrio común —cuánto
+  // tapa lo decide "Opacidad"—, pero con su color: así una pieza pintada sigue siendo vidrio
+  // y no un bloque de pintura. Sin color elegido la variable NO se define y la pieza usa el
+  // vidrio de todas (mismo criterio que `--barra`).
+  function piezasVidrio(r){
+    const pz = (aspecto.piezas && typeof aspecto.piezas === 'object') ? aspecto.piezas : {};
+    const opElegida = aspecto.vdOpaco !== '' && aspecto.vdOpaco != null;
+    const o = opElegida ? Math.max(0, Math.min(100, numVd('vdOpaco'))) : 20;
+    const fondo = o <= 20 ? 0 : (o - 20) / 80 * 88;
+    const velo = 30 * Math.max(.5, Math.min(1, o / 20));
+    ['riel', 'lista', 'caja'].forEach(k => {
+      const c = pz[k];
+      if (!esLibre(c)) return r.removeProperty('--pz-' + k);
+      r.setProperty('--pz-' + k, 'color-mix(in srgb,' + c + ' ' + velo.toFixed(1) +
+        '%,color-mix(in srgb,var(--fondo) ' + fondo.toFixed(1) + '%,transparent))');
+    });
+    if (esLibre(pz.hoja)){
+      const hoja = o <= 20 ? 10 + 40 * o / 20 : 50 + 45 * (o - 20) / 80;
+      r.setProperty('--pz-hoja', 'color-mix(in srgb,color-mix(in srgb,' + pz.hoja +
+        ' 35%,var(--fondo)) ' + hoja.toFixed(1) + '%,transparent)');
+    } else r.removeProperty('--pz-hoja');
   }
 
   function aplicar(){
@@ -1253,7 +1307,9 @@
                      // elección se pierde en el próximo F5 sin que nada lo diga.
                      || !('botones' in guardado)
                      // ⚠ Y el material del vidrio (2026-11-10): solo cuenta lo que elegiste.
-                     || VD_CAMPOS.some(k => aspecto[k] && !(k in guardado));
+                     || VD_CAMPOS.some(k => aspecto[k] && !(k in guardado))
+                     // ⚠ Y el color de cada pieza (2026-11-16).
+                     || (Object.keys(aspecto.piezas || {}).length > 0 && !('piezas' in guardado));
         const cartel = document.getElementById('aspectoViejo');
         if (cartel) cartel.style.display = (panelViejo && hayPartes()) ? '' : 'none';
       })
@@ -1268,7 +1324,7 @@
     Object.keys(aspecto.bloques || {}).length > 0 ||
     // El tamaño de los botones, si está elegido algo que no sea lo de siempre.
     (aspecto.botones && aspecto.botones !== 'normal') || aspecto.botonesZoom === 'fijo' ||
-    VD_CAMPOS.some(k => aspecto[k]);
+    VD_CAMPOS.some(k => aspecto[k]) || Object.keys(aspecto.piezas || {}).length > 0;
 
   // Lo que un estilo pisa, y por lo tanto lo único que hay que guardar para poder volver.
   // ⚠⚠ Guardar el aspecto ENTERO sería el camino corto y estaría mal: adentro está `img`,
@@ -1936,7 +1992,20 @@ html.tema-claro .menu-pantallas.mini .todo a.aca{background:#16263a;border-color
             '<input type="color" class="rueda" id="aspRuedaVd" value="' +
             (tinteVd() || '#8fb4e0') + '"></span>' +
         '</div>' +
-        deslizador('vdBrillo') + deslizador('vdGrano')) +
+        deslizador('vdBrillo') + deslizador('vdGrano') +
+        // ⭐ Cada pieza con su color (2026-11-16). La rueda arranca en el color que esa pieza
+        // tiene hoy (el del vidrio de todas, o el que le pusiste), y el ↺ la devuelve.
+        '<div class="rub">Color de cada pieza</div>' +
+        Object.keys(PIEZAS).map(k => {
+          const puesto = k === 'barra' ? esLibre(aspecto.barra) : esLibre((aspecto.piezas || {})[k]);
+          const actual = k === 'barra' ? colorParte('barra')
+                       : (puesto ? aspecto.piezas[k] : (tinteVd() || '#8fb4e0'));
+          return '<div class="parte' + (puesto ? ' puesto' : '') + '" data-pz="' + k + '">' +
+            '<span class="nom">' + esc(PIEZAS[k]) + '</span>' +
+            (puesto ? '<span class="quitar" title="Volver al vidrio de todas">↺</span>' : '') +
+            '<span class="ruedaCaja' + (puesto ? ' sel' : '') + '">' +
+              '<input type="color" class="rueda" data-pz-rueda="' + k + '" value="' + actual + '"></span></div>';
+        }).join('')) +
       seccion('fondo', 'Fondo',
       // ⭐ El fondo: los cinco de siempre y, al lado, la rueda para cualquier otro color.
       // Va última en la fila y no primera a propósito: los cinco están pensados (los tres
@@ -2020,6 +2089,25 @@ html.tema-claro .menu-pantallas.mini .todo a.aca{background:#16263a;border-color
       };
       rd.oninput  = () => { poner(rd.value); aplicar(); };
       rd.onchange = () => { poner(rd.value); aplicar(); guardar(); pintarPanel(); };
+    });
+    // Las ruedas de cada pieza de vidrio: viven en `aspecto.piezas`, salvo la barra de arriba,
+    // que es la parte `barra` de siempre (una sola elección para el mismo lugar).
+    panel.querySelectorAll('.rueda[data-pz-rueda]').forEach(rd => {
+      const k = rd.dataset.pzRueda;
+      const poner = v => {
+        if (k === 'barra') aspecto.barra = v;
+        else aspecto.piezas = Object.assign({}, aspecto.piezas, {[k]: v});
+      };
+      rd.oninput  = () => { poner(rd.value); aplicar(); };
+      rd.onchange = () => { poner(rd.value); aplicar(); guardar(); pintarPanel(); };
+    });
+    panel.querySelectorAll('.parte[data-pz] .quitar').forEach(q => {
+      q.onclick = () => {
+        const k = q.parentElement.dataset.pz;
+        if (k === 'barra') aspecto.barra = '';
+        else { const p = Object.assign({}, aspecto.piezas); delete p[k]; aspecto.piezas = p; }
+        aplicar(); guardar(); pintarPanel();
+      };
     });
     panel.querySelectorAll('.parte[data-bloq] .quitar').forEach(q => {
       q.onclick = () => {
@@ -2195,9 +2283,24 @@ html.tema-claro .menu-pantallas.mini .todo a.aca{background:#16263a;border-color
   // de Windows es de horas (pedido de Martín, 2026-08-18).
   function mirarFondo(){
     if (aspecto.img !== FOTO_WINDOWS && !(deVidrio() && !aspecto.img)) return;
+    if (fondoPidiendo) return;
+    fondoPidiendo = true;
+    // Contestó (o falló) por primera vez y seguimos sin versión: se dibuja igual, con la
+    // dirección pelada. Sin esto, un panel que no sabe la versión dejaría la pantalla sin foto.
+    const sinVersion = () => {
+      fondoPidiendo = false;
+      const primera = !fondoPreguntado;
+      fondoPreguntado = true;
+      if (primera && !versionFondo) aplicar();
+    };
     fetch('/fondo/windows/version').then(r => r.json()).then(d => {
-      if (d && d.v && d.v !== versionFondo){ versionFondo = d.v; aplicar(); }
-    }).catch(() => {});
+      if (d && d.v && d.v !== versionFondo){
+        fondoPidiendo = false; fondoPreguntado = true;
+        versionFondo = d.v;
+        try { localStorage.setItem('aspFondoVersion', d.v); } catch(e){}
+        aplicar();
+      } else sinVersion();
+    }).catch(sinVersion);
   }
   mirarFondo();
   setInterval(mirarFondo, 5 * 60 * 1000);

@@ -273,6 +273,35 @@ INVARIANTES = [
                      "        pass\n"),
     },
     {
+        "clave": "remota-no-arranca-local",
+        "titulo": "Una charla de otra maquina nunca levanta un `claude` en esta",
+        "por_que": ("Las charlas que corren en un servidor (2026-11-16) se ven en el riel "
+                    "porque su transcripcion se COPIA a esta maquina. Un `claude --resume` "
+                    "local sobre esa copia correria con la cuenta de aca —que puede no ser "
+                    "la de alla— y partiria la charla en dos sin avisar. Por eso el mensaje "
+                    "se desvia en `mandar` antes de mirar el cerebro, y `_arrancar_viva` se "
+                    "niega antes de armar nada: es el unico lugar por el que pasan compactar, "
+                    "bifurcar y cambiar de modelo. Se prueba de verdad en "
+                    "pruebas/probar_remotas.py."),
+        "archivos": ["app/voz/sesiones_movil.py"],
+        "mira": lambda t: (
+            antes_que(cuerpo(t["app/voz/sesiones_movil.py"], "def _arrancar_viva("),
+                      "if remotas.es_de_otra_maquina(cwd, sid, desde):", "navegador_de(cwd)")
+            or antes_que(cuerpo(t["app/voz/sesiones_movil.py"], "def mandar("),
+                         "if remotas.destino(cwd, sid, cerebro) is not None:", "es_codex(sid)")),
+        "mutacion": [
+            # Mirar solo la carpeta, como al principio: desde que las charlas remotas
+            # conviven con las comunes en un mismo proyecto, eso deja pasar a todas.
+            ("app/voz/sesiones_movil.py",
+             '    if remotas.es_de_otra_maquina(cwd, sid, desde):\n',
+             '    if remotas.es_remota(cwd):\n'),
+            ("app/voz/sesiones_movil.py",
+             '    if remotas.destino(cwd, sid, cerebro) is not None:\n'
+             '        return remotas.mandar(cwd, sid, texto, al_nacer=al_nacer, cerebro=cerebro)\n',
+             ''),
+        ],
+    },
+    {
         "clave": "reinicio-espera-a-las-que-trabajan",
         "titulo": "El boton ⟳ no reinicia el panel con una charla a mitad de turno",
         "por_que": ("Reiniciar con un turno en curso deja a ese proceso solo: no puede pedir "

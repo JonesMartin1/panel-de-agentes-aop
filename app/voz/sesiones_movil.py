@@ -33,7 +33,7 @@ from app.rutas import (CLAUDE_PROYECTOS, CARPETAS_SESIONES, AJUSTES_SESIONES,
                        NOMBRES_SESIONES, SUBPROYECTOS_SESIONES, FRENO_AGENTES,
                        PROYECTOS_CONFIABLES, CERT_NODE_CODEX, CERT_BUNDLE_CODEX,
                        ASPECTO_CARPETAS, CHROME_EXE, CHROME_EXE_X86, FOTOS_PASOS)
-from app.voz import almacen_chrome, seguir
+from app.voz import almacen_chrome, remotas, seguir
 from app.voz.prompt_master_auto import INSTRUCCION as PROMPT_MASTER_AUTO, argumento_codex
 
 # ⚠ Esto es SILENCIO, no duracion del turno. Hasta el 2026-08-19 era un presupuesto de
@@ -1638,6 +1638,16 @@ def _arrancar_viva(cwd, sid, modelo, esfuerzo, modo="", desde=""):
     sigue la conversacion con un id nuevo y deja la original intacta (medido con
     `pruebas/sonda_bifurcar.py`, 2026-09-27).
     """
+    # ⭐⭐ Una charla de OTRA maquina no se levanta aca, nunca (2026-11-16). Lo que hay en
+    # el disco es una COPIA de su transcripcion: un `claude --resume` local sobre esa copia
+    # correria con la cuenta de ESTA maquina y partiria la charla en dos, una aca y otra
+    # alla. Va antes de todo lo demas para que ningun camino (compactar, bifurcar, cambiar
+    # el modelo) llegue a lanzar nada. Se mira la carpeta, la charla y la que se quiere
+    # copiar: desde que conviven con las comunes en el mismo proyecto, la carpeta sola no
+    # alcanza. Regla `remota-no-arranca-local`.
+    if remotas.es_de_otra_maquina(cwd, sid, desde):
+        raise RuntimeError("Esa charla corre en otra máquina: desde acá solo se le puede "
+                           "escribir.")
     # ⭐ El navegador del proyecto (2026-08-28). Si la carpeta declaro un perfil, esta
     # sesion puede manejar ESE Chrome; si no, el comando queda EXACTAMENTE como antes.
     # No hay perilla por charla a proposito, igual que en Codex: el campo de la carpeta
@@ -2056,6 +2066,19 @@ def listar():
     except Exception:
         pass
 
+    # Las carpetas de OTRAS maquinas (2026-11-16): van siempre, aunque todavia no tengan
+    # ni una charla copiada, por lo mismo que las que sumaste a mano.
+    try:
+        for ruta in remotas.carpetas():
+            if str(seguir.carpeta_de(ruta)).lower() in vistos:
+                continue
+            vistos.add(str(seguir.carpeta_de(ruta)).lower())
+            salida.append({"proyecto": Path(ruta).name, "cwd": str(ruta), "vivo": False,
+                           "manual": True,
+                           "sesiones": con_estado(ruta, seguir.sesiones_de(ruta, horas=HORAS_ATRAS)[:POR_PROYECTO])})
+    except Exception as e:
+        print("remotas: no pude sumar las carpetas de otras maquinas:", e, flush=True)
+
     # el ultimo usado primero: es lo que uno busca cuando abre la lista
     for carpeta in sorted(guardados, key=lambda c: -c.stat().st_mtime)[:MAX_PROYECTOS]:
         cwd = _cwd_de_carpeta(carpeta)
@@ -2082,6 +2105,12 @@ def listar():
             continue
         ya.add(_plana(p["cwd"]))
         unicos.append(p)
+    # A las de otra maquina se les pega con que CUENTA corren: es lo que la pantalla
+    # dibuja como chapa. A las demas no les toca nada.
+    try:
+        remotas.marcar(unicos)
+    except Exception as e:
+        print("remotas: no pude marcar las cuentas:", e, flush=True)
     return unicos
 
 
@@ -2990,9 +3019,9 @@ TOOLS = ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "TodoWrite",
 # pantalla de sesiones entre rapido: `listar()` llama a `novedad()` por CADA conversacion
 # (74 el 2026-08-18) y cada llamada lee 200 KB, o sea ~15 MB de disco en cada pedido — y
 # la pantalla lo pide al entrar y despues cada 20 segundos, desde cada pestaña abierta.
-# La clave lleva el mtime Y el tamaño: si el archivo cambio, la respuesta se recalcula
+# Cada entrada guarda el mtime Y el tamaño: si el archivo cambio, la respuesta se recalcula
 # sola; si no cambio, la respuesta NO PUEDE haber cambiado.
-_NOVEDADES = {}
+_NOVEDADES = {}               # ruta -> ((mtime, tamaño), (quien, cuando))
 
 
 def novedad(cwd, sid, cola=200_000):
@@ -3014,10 +3043,11 @@ def novedad(cwd, sid, cola=200_000):
         est = jsonl.stat()
     except OSError:
         return None, 0
-    clave = (str(jsonl), est.st_mtime, est.st_size)
+    clave = str(jsonl)
+    version = (est.st_mtime, est.st_size)
     guardado = _NOVEDADES.get(clave)
-    if guardado is not None:
-        return guardado
+    if guardado is not None and guardado[0] == version:
+        return guardado[1]
     try:
         tam = est.st_size
         with open(jsonl, "rb") as f:
@@ -3034,12 +3064,16 @@ def novedad(cwd, sid, cola=200_000):
                     quien = "vos"
             elif seguir._texto_de(linea):
                 quien = "claude"
-        # Que el cache no crezca para siempre: cada version de cada archivo deja una
-        # entrada, asi que en una charla larga se juntan muchas. Mismo criterio que
-        # `_titulos` en seguir.py.
-        if len(_NOVEDADES) > 500:
-            _NOVEDADES.clear()
-        _NOVEDADES[clave] = (quien, est.st_mtime)
+        # ⚠⚠ UNA entrada por archivo, con su version adentro (2026-11-23). Antes la llave
+        # era (ruta, fecha, tamaño): cada vez que una charla escribia quedaba una entrada
+        # mas, y al pasar de 500 se vaciaba TODO — con 330 charlas en la lista eso pasaba
+        # cada pocos minutos, y la pasada siguiente releia 200 KB de cada una (4 segundos
+        # medidos). Mismo criterio que `_titulos` en seguir.py: si se pasa del tope se
+        # tira la mitad mas vieja, nunca todo.
+        if len(_NOVEDADES) >= 5000 and clave not in _NOVEDADES:
+            for vieja in list(_NOVEDADES)[:2500]:
+                _NOVEDADES.pop(vieja, None)
+        _NOVEDADES[clave] = (version, (quien, est.st_mtime))
         return quien, est.st_mtime
     except Exception:
         return None, 0
@@ -3820,6 +3854,13 @@ def mandar(cwd, sid, texto, modelo="", cerebro="", esfuerzo="", velocidad="",
     if motivo:
         raise RuntimeError("Los agentes están frenados: " + motivo)
     texto = _saltos_limpios(texto)
+    # ⭐ Si la charla es de OTRA maquina, el turno corre ALLA (2026-11-16): viaja por SSH
+    # y aca no se arranca nada. Lo es por su id (el registro), por la carpeta (el cajon de
+    # arena de esa maquina) o porque la pantalla pidio que NAZCA alla ("servidor:<nombre>"
+    # en `cerebro`). Va antes de mirar el cerebro, y si no se puede resolver sale como
+    # error: caer al camino de abajo seria arrancarla aca. Ver `app/voz/remotas.py`.
+    if remotas.destino(cwd, sid, cerebro) is not None:
+        return remotas.mandar(cwd, sid, texto, al_nacer=al_nacer, cerebro=cerebro)
     if (sid and es_codex(sid)) or (not sid and cerebro == "codex"):
         # Una skill instalada del lado de Claude tiene que estar para Codex sin tocar
         # nada (pedido del 2026-09-30). Barato: compara dos carpetas. Si falla, el
