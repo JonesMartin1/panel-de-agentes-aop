@@ -19,6 +19,63 @@ nada a internet (paso 8b).
 
 ---
 
+## Cómo se usa, en videos
+
+Siete videos cortos, de menos de un minuto cada uno y con voz, que muestran el panel andando.
+Si recién llegás, mirá primero el 1 y después el que te sirva. Los datos que se ven son **de
+ejemplo** (una tienda online, una app de turnos, la web de un estudio): así se ve tu panel
+cuando ya lo tenés instalado y con tus proyectos adentro.
+
+### 1. Recorrido por el panel
+
+El menú de arriba y para qué sirve cada pantalla: el inicio, las sesiones, la pizarra, el
+estudio de audios y los avisos.
+
+https://github.com/user-attachments/assets/c426ed03-6b99-4be3-8273-0aeb8f99fab0
+
+### 2. La pantalla de inicio y Laura
+
+Las luces que dicen si cada servicio está prendido, cómo pausar la escucha (para una llamada,
+por ejemplo) y cómo escribirle a Laura en vez de hablarle.
+
+https://github.com/user-attachments/assets/12d24d2c-c1eb-4a60-93a6-ee40ac56c5f8
+
+### 3. Hablar con una sesión de Claude
+
+Abrís una charla, le pedís un cambio, la ves trabajar paso a paso y leés lo que hizo.
+
+https://github.com/user-attachments/assets/7a56178a-8b73-4f9b-a77d-a3ab73700a80
+
+### 4. Herramientas de una charla
+
+Cambiar de carpeta y de proyecto, filtrar las charlas que te esperan, elegir modelo y
+esfuerzo, compactar una charla larga, usar las skills y abrir la columna de la derecha.
+
+https://github.com/user-attachments/assets/072ee1ad-f19d-4aa1-b546-99f7761b787e
+
+### 5. La pizarra
+
+Crear un papelito, escribirle, moverlo y cambiarle el color. Es la misma pizarra que Laura
+llena cuando le decís "anotá esto".
+
+https://github.com/user-attachments/assets/5a75b84b-4cbe-452e-9fe5-8b69a334f848
+
+### 6. El estudio de audios
+
+Los audios que te llegaron, ya pasados a texto: buscar por lo que dicen, armar una fila de
+audio, analizarlos y pasarle uno a una sesión para que trabaje con él.
+
+https://github.com/user-attachments/assets/79f058ba-8433-4e76-96fd-ea1a2f9072a1
+
+### 7. Desde el celular
+
+Lo mismo con el dedo: ver si Laura te escucha, entrar a una sesión, escribirle y usar la
+pizarra.
+
+https://github.com/user-attachments/assets/87c2faef-de20-4b86-9814-35b6ec346beb
+
+---
+
 ## Instalación paso a paso
 
 Son unos 30-40 minutos, casi todo esperando descargas. Andá en orden: cada paso termina con
