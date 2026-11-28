@@ -1,21 +1,24 @@
 # Panel de agentes AOP
 
-**AOP = Agent Orchestrator Panel**: un panel para orquestar agentes de IA (Claude Code y
-Codex) desde tu propia PC, con transcriptor de WhatsApp y Telegram y asistente de voz.
+**AOP = Agent Orchestrator Panel**: un panel para orquestar agentes de IA (Claude, GPT,
+Cursor y Grok Bot) desde tu propia PC, con transcriptor de WhatsApp y Telegram y asistente de voz.
 
 Dos cosas en una, corriendo en tu PC:
 
 1. **Transcriptor**: le mandás audios o videos (por Telegram, WhatsApp o arrastrándolos) y te
    devuelve el texto y un resumen. La transcripción se hace **en tu placa de video**: el audio
    no se sube a ningún servicio.
-2. **Asistente de voz**: decís "Venus" y le pedís cosas a la PC (abrir programas, poner música,
-   dictar donde esté el cursor), o decís "Laura" y charlás con Claude o ChatGPT por voz.
+2. **Asistente de voz**: decís "Laura" y le pedís cosas a la PC (abrir programas, poner música,
+   dictar donde esté el cursor) o charlás con Claude o ChatGPT por voz.
 
 Todo se maneja desde un panel web en `http://localhost:8750`, y **también desde el
 celular**: una pantalla pensada para el teléfono donde seguís y le escribís a tus sesiones de
 Claude y Codex, hablás con Laura, ves si algo se cayó y usás la pizarra con el dedo. Funciona
 desde cualquier lado, por una red privada entre tu PC y tu teléfono (Tailscale), sin abrir
 nada a internet (paso 8b).
+
+El panel habla con cuatro cerebros: **Claude**, **GPT** (Codex), **Cursor** y **Grok Bot**.
+Cómo se conecta cada uno está en el paso 9.
 
 ---
 
@@ -217,7 +220,7 @@ Dejá esa ventana abierta (si la cerrás, se apaga todo) y abrí en Chrome
 
 1. Tocá **Probar micrófono** y hablá: te tiene que dar un veredicto.
 2. Prendé **Voz**. Tarda unos 20 segundos; cuando está lista dice *"Listo, te escucho"*.
-3. Decí **"Venus, qué hora es"**.
+3. Decí **"qué hora es"**.
 
 **Anduvo si** te contesta la hora en voz alta.
 
@@ -256,26 +259,114 @@ para cualquiera, y desde el panel se le puede pedir a Laura que ejecute cosas en
 **Anduvo si** con el wifi apagado, solo con datos, la app del celular abre y muestra el
 estado de los servicios.
 
-### 9. Hablar con Laura (Claude o ChatGPT) — opcional
+### 9. Cómo ocupar el panel
 
-Para Claude:
+Abrí <http://localhost:8750> con el panel prendido. Ahí están las piezas:
+
+- **Inicio.** Prende y apaga los servicios, el micrófono y la voz. Abajo está el chat
+  con Laura y el selector del cerebro con el que piensa (Claude, Codex o Cursor).
+- **Sesiones** (`/sesiones`). Las charlas, una por pestaña. En cada una, el botón
+  **Ajustes** elige el cerebro y el modelo. Una charla nueva nace con el cerebro que
+  elijas ahí. Una charla que ya existe no cambia de cerebro: abrí otra.
+- **Celular** (`/movil`, por Tailscale, paso 8b). Lo mismo, con el dedo.
+- **Pizarra** (`/pizarra`). Papelitos en la pantalla.
+
+Laura es la voz. Decís **«Laura»** y le hablás. Cada cerebro se acuerda de su propia
+charla: pasar de uno a otro no mezcla las conversaciones.
+
+#### Claude
+
+Es el cerebro de fábrica.
 
 ```powershell
 npm install -g @anthropic-ai/claude-code
 claude
 ```
 
-La primera vez te abre el navegador para iniciar sesión con tu cuenta de Claude. Cuando
-entres, escribí `/exit`.
+La primera vez se abre el navegador para entrar con tu cuenta de Claude. Cuando
+entraste, escribí `/exit`.
 
-Para ChatGPT, lo mismo con `npm install -g @openai/codex` y `codex login`.
+En el `.env`, `CLAUDE_VOZ_MODO=lectura` hace que solo lea y busque. `completo` le
+deja escribir archivos y ejecutar comandos. Empezá en lectura hasta que te sientas
+cómodo.
 
-En el `.env`, `CLAUDE_VOZ_MODO=lectura` hace que Laura solo **lea y busque**. Con
-`completo` también puede escribir archivos y ejecutar comandos en tu PC: cambialo solo cuando
-te sientas cómodo.
+En Sesiones, una charla nueva ya nace en Claude. Por voz: **«volve a Claude»**.
 
-**Anduvo si** después de reiniciar la Voz desde el panel, "Laura, contame un chiste" te
-contesta.
+**Anduvo si**, con la Voz prendida, «Laura, contame un chiste» te contesta.
+
+#### GPT
+
+GPT entra por Codex, el programa de OpenAI.
+
+```powershell
+npm install -g @openai/codex
+codex login
+```
+
+En Sesiones, abrí una charla nueva, Ajustes, cerebro **Codex**, y elegí el modelo
+GPT. Por voz: **«Laura, pasate a GPT»** o **«pasate a Codex»**.
+
+**Anduvo si** el cartel de la charla dice Codex y te contesta.
+
+#### Cursor
+
+Cursor corre en esta misma PC, con los modelos de tu cuenta (Grok 4.7 High,
+Composer 2.5 Fast, y el resto). La clave se crea en el sitio de Cursor, menú
+**API keys** (no en Integrations). Pegala en el `.env`:
+
+```
+CURSOR_API_KEY=tu_clave
+```
+
+Reiniciá el panel y volvé a prender la Voz. En Sesiones, charla nueva, cerebro
+**Cursor**, y en Modelo elegís el nombre tal cual lo ves en Cursor. Por voz:
+**«Laura, pasate a Cursor»**.
+
+**Anduvo si** el cartel dice Cursor y el nombre del modelo, y un mensaje de esa
+charla te contesta.
+
+#### Grok Bot
+
+Grok Bot (en este proyecto se llama Aura) corre en la nube. No ve tu PC. Le
+pide trabajo al panel, el panel lo hace acá con Claude, GPT o Cursor, y la
+respuesta le vuelve.
+
+La puerta es solo `/aura/`. El resto del panel no se publica. Sin clave, esa
+puerta está apagada.
+
+1. Creá la clave de entrada. Queda en `C:\Users\tu-usuario\.claude\grokbot.json`
+   y también en el portapapeles. No la pegues en un chat.
+
+   ```powershell
+   python -m app.ingesta.aura --preparar
+   ```
+
+2. Publicá **solo** esa puerta, por ejemplo con un túnel de Cloudflare cuya
+   regla sea `^/aura/`. Anotá la dirección pública (algo como
+   `https://tu-tunel.ejemplo`) en `url_publica` de ese mismo archivo.
+
+3. En el chat de Grok Bot, pedile que cree una rutina por webhook. Te da una
+   dirección y una clave. Ponelas en `webhook_url` y `webhook_key`.
+
+4. Decile la dirección del paso 2 y la clave del paso 1. Desde entonces puede
+   pedir así (el `id` del modelo sale de la lista, no se inventa):
+
+   - `GET /aura/modelos` con el encabezado `Authorization: Bearer <clave>`
+     devuelve los modelos de Cursor, con el mismo nombre que en el menú.
+   - `POST /aura/mandar` con ese encabezado y un JSON
+     `{"texto": "el pedido", "cerebro": "cursor", "modelo": "<id>"}`.
+     `cerebro` puede ser `claude`, `codex` o `cursor`. Sin `cerebro`, usa Claude.
+   - La respuesta llega a la rutina del paso 3. Si todavía no está, se lee con
+     `GET /aura/trabajo/<id>`.
+
+Desde una charla del panel también podés mandarle un encargo a ella:
+
+```powershell
+python -m app.ingesta.aura "el pedido, completo"
+```
+
+**Anduvo si** un pedido de prueba vuelve con respuesta y no hace falta abrir
+el panel entero a internet.
 
 ### 10. Mandarle audios por Telegram — opcional
 
@@ -473,7 +564,7 @@ una RTX 4070 de 8 GB: las rutas `D:\IA\...` que aparecen son las de esa máquina
 Dos grandes piezas que conviven:
 
 1. **Transcriptor de WhatsApp/Telegram**: recibe audios y videos, los transcribe con Whisper local (GPU) y los analiza con Gemini.
-2. **Asistente de voz** ("Venus" y "Laura"): manos libres estilo Alexa para controlar la PC, dictar texto y conversar con Claude.
+2. **Asistente de voz** ("Laura"): manos libres estilo Alexa para controlar la PC, dictar texto y conversar con Claude.
 
 > Entorno Python: el conda `wpp` de la instalación. GPU CUDA para Whisper `turbo`.
 > Si tu red intercepta HTTPS (antivirus, proxy): conda/pip/Python necesitan el cert store de Windows (`truststore` / `--trusted-host`).
@@ -494,7 +585,7 @@ Dos grandes piezas que conviven:
 
 ### ⏸ Pausar escucha (para llamadas, Discord o jugar)
 
-En la tarjeta de Voz hay un botón **"Pausar escucha"**. Deja de escuchar "Venus"/"Laura"
+En la tarjeta de Voz hay un botón **"Pausar escucha"**. Deja de escuchar "Laura"
 pero **no descarga los modelos**, así que pausar y volver son **instantáneos** — contra los
 ~20 s que tarda prender la voz de cero. **F9 y los atajos siguen funcionando.**
 
@@ -518,9 +609,8 @@ para que no se autodispare con la conversación ni le pelee la GPU al juego.
 
 ## El asistente de voz (`voz.py`)
 
-- **Wake words**: **"Venus"** = asistente local (comandos y respuestas rápidas con Gemini) · **"Laura"** = Claude Code por voz (modo completo: puede leer/escribir archivos y ejecutar comandos, con confirmación hablada antes de tocar nada).
-- **Teclas**: `F9` dicta donde esté el cursor · `Shift+F9` asistente · `Ctrl+F9` Claude.
-- **Venus**: un comando por vez (así lo quiere Martín). "Venus, escribí/anotá..." = dictado manos libres. Números solos = cambiar de escritorio. Al captar lo que dijiste responde **"Ok"** (no tocar, así lo quiere).
+- **Palabra clave**: **"Laura"** abre la charla por voz (puede leer y escribir archivos y ejecutar comandos, con confirmación hablada antes de tocar nada).
+- **Teclas**: `F9` dicta donde esté el cursor · `Ctrl+F9` abre a Laura sin decir el nombre.
 - **Laura no dice nada al captar.** El "Entiendo." se sacó el 2026-08-10: la música de espera ya avisa que está trabajando, y encima `winsound` reproduce de a uno, así que la música se lo cortaba a mitad de palabra. Para volver a activarlo, buscar `ENTIENDO_TEXTO` en `app/voz/voz.py`.
 - **Laura**: conversacional (tras responder te da **4 s para empezar a hablar** — `SEGUIMIENTO` —, hasta 25 idas y vueltas sin volver a nombrarla). Una vez que arrancaste, tu turno lo cierran `SIL_CORTE` (2,5 s de silencio) y `MAX_CLAUDE` (45 s de tope): bajar `SEGUIMIENTO` no te corta al medio de una frase. La cola que se siente son ~5 s: 0,35 de margen + los 4 s + el aviso "Cierro" (~0,7 s). Si molesta, lo que queda por sacar es el aviso, no el número. Interrupción real por voz: "pará / basta / cortala / stop". Música de espera suave mientras piensa (`musica_espera.wav`). **Si terminás haciendo otra cosa mientras ella trabaja, espera un silencio y anuncia "Laura terminó. ..."** (no se descarta el trabajo largo). Tope por tarea: 10 min.
 - **Sesión de Laura**: proceso `claude` persistente (stream-json, ~3 s por turno) + sesión guardada en `claude_sesion.json` — sobrevive reinicios. "Olvidate" archiva la actual y arranca otra.
@@ -571,23 +661,12 @@ Las sesiones de Laura son chicas (contesta en dos frases: ~4.000 tokens un día 
 
 Y `GRACIA_CORTE` (30 min): si venías hablando hace un rato, **no te interrumpe** con la
 pregunta del día aunque el reloj haya cruzado las 13:00. Espera un hueco de verdad.
-- **Modelos**: Whisper `turbo` en CUDA para transcribir; wake word con `tiny` en **CPU** int8 (inmune a la GPU cargada, ~0,5 s constante).
+- **Modelos**: Whisper `turbo` en CUDA para transcribir; la palabra clave con `tiny` en **CPU** int8 (inmune a la GPU cargada, ~0,5 s constante).
 
-### 📱 WhatsApp: "Venus, WhatsApp"
+### 🎵 Spotify: poner una canción
 
-Trae la ventana de WhatsApp **al escritorio virtual que estás mirando** y la pone al
-frente (con `pyvda`, el mismo que cambia de escritorio). Si no está abierto, lo abre
-(protocolo `whatsapp:`). El detalle importante: si WhatsApp quedó en otro escritorio,
-**la ventana viene a vos** — no te saltea a vos al escritorio de ella, que es lo que
-hace Windows si la activás por la barra de tareas. También entra por "abrí/traeme/poné
-el whatsapp". "Mandale un whatsapp a Juan" NO dispara esto: eso sigue siendo charla
-para Laura. Casos en `pruebas/test_ruteo_whatsapp.py` — correr eso si se toca el orden
-de `COMANDOS` en `app/voz/acciones.py`.
-
-### 🎵 Spotify: "Venus, poné tal canción"
-
-Busca y reproduce con la **API oficial** (`app/voz/spotify.py`), no automatizando la
-ventana: pone la canción exacta en ~1 s sin depender del foco. **Necesita Premium** —
+Laura la pone con la **API oficial** (`app/voz/spotify.py`), no automatizando la
+ventana: la canción exacta en ~1 s sin depender del foco. **Necesita Premium** —
 los endpoints de reproducción de la API son solo Premium.
 
 Setup, una sola vez (ver el encabezado de `app/voz/spotify.py`):
@@ -598,7 +677,7 @@ Setup, una sola vez (ver el encabezado de `app/voz/spotify.py`):
 3. `python -m app.voz.spotify --autorizar` → se abre el navegador, aceptás, y el token
    queda en `spotify_token.json` (fuera de git). El access token se renueva solo, pero
    ⚠ el dashboard marca **"Refresh Token Lifetime: 180 days"**: cada ~180 días hay que
-   volver a correr `--autorizar`. Si Venus dice "no pude renovar el token de Spotify",
+   volver a correr `--autorizar`. Si la voz dice "no pude renovar el token de Spotify",
    es eso — no está roto, se venció la autorización.
 4. Probar sin la voz: `python -m app.voz.spotify "californication"`.
 
@@ -679,7 +758,7 @@ sesiones de programación.
    (`REARMAR_PORCENTAJE`), para que un cupo en el filo no te avise diez veces.
 2. **Cuando se agota**, en vez de "No pude hablar con Claude": dice que fue el cupo, **no
    reintenta** (reintentar un límite es regalar 10 s para fallar igual) y te recuerda que
-   Venus sigue andando.
+   la voz sigue andando.
 
 ⚠ **Cómo calibrarlo** (hace falta una vez): `/usage` en Claude Code y comparar con
 `python -m app.voz.cupo`. El límite del plan **no está en el disco** — `.credentials.json`
@@ -695,12 +774,12 @@ trae qué plan tenés, nada del consumo. Los `LIMITE_*` están arriba de `cupo.p
   mandando eventos por el stream, así que si no llega **ninguno** está colgada. Bajar el
   total rompería los refactors largos; esto corta los cuelgues sin tocarlos.
 
-### 🔊 Lectura automática: Venus te lee las respuestas de una sesión de Claude Code
+### 🔊 Lectura automática: la voz te lee las respuestas de una sesión de Claude Code
 
 En el panel hay un selector **proyecto → sesión**. Elegís una, apretás "Leer esta", y
 cada respuesta que esa sesión termine se lee en voz alta — sin pedirle "leeme" cada vez.
 **Una sola sesión a la vez** (el parlante tiene un solo dueño): elegir otra suelta la
-anterior. Se apaga con el botón o por voz: **"Venus, dejá de leer"**.
+anterior. Se apaga con el botón o por voz: **"dejá de leer"**.
 
 Cómo funciona: todo Claude Code escribe su conversación EN VIVO en un `.jsonl` (carpetas
 en `CLAUDE_PROYECTOS`, registro de sesiones vivas con nombre en `CLAUDE_REGISTRO`).
@@ -722,24 +801,24 @@ espera-de-hueco de los avisos del sistema: no te pisa, no habla en pausa.
   el resto "queda en pantalla". Cortás con "pará", como siempre.
 - Hay 6 casos en `pruebas/test_seguir.py` — correr eso si se toca el extractor.
 
-### ✏️ Escribir en sesión: "Venus, escribí en la sesión del disco: ..."
+### ✏️ Escribir en sesión: "escribí en la sesión del disco: ..."
 
 La ida del círculo (la lectura automática es la vuelta): dictás y el texto aterriza en
 la sesión de Claude Code que elijas. **El destino es UNA perilla con dos manos**: el
 selector del panel o la voz — cualquiera de los dos lo cambia (`escribir_en.json`), y
 el panel lo refleja solo.
 
-Formas de usarlo (⭐ regla 2026-08-11: **"Venus, escribí" va SIEMPRE a la sesión
+Formas de usarlo (⭐ regla 2026-08-11: **"escribí" va SIEMPRE a la sesión
 elegida** — para dictar donde esté el cursor está F9, que no cambió):
-- **"Venus, seleccioná la sesión del disco"** → solo gira la perilla (también sirven
-  "elegí / cambiá a / pasá a la sesión..."). Sin sesión elegida, "Venus escribí" no
+- **"seleccioná la sesión del disco"** → solo gira la perilla (también sirven
+  "elegí / cambiá a / pasá a la sesión..."). Sin sesión elegida, "escribí" no
   adivina: te dice cómo elegir una.
-- **"Venus, escribí: hola qué tal"** o **"Venus, escribí"** (y dictás después) → trae
+- **"escribí: hola qué tal"** o **"escribí"** (y dictás después) → trae
   al frente la ventana de la sesión elegida y pega ahí.
-- **"Venus, escribí en la sesión del tango: hola"** → el combo: elige Y escribe en una
+- **"escribí en la sesión del tango: hola"** → el combo: elige Y escribe en una
   sola frase.
 
-Y el remate del flujo: **"Venus, enter"** aprieta Enter **donde esté el cursor en ese
+Y el remate del flujo: **"enter"** aprieta Enter **donde esté el cursor en ese
 momento** — sin tocar ninguna ventana. Es para cuando ya dictaste, revisaste el texto en
 pantalla, y solo falta la tecla. A propósito NO va a la sesión elegida: te movería el
 foco justo cuando estás trabajando. También valen "dale enter" y "apretá enter"; la
@@ -747,7 +826,7 @@ frase tiene que SER eso — "el enter del teclado" no manda nada.
 
 ⚠ Reglas de seguridad, en orden de importancia:
 - **Pega pero NO manda... salvo que VOS digas "enter" al final**: *"escribí: dale para
-  adelante, enter"* pega Y manda. La palabra dicha es tu firma — no es Venus mandando
+  adelante, enter"* pega Y manda. La palabra dicha es tu firma — no es la voz mandando
   sola, sos vos autorizando en la misma frase. Solo la palabra "enter" al FINAL (no
   "entre", que es castellano común; "la tecla enter del teclado" en el medio no manda),
   y "enter" solo, sin texto adelante, no hace nada. Vale también para F9.
@@ -944,7 +1023,7 @@ generan los demás: la primera palabra pasó de **10,3 s a ~1,7 s** en una respu
 sin tocar la calidad de la voz. Los trozos crecen 10 % cada uno — ver el aviso en `CLAUDE.md`
 sobre por qué ese número no se toca sin volver a medir.
 
-Sigue pendiente medir el LLM por separado (Gemini para Venus, Claude para Laura) para saber
+Sigue pendiente medir el LLM por separado (Gemini para Claude para Laura) para saber
 cuánto de la respuesta total es el modelo pensando.
 
 ### Otros gotchas que costaron sangre
@@ -952,7 +1031,7 @@ cuánto de la respuesta total es el modelo pensando.
 - ⚠ El system prompt de Laura **no puede tener `\n`** al pasar por el `.CMD` de Windows (rompía `--resume` silenciosamente). Se aplana con regex en `claude_voz.py`.
 - ⚠ Usar `dontAsk`, **no** `bypassPermissions` (rompe `--resume`). Sin herramienta `Task` (pisaba el session_id).
 - ⚠ Para interrumpir a Laura: `control_request` tipo `interrupt` por stdin (requiere CLI ≥ 2.1.226). **Nunca matar el proceso** — la consulta quedaba pendiente y contestaba después.
-- ⚠ Whisper con parlantes: `vad_filter=True` + descartar `no_speech_prob > 0.45`, si no alucina el propio initial_prompt ("Laura/Venus") y se autodispara. Fragmentos de wake con >2 s de antigüedad se descartan (cola de audio con YouTube de fondo).
+- ⚠ Whisper con parlantes: `vad_filter=True` + descartar `no_speech_prob > 0.45`, si no alucina el propio initial_prompt ("Laura") y se autodispara. Fragmentos de wake con >2 s de antigüedad se descartan (cola de audio con YouTube de fondo).
 
 ## Estructura de carpetas
 
